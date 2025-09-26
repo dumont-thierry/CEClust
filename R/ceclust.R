@@ -21,7 +21,7 @@
 #' @param focus `integer` ou `character` ou `NULL`. Si une colonne factor est
 #'   fournie, le clustering est appris séparément par niveau puis agrégé.
 #'
-#' @returns Une `list` avec au minimum :
+#' @return Une `list` avec au minimum :
 #' \itemize{
 #'   \item `phi` : vecteur d'appartenance (one-hot) de longueur `n*r`.
 #'   \item `params` : liste des paramètres estimés (nu, m, Sigma, etc.).
