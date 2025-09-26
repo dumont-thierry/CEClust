@@ -1,0 +1,5 @@
+export(CECclassif)
+export(CECclassifNewData)
+export(CECpredict)
+importFrom(stats,dnorm)
+importFrom(mvtnorm,dmvnorm)
