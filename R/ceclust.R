@@ -613,6 +613,7 @@ CECpredict				<- function(Zpred,params,idColToPred)
 
 
 # calcul temps écoulé et à venir 
+#' @keywords internal
 remainingTime <- function(T,indice,nbIndices)
 {
 	deltaT = difftime(Sys.time(),T,units="mins")
@@ -621,22 +622,26 @@ remainingTime <- function(T,indice,nbIndices)
 	return(list(elapsed= deltaT, remaining = remaining))
 }
 
+#' @keywords internal
 vectToMat 		<- function(phi,r)
 {
 	n = length(phi)/r
 	return(matrix(phi,n,r,byrow=FALSE))
 }
 
+#' @keywords internal
 matToVect 		<- function(phiM)
 {
 	return(as.vector(phiM))
 }
 
+#' @keywords internal
 vectMatCoords 	<- function(n,r)
 {
 	return(cbind(matToVect(matrix(1:n,n,r,byrow=FALSE)),matToVect(matrix(1:r,n,r,byrow=TRUE))))						
 }
 
+#' @keywords internal
 em_mixture_mixed <- function(df, r = 2, max_iter = 100, tol = 1e-6){
   #set.seed(seed)
   n <- nrow(df)
@@ -738,7 +743,8 @@ em_mixture_mixed <- function(df, r = 2, max_iter = 100, tol = 1e-6){
   phiM2 <- phi
   return(phiM2)
 }
-
+						   
+#' @keywords internal
 phiInitR			<- function(n,r)
 {
 	phi  		<- runif(n*r)
@@ -749,7 +755,8 @@ phiInitR			<- function(n,r)
 	phi 		<- matToVect(phiM2)
 	return(phi)
 }
-
+						   
+#' @keywords internal
 phiInit			<- function(n,r,Z = NULL)
 {
 	if(is.null(Z))
@@ -764,7 +771,8 @@ phiInit			<- function(n,r,Z = NULL)
 
 	return(phi)
 }
-
+						   
+#' @keywords internal
 phiToNu 		<- function(phi,lambda,C,r,isPhiAlreadyMat = FALSE)
 {
 	if(!isPhiAlreadyMat)
@@ -772,7 +780,8 @@ phiToNu 		<- function(phi,lambda,C,r,isPhiAlreadyMat = FALSE)
 		
 	return(apply(phi,2,sum)/(dim(phi)[1]))
 }	
-
+						   
+#' @keywords internal
 CECdens	 		<- function(Z,param,lambda=1,applyLog=FALSE)
 {
 	familyType <- param$familyType
@@ -782,6 +791,8 @@ CECdens	 		<- function(Z,param,lambda=1,applyLog=FALSE)
 	
 }
 
+						   
+#' @keywords internal
 optPhi			<- function(Z,param,lambda=1)
 {
 	n 				<- length(Z)
@@ -805,7 +816,7 @@ optPhi			<- function(Z,param,lambda=1)
 {
 	# gaussUniv
 	{
-				
+		#' @keywords internal
 		phiToMean 		<- function(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi =NULL)
 		{
 			if(!isPhiAlreadyMat)
@@ -818,7 +829,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return(apply(Z*phi,2,sum)/(n*nuPhi))
 		}
-	 
+		
+		#' @keywords internal
 		phiToVar 		<- function(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi =NULL,mPhi=NULL)
 		{
 			if(!isPhiAlreadyMat)
@@ -832,7 +844,8 @@ optPhi			<- function(Z,param,lambda=1)
 			 
 			return(msquarePhi - mPhi^2)
 		}
-					
+		
+		#' @keywords internal		
 		dens_gaussUniv 				<-  function(Z,param,lambda=1,applyLog=FALSE)
 		{
 			states <- param$states
@@ -861,6 +874,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 		
+		#' @keywords internal
 		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1)
 		{
 			nr 		<- length(phi)
@@ -891,6 +905,7 @@ optPhi			<- function(Z,param,lambda=1)
 			return(params)
 		}
 		
+		#' @keywords internal
 		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1)
 		{
 			nr 		<- length(phi)
@@ -923,7 +938,7 @@ optPhi			<- function(Z,param,lambda=1)
 			return(params)
 		}
 
-		 
+		#' @keywords internal
 		evalCompositeEntropy_gaussUniv	<-function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
 		{
 			n 		<- length(Z)
@@ -957,6 +972,7 @@ optPhi			<- function(Z,param,lambda=1)
 
 	# gaussVector
 	{
+		#' @keywords internal
 		weighted_cov <- function(res, w) {
 		  # Normaliser les poids
 		  w <- w / sum(w)
@@ -972,7 +988,8 @@ optPhi			<- function(Z,param,lambda=1)
 		  
 		  return(cov_w)
 		}
-										
+
+		#' @keywords internal
 		adjust_covariance 				<- function(res, sigmaZmin,w=NULL,sizeMinSigmaComp=3)
 		{
 		 
@@ -1095,7 +1112,8 @@ optPhi			<- function(Z,param,lambda=1)
 		  
 		  return(list(Sigma_corrected=Sigma_corrected,boundReached=boundReached))
 		}
-	
+
+		#' @keywords internal
 		phiToMeanVec 					<- function(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi =NULL)
 		{
 			if(!isPhiAlreadyMat)
@@ -1108,7 +1126,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return( t(phi)%*%Z /(n*nuPhi))
 		}
-	 
+
+		#' @keywords internal
 		phiToCovMat 					<- function(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi =NULL,mPhi=NULL)
 		{
 			if(!isPhiAlreadyMat)
@@ -1129,7 +1148,8 @@ optPhi			<- function(Z,param,lambda=1)
 			}
 			return(Sigma)
 		}
-						
+
+		#' @keywords internal
 		dens_gaussVector 				<-  function(Z,param,lambda=1,applyLog=FALSE)
 		{
 			if(!is.matrix(Z))
@@ -1164,7 +1184,8 @@ optPhi			<- function(Z,param,lambda=1)
 			return(S)
 			
 		}
-		
+
+		#' @keywords internal
 		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
 		{
 			if(!is.matrix(Z))
@@ -1296,7 +1317,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return(params)
 		}
-		
+
+		#' @keywords internal
 		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
 		{
 			if(!is.matrix(Z))
@@ -1354,7 +1376,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return(params)
 		}
-		
+
+		#' @keywords internal
 		evalCompositeEntropy_gaussVector 	<- function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
 		{	
 			if(!is.matrix(Z))
@@ -1395,6 +1418,7 @@ optPhi			<- function(Z,param,lambda=1)
 	
 	# discreteVector
 	{
+		#' @keywords internal
 		dens_discreteVector 				<- function(Z,param,lambda=1,applyLog=FALSE)
 		{
 			
@@ -1455,7 +1479,8 @@ optPhi			<- function(Z,param,lambda=1)
 			return(S)
 			
 		}
-		
+
+		#' @keywords internal
 		optParam_discreteVector 			<- function(Z,phi,lambda=1,C=1)
 		{
 			 
@@ -1551,7 +1576,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return(params)
 		}
-		
+
+		#' @keywords internal
 		evalCompositeEntropy_discreteVector 	<- function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
 		{	
 			if(!is.data.frame(Z))
@@ -1610,6 +1636,7 @@ optPhi			<- function(Z,param,lambda=1)
 
 	# gaussAndDiscreteVector
 	{
+		#' @keywords internal
 		dens_gaussAndDiscreteVector 		<-  function(Z,param,lambda=1,applyLog=FALSE)
 		{
 			 
@@ -1660,7 +1687,8 @@ optPhi			<- function(Z,param,lambda=1)
 			return(S)
 			
 		}
-	
+
+		#' @keywords internal
 		optParam_gaussAndDiscreteVector		<- function(Z,phi,lambda=1,C=1)
 		{
 			  
@@ -1715,7 +1743,8 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			return(params)
 		}
-		
+
+		#' @keywords internal
 		evalCompositeEntropy_gaussAndDiscreteVector 	<- function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
 		{	
 			if(!is.data.frame(Z))
@@ -1753,19 +1782,22 @@ optPhi			<- function(Z,param,lambda=1)
 		
 	}
 }
-
+						   
+#' @keywords internal
 optParam 		<- function(Z,phi,lambda=1,C=1,familyType ="gaussAndDiscreteVector")
 {		
 	eval(parse(text = paste0("params <- optParam_",familyType,"(Z=Z,phi=phi,lambda=lambda,C=C)")))
 	return(params)	
 }
 
+#' @keywords internal
 evalCompositeEntropy <- function(phi ,Z,lambda,C,familyType="gaussAndDiscreteVector")
 {
 	eval(parse(text = paste0("H <- evalCompositeEntropy_",familyType,"(phi =phi,Z=Z,lambda=lambda,C=C)")))
 	return(H)
 }
-	
+
+#' @keywords internal
 CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,familyType="gaussAndDiscreteVector",displayPlotEntropy = FALSE)
 {
 	n <- length(Z)
