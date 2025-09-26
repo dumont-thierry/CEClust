@@ -1,8 +1,10 @@
 Package: CEClust
 Type: Package
 Title: Composite Entropy Clustering (CEC) for Mixed Data
-Version: 0.1.0
-Authors@R: c(person(given = "Thierry", family = "Dumont", role = c("aut","cre")))
+Version: 0.1.1
+Authors@R: c(
+    person(given = "Thierry", family = "Dumont", email = "tdumont@parisnanterre.fr", role = c("aut","cre"))
+)
 Description: Unsupervised clustering using Composite Entropy for numeric and categorical data.
 License: MIT + file LICENSE
 Encoding: UTF-8
