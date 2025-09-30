@@ -875,25 +875,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 		
-		#' @keywords internal
-		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1)
-		{
-			nr 		<- length(phi)
-			n 		<- length(Z)
-			r 		<- nr/n
-			
-			nu 		<- phiToNu(phi,lambda,C,r,isPhiAlreadyMat = FALSE)
-			
-			statesToKeep 	<- which(nu>0) 
-			if(length(statesToKeep)<r)
-			{
-				
-				indToKeep <- which(rep(1:r,each=n) %in%statesToKeep)
-				phi <- phi[indToKeep]
-				r 	<- length(statesToKeep)
-				nu 	<- nu[statesToKeep]
-			}
-				
+		#' @keywords internal				
 			states 	<- 1:r
 			m 		<- phiToMean(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu)
 			s		<- sqrt(phiToVar(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu,mPhi=m))
@@ -1186,32 +1168,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 
-		#' @keywords internal
-		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
-		{
-			if(!is.matrix(Z))
-				Z <- as.matrix(Z)
-			
-			n 		<- dim(Z)[1]
-			l 		<- dim(Z)[2]
-			
-			nr 		<- length(phi)
-		
-			r 		<- nr/n
-				
-			
-			nu 		<- phiToNu(phi=phi,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE)
-			
-			statesToKeep 	<- which(nu>0) 
-			if(length(statesToKeep)<r)
-			{
-				
-				indToKeep <- which(rep(1:r,each=n) %in%statesToKeep)
-				phi <- phi[indToKeep]
-				r 	<- length(statesToKeep)
-				nu 	<- nu[statesToKeep]
-			}
-			
+		#' @keywords internal			
 		
 			states 	<- 1:r
 			
@@ -1860,7 +1817,4 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 	Hphi 	<- evalCompositeEntropy(phi=phi,Z=Z,lambda=lambda,C=C,familyType=params$familyType)
 	return(list(phi=phi,params=params,Hphi=Hphi))
 }
-
-
-library(stats)
 library(mvtnorm)
