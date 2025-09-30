@@ -1,5 +1,5 @@
 export(CECclassif)
 export(CECclassifNewData)
 export(CECpredict)
-importFrom(stats,dnorm)
+importFrom(stats,dnorm,runif,rnorm,cov2cor)
 importFrom(mvtnorm,dmvnorm)
