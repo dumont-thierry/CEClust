@@ -64,7 +64,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 			{
 				fac_f 			<- focus_fac[f]
 				pos_f 			<- which(Z[,focus]==fac_f)
-				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,displayPlotEntropy = displayPlotEntropy,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL)
+				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL)
 				NU[f]			<- length(pos_f)
 				R[f] 			<- length(results[[f]]$params$states)
 				H[f] 			<- results[[f]]$Hphi	
@@ -315,6 +315,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 	return(bestClassif)
 	
 }
+
 
 #' Affectation de nouveaux individus à des clusters existants
 #'
