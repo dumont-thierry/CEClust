@@ -874,19 +874,7 @@ optPhi			<- function(Z,param,lambda=1)
 			return(S)
 			
 		}
-		
-		#' @keywords internal				
-			states 	<- 1:r
-			m 		<- phiToMean(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu)
-			s		<- sqrt(phiToVar(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu,mPhi=m))
-			
-			functionBoundReached <- which(s<1/(sqrt(2*pi)*C^lambda))
-			s[functionBoundReached] =  1/(sqrt(2*pi)*C^lambda) 
-			
-			params	<- list(states=states,nu=nu,m=m,s=s,lambda=lambda,C=C,familyType ="gaussUniv",functionBoundReached=functionBoundReached)
-			
-			return(params)
-		}
+		 
 		
 		#' @keywords internal
 		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1)
@@ -1168,114 +1156,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 
-		#' @keywords internal			
-		
-			states 	<- 1:r
-			
-			
-			
-			m 		<- phiToMeanVec(phi=phi,Z=Z,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE,nuPhi = nu)
-			
-			
-		
-			
-			Sigma	<- phiToCovMat(phi=phi,Z=Z,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE,nuPhi = nu,mPhi=m)
-			
-			bound_s <- 1/(sqrt(2*pi)*C^(lambda/l))
-			
-			
-			functionBoundReached <-  c()
-			
-			for(i in 1:r)
-			{
-				Sigma_i 	<- Sigma[[i]]
-				
-				eigen_decomp <- eigen(Sigma_i)
-
-				# Valeurs propres 
-				eigenvalues <- eigen_decomp$values
-				eigenvalues <- abs(eigenvalues)
-				s_i 		<- sqrt(eigenvalues)
-				
-				if(prod(s_i)<bound_s^l)
-				{
-					functionBoundReached <- c(functionBoundReached,i)
-					
-					if(TRUE)
-					{
-						for(j in 1:l)
-						{
-							if(prod(eigenvalues[1:j])<bound_s^(2*j))
-								if(j>1)
-								{
-									eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									
-									increaseEigenValue = which(eigenvalues[1:(j-1)]<eigenvalues[j])
-									if(length(increaseEigenValue)>0)
-									{
-										eigenvalues[increaseEigenValue] <- eigenvalues[j]
-									}
-									
-									eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									
-								}else{
-									eigenvalues[j] <- bound_s^2
-								}
-								 
-								
-						}
-					}
-					
-					if(FALSE)
-					{
-						positiveEigenvalue <- which(eigenvalues>0)
-						if(length(positiveEigenvalue)>0)
-						{
-							eigenvalues[eigenvalues==0] =min(c( min(eigenvalues[positiveEigenvalue])/1000, bound_s^2))
-						}else{
-							eigenvalues[eigenvalues==0] =  bound_s^2
-						}
-						
-						if(prod(eigenvalues)!=0)
-						{
-							eigenvalues = eigenvalues*(bound_s^(2*l))/(prod(eigenvalues))
-						}else{
-								
-							for(j in 1:l)
-							{
-								if(prod(eigenvalues[1:j])<bound_s^(2*j))
-									if(j>1)
-									{
-										eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									}else{
-										eigenvalues[j] <- bound_s^2
-									}
-									
-							}
-						}
-							
-					}
-					
-					
-					if(l>1)
-					{
-						D <- diag(eigenvalues)
-						eigenvectors <- eigen_decomp$vectors
-						Sigma[[i]]	<- eigenvectors %*% D %*% solve(eigenvectors)
-					}else{
-						Sigma[[i]] <- matrix(eigenvalues,1,1)
-					} 
-				}	
-
-				Sigma[[i]] = (Sigma[[i]]+t(Sigma[[i]]))/2						
-			}
-			 
-			
-			params	<- list(states=states,nu=nu,m=m,Sigma=Sigma,lambda=lambda,C=C,familyType ="gaussVector",phi=phi,functionBoundReached=functionBoundReached)
-			
-			return(params)
-		}
-
+	 
 		#' @keywords internal
 		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
 		{
@@ -1817,4 +1698,4 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 	Hphi 	<- evalCompositeEntropy(phi=phi,Z=Z,lambda=lambda,C=C,familyType=params$familyType)
 	return(list(phi=phi,params=params,Hphi=Hphi))
 }
-library(mvtnorm)
+ 
