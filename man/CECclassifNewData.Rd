@@ -10,7 +10,7 @@ CECclassifNewData(Zpred, params, idColToPred)
 \arguments{
   \item{Zpred}{\code{data.frame}/\code{matrix} de nouvelles observations (même schéma que \code{Z} à l’apprentissage, sauf colonnes à prédire).}
   \item{params}{\code{list}. Paramètres du modèle retournés par \code{\link{CECclassif}}.}
-  \item{idColToPred}{\code{integer} ou \code{character}. Indices/noms des colonnes ignorées pour l’affectation.}
+  \item{idColToPred}{\code{integer}. Indices des colonnes ignorées pour l’affectation.}
 }
 \value{
 \code{integer} vector des indices de cluster (longueur \code{nrow(Zpred)}).
@@ -29,6 +29,6 @@ lab <- factor(rep(c("A","B"), each = nnew))
 
 Znew  <- data.frame(X1 = X[,1], X2 = X[,2])
   
-pred_clusters <- CECclassifNewData(Znew, fit$params, idColToPred = "Cat")
+pred_clusters <- CECclassifNewData(Znew, fit$params, idColToPred = 3)
 pred_clusters
 }
