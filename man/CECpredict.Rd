@@ -30,7 +30,7 @@ lab <- factor(rep(c("A","B"), each = nnew))
 
 Znew  <- data.frame(X1 = X[,1], X2 = X[,2])
 
- 
-preds <- CECpredict(Znew, fit$params, idColToPred = "X2")
+preds <- CECpredict(Znew, fit$params, idColToPred =3)
 preds
+
 }
