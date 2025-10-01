@@ -591,6 +591,7 @@ CECpredict				<- function(Zpred,params,idColToPred)
 			}else{
 				m 			<- params$m
 				predNum 	<- as.data.frame(matrix(NA,dim(Zpred)[1],length(colNumMissing)))
+				for(x in 1:r)
 				{
 					 
 					mx  		<- m[x,]
