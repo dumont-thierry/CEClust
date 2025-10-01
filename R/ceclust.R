@@ -1,31 +1,31 @@
-#' Clustering par Entropie Composite sur données mixtes
+#' Composite Entropy Clustering for mixed data
 #'
 #' @description
-#' Apprend un modèle de mélange (gaussien pour les variables numériques
-#' et multinomial pour les variables catégorielles) et renvoie
-#' l’assignation de cluster ainsi que les paramètres estimés.
+#' Fits a mixture model (Gaussian for numeric variables
+#' and multinomial for categorical variables) and returns
+#' the cluster assignment together with the estimated parameters.
 #'
-#' @param Z data.frame ou matrix d'observations (colonnes = variables).
-#' @param lambda numeric (>0). Paramètre d’entropie composite.
-#' @param C numeric (>0). Constante de borne.
-#' @param r0 integer ou NULL. Nombre de classes initial si fourni.
-#' @param Nshots integer. Nombre de redémarrages aléatoires (multi-start).
-#' @param Nloop integer. Nombre maximal d’itérations internes par redémarrage.
-#' @param familyType character. Famille cible ("gaussAndDiscreteVector", etc.).
-#' @param sizeMaxOutlier integer. Seuil (taille min) d’un groupe considéré
-#'   outlier à regrouper (si > 0).
-#' @param autoRegroupOutliers logical. Regroupement auto des petits groupes.
-#' @param displayRemainingTime logical. Affiche le temps estimé.
-#' @param focus integer, character ou NULL. Si une colonne factor est fournie,
-#'   le clustering est appris séparément par niveau puis agrégé.
+#' @param Z data.frame or matrix of observations (columns = variables).
+#' @param lambda numeric (>0). Composite entropy parameter.
+#' @param C numeric (>0). Bounding constant to stabilize densities.
+#' @param r0 integer or NULL. Initial number of clusters if provided.
+#' @param Nshots integer. Number of random restarts (multi-start).
+#' @param Nloop integer. Maximum number of internal iterations per restart.
+#' @param familyType character. Target family ("gaussAndDiscreteVector", etc.).
+#' @param sizeMaxOutlier integer. Threshold (minimum size) for a group to be
+#'   considered an outlier to be regrouped (if > 0).
+#' @param autoRegroupOutliers logical. Whether to automatically regroup small clusters.
+#' @param displayRemainingTime logical. Display estimated remaining computation time.
+#' @param focus integer, character or NULL. If a factor column is provided,
+#'   clustering is performed separately by level and then aggregated.
 #'
-#' @return Une list avec au minimum :
+#' @return A list containing at least:
 #' \itemize{
-#'   \item phi : vecteur d'appartenance (one-hot) de longueur n*r.
-#'   \item params : liste des paramètres estimés (nu, m, Sigma, etc.).
-#'   \item Hphi : valeur de l’objectif (entropie composite).
-#'   \item clusters : vecteur des clusters prédits (longueur n).
-#'   \item REO : nombre final de classes retenues.
+#'   \item phi : one-hot membership vector of length n*r.
+#'   \item params : list of estimated parameters (nu, m, Sigma, etc.).
+#'   \item Hphi : value of the objective (composite entropy).
+#'   \item clusters : predicted cluster labels (length n).
+#'   \item REO : final number of retained clusters.
 #' }
 #'
 #' @seealso [CECclassifNewData()], [CECpredict()]
@@ -33,11 +33,11 @@
 #' @examples
 #' set.seed(123)
 #' n <- 100
-#' # Deux clusters gaussiens sur 2 variables
+#' # Two Gaussian clusters on 2 variables
 #' x1 <- rnorm(n, 0, 1); x2 <- rnorm(n, 0, 1)
 #' x3 <- rnorm(n, 3, 1); x4 <- rnorm(n, 3, 1)
 #' X  <- rbind(cbind(x1, x2), cbind(x3, x4))
-#' # Une variable catégorielle corrélée au cluster
+#' # A categorical variable correlated with the cluster
 #' lab <- factor(rep(c("A","B"), each = n))
 #' Z   <- data.frame(X1 = X[,1], X2 = X[,2], Cat = lab)
 #'
@@ -45,7 +45,6 @@
 #' table(fit$clusters, lab)
 #'
 #' @export
-
 
 CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL)
 {
@@ -316,31 +315,31 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 }
 
 
-#' Affectation de nouveaux individus à des clusters existants
+#' Assignment of new individuals to existing clusters
 #'
 #' @description
-#' À partir d’un objet `params` appris par [CECclassif()],
-#' assigne à chaque ligne de `Zpred` le cluster le plus probable.
+#' Given a `params` object learned by [CECclassif()],
+#' assigns each row of `Zpred` to the most likely cluster.
 #'
-#' @param Zpred data.frame ou matrix de nouvelles observations
-#'   (même schéma que `Z` à l’apprentissage, sauf colonnes à prédire).
-#' @param params list. Paramètres du modèle retournés par [CECclassif()].
-#' @param idColToPred integer. Indices des colonnes ignorées pour l’affectation,
-#'   non contenues dans Zpred.
+#' @param Zpred data.frame or matrix of new observations
+#'   (same structure as `Z` used for training, except for columns to predict).
+#' @param params list. Model parameters returned by [CECclassif()].
+#' @param idColToPred integer. Indices of columns ignored for assignment,
+#'   not included in Zpred.
 #'
-#' @return Un vecteur integer des indices de cluster
-#'   (longueur `nrow(Zpred)`).
+#' @return An integer vector of cluster indices
+#'   (length `nrow(Zpred)`).
 #'
 #' @seealso [CECclassif()], [CECpredict()]
 #'
 #' @examples
-#' # suite de l'exemple de CECclassif()
+#' # continuation of the CECclassif() example
 #' nnew <- 10
-#' # Deux clusters gaussiens sur 2 variables
+#' # Two Gaussian clusters on 2 variables
 #' x1 <- rnorm(nnew, 0, 1); x2 <- rnorm(nnew, 0, 1)
 #' x3 <- rnorm(nnew, 3, 1); x4 <- rnorm(nnew, 3, 1)
 #' X  <- rbind(cbind(x1, x2), cbind(x3, x4))
-#' # Une variable catégorielle corrélée au cluster
+#' # A categorical variable correlated with the cluster
 #' lab <- factor(rep(c("A","B"), each = nnew))
 #'
 #' Znew <- data.frame(X1 = X[,1], X2 = X[,2])
@@ -348,6 +347,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 #' pred_clusters
 #'
 #' @export
+
 
 CECclassifNewData 		<- function(Zpred,params,idColToPred=c())
 {
@@ -431,23 +431,22 @@ CECclassifNewData 		<- function(Zpred,params,idColToPred=c())
 	}
 
 }
-
-#' Prédiction de colonnes manquantes conditionnellement au cluster
+#' Prediction of missing columns conditional on the cluster
 #'
 #' @description
-#' À partir des paramètres \code{params} appris par \code{\link{CECclassif}},
-#' prédit les valeurs des colonnes \code{idColToPred} pour \code{Zpred}.
-#' Les colonnes factor sont prédites par l'argmax des probabilités discrètes,
-#' et les colonnes numériques via la moyenne conditionnelle gaussienne.
+#' Using the model parameters \code{params} learned by \code{\link{CECclassif}},
+#' predicts the values of the columns \code{idColToPred} for \code{Zpred}.
+#' Factor columns are predicted by the argmax of discrete probabilities,
+#' and numeric columns by the Gaussian conditional mean.
 #'
-#' @param Zpred \code{data.frame} ou \code{matrix} de nouvelles observations.
-#' @param params \code{list}. Paramètres du modèle retournés par \code{\link{CECclassif}}.
-#' @param idColToPred \code{integer} ou \code{character}. Indices ou noms des
-#'   colonnes à prédire.
+#' @param Zpred \code{data.frame} or \code{matrix} of new observations.
+#' @param params \code{list}. Model parameters returned by \code{\link{CECclassif}}.
+#' @param idColToPred \code{integer} or \code{character}. Indices or names of
+#'   the columns to be predicted.
 #'
 #' @return
-#' Un \code{data.frame} de taille \code{nrow(Zpred) * length(idColToPred)}
-#' contenant les valeurs prédites (facteurs et/ou numériques).
+#' A \code{data.frame} of size \code{nrow(Zpred) * length(idColToPred)}
+#' containing the predicted values (factors and/or numerics).
 #'
 #' @seealso \code{\link{CECclassif}}, \code{\link{CECclassifNewData}}
 #'
@@ -455,7 +454,7 @@ CECclassifNewData 		<- function(Zpred,params,idColToPred=c())
 #' \donttest{
 #' set.seed(123)
 #' n <- 100
-#' # Deux clusters gaussiens sur 2 variables
+#' # Two Gaussian clusters on 2 variables
 #' x1 <- rnorm(n, 0, 1); x2 <- rnorm(n, 0, 1)
 #' x3 <- rnorm(n, 3, 1); x4 <- rnorm(n, 3, 1)
 #' X  <- rbind(cbind(x1, x2), cbind(x3, x4))
@@ -464,17 +463,16 @@ CECclassifNewData 		<- function(Zpred,params,idColToPred=c())
 #'
 #' fit <- CECclassif(Z, Nshots = 50, Nloop = 200)
 #'
-#' # Prédire la colonne factor 'Cat' (en la retirant de Zpred)
+#' # Predict the factor column 'Cat' (by removing it from Zpred)
 #' Znew <- Z[, c("X1","X2")]
 #' preds_cat <- CECpredict(Znew, fit$params, idColToPred = "Cat")
 #'
-#' # Prédire une variable numérique manquante
+#' # Predict a missing numeric variable
 #' Znew <- Z[, c("X2","Cat")]
 #' preds_x1 <- CECpredict(Znew, fit$params, idColToPred = "X1")
 #' }
 #'
 #' @export
-
 
 CECpredict				<- function(Zpred,params,idColToPred)
 {
