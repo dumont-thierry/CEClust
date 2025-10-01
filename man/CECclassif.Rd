@@ -10,10 +10,9 @@ CECclassif(Z, lambda = 1, C = 1, r0 = NULL, Nshots = 100, Nloop = 1000,
            autoRegroupOutliers = FALSE, displayRemainingTime = FALSE, focus = NULL)
 }
 \arguments{
-  \item{Z}{\code{data.frame} ou \code{matrix} d'observations (colonnes = variables).
-  Les colonnes numériques sont traitées via une densité gaussienne, les colonnes factor via des probabilités discrètes.}
+  \item{Z}{\code{data.frame} ou \code{matrix} d'observations (colonnes = variables).}
   \item{lambda}{\code{numeric} (>0). Paramètre d’entropie composite.}
-  \item{C}{\code{numeric} (>0). Constante de borne pour stabiliser les densités.}
+  \item{C}{\code{numeric} (>0). Constante de borne.}
   \item{r0}{\code{integer} ou \code{NULL}. Nombre de classes initial si fourni.}
   \item{Nshots}{\code{integer}. Nombre de redémarrages aléatoires (multi-start).}
   \item{Nloop}{\code{integer}. Max itérations internes par redémarrage.}
