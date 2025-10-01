@@ -43,6 +43,6 @@ X  <- rbind(cbind(x1, x2), cbind(x3, x4))
 lab <- factor(rep(c("A","B"), each = n))
 Z   <- data.frame(X1 = X[,1], X2 = X[,2], Cat = lab)
 
-fit <- CECclassif(Z, Nshots = 10, Nloop = 200)
+fit <- CECclassif(Z, Nshots = 100)
 table(fit$clusters, lab)
 }
