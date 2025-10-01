@@ -343,7 +343,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 #'
 #' @export
 
-CECclassifNewData 		<- function(Zpred,params,idColToPred)
+CECclassifNewData 		<- function(Zpred,params,idColToPred=c())
 {
 	if(params$familyType	== "gaussAndDiscreteVector")
 	{ 
