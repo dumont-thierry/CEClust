@@ -459,12 +459,18 @@ CECpredict				<- function(Zpred,params,idColToPred)
 		r 			<-  length(params$states)
 		colFactor	<- 	params$colFactor 
 		colNum		<- 	params$colNum
+
+		nameColFactor <- names(colFactor)
+		nameColNum <- names(colNum)
+
 		
 		lambda 		<- params$lambda
 		
 		colFactorMissing		<- which(colFactor%in%idColToPred)
 		colNumMissing 			<- which(colNum%in%idColToPred)
-	
+		nameColFactorMissing 	<- nameColFactor[colFactorMissing]
+		nameColNumMissing 		<- nameColNum[colNumMissing]
+
 		paramsPred 				<- params
 		
 		paramsPred$m  			<- params$m[,-colNumMissing,drop=FALSE]
@@ -536,7 +542,7 @@ CECpredict				<- function(Zpred,params,idColToPred)
 			
 			
 			ZpredVals[,which(idColToPred%in%colFactor)] <- predFact
-			
+			names(ZpredVals)[which(idColToPred%in%colFactor)] <- nameColFactorMissing
 		}
 		
 		
@@ -554,6 +560,7 @@ CECpredict				<- function(Zpred,params,idColToPred)
 				# P'(z3) =  2(z_3 - m_3) Sigma^(-1)_{3,3} + 2 sum_i (z_i - m_i) Sigma^(-1)_{i,3}
 				# P'(z3) = 0 ssi z_3 = m_3 - 1/( Sigma^(-1)_{3,3} ) sum_i (z_i - m_i) Sigma^(-1)_{i,3}
 				# z_3 = m_3  - 1/( Sigma^(-1)_{3,3} )  Sigma^(-1)_{pred,3} (zpred- mpred)
+				
 				m 			<- params$m
 				
 				predNum 	<- as.data.frame(matrix(NA,dim(Zpred)[1],length(colNumMissing)))
@@ -602,6 +609,9 @@ CECpredict				<- function(Zpred,params,idColToPred)
 			
 			}
 			ZpredVals[,which(idColToPred%in%colNum)] <- predNum
+
+			
+			names(ZpredVals)[which(idColToPred%in%colNum)] <- nameColNumMissing
 		
 		}
 		
