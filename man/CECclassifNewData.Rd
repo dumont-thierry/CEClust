@@ -18,8 +18,17 @@ CECclassifNewData(Zpred, params, idColToPred)
 \seealso{\code{\link{CECclassif}}, \code{\link{CECpredict}}}
 \examples{
 # suite de l'exemple de \code{CECclassif()}
-Znew <- Z[1:5, ]
-Znew$Cat <- factor(NA, levels = levels(Z$Cat))
+
+nnew <- 10
+# Deux clusters gaussiens sur 2 variables
+x1 <- rnorm(nnew, 0, 1); x2 <- rnorm(nnew, 0, 1)
+x3 <- rnorm(nnew, 3, 1); x4 <- rnorm(nnew, 3, 1)
+X  <- rbind(cbind(x1, x2), cbind(x3, x4))
+# Une variable catégorielle corrélée au cluster
+lab <- factor(rep(c("A","B"), each = nnew))
+
+Znew  <- data.frame(X1 = X[,1], X2 = X[,2])
+  
 pred_clusters <- CECclassifNewData(Znew, fit$params, idColToPred = "Cat")
 pred_clusters
 }
