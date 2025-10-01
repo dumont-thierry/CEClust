@@ -28,7 +28,30 @@ X  <- rbind(cbind(x1, x2), cbind(x3, x4))
 # Une variable catégorielle corrélée au cluster
 lab <- factor(rep(c("A","B"), each = nnew))
 
-Znew  <- data.frame(X1 = X[,1], X2 = X[,2])
+Ztot <- data.frame(X1 = X[,1], X2 = X[,2],Cat = lab)
+
+# prediction  Cat
+Znew  <- Ztot[,1:2]
+
+preds <- CECpredict(Znew, fit$params, idColToPred =3)
+preds
+
+
+# prediction  X1
+Znew  <- Ztot[,2:3]
+
+preds <- CECpredict(Znew, fit$params, idColToPred =1)
+preds
+
+
+# prediction  X2 et X3
+Znew  <- Ztot[,1,drop=FALSE]
+
+preds <- CECpredict(Znew, fit$params, idColToPred =c(2,3))
+preds
+
+# prediction  X1 et X2
+Znew  <- Ztot[,1:2]
 
 preds <- CECpredict(Znew, fit$params, idColToPred =3)
 preds
