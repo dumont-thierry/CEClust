@@ -1,28 +1,26 @@
 #' CEClust: Composite Entropy Clustering for mixed data
 #'
 #' @description
-#' The CEClust package provides tools for unsupervised classification
-#' of mixed-type data (numeric and categorical) based on the
-#' Composite Entropy Criterion (CEC).
+#' CEClust provides tools for unsupervised clustering of mixed-type data
+#' (numeric and categorical) using the Composite Entropy Criterion (CEC).
 #'
-#' The main exported functions are:
+#' The method fits mixtures with Gaussian components for numeric variables and
+#' multinomial components for categorical variables, optimized under a composite
+#' entropy objective. Main user functions:
+#'
 #' \itemize{
-#'   \item \code{\link{CECclassif}}: learn a clustering model from data.
-#'   \item \code{\link{CECclassifNewData}}: assign new observations
-#'         to previously estimated clusters.
-#'   \item \code{\link{CECpredict}}: predict missing columns conditionally
-#'         on the cluster assignment.
+#'   \item \code{\link{CECclassif}} — learn a clustering model from data;
+#'   \item \code{\link{CECclassifNewData}} — assign new observations to existing clusters;
+#'   \item \code{\link{CECpredict}} — predict missing columns conditionally on the cluster.
 #' }
 #'
-#' @details
-#' CEClust implements Composite Entropy Clustering, where clusters are
-#' estimated by minimizing an entropic criterion. The method can handle
-#' both continuous (Gaussian) and categorical (multinomial) variables.
+#' @section Dependencies:
+#' Imports \pkg{stats} and \pkg{mvtnorm}.
 #'
-#' @docType package
 #' @name CEClust
-#' @keywords package
+#' @aliases CEClust-package
+#' @docType package
 #'
 #' @importFrom stats dnorm runif rnorm cov2cor
 #' @importFrom mvtnorm dmvnorm
-NULL
+"_PACKAGE"
