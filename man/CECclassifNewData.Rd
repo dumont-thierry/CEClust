@@ -5,12 +5,12 @@
 À partir d’un objet \code{params} appris par \code{\link{CECclassif}}, assigne à chaque ligne de \code{Zpred} le cluster le plus probable.
 }
 \usage{
-CECclassifNewData(Zpred, params, idColToPred)
+CECclassifNewData(Zpred, params, idColToPred=c())
 }
 \arguments{
   \item{Zpred}{\code{data.frame}/\code{matrix} de nouvelles observations (même schéma que \code{Z} à l’apprentissage, sauf colonnes à prédire).}
   \item{params}{\code{list}. Paramètres du modèle retournés par \code{\link{CECclassif}}.}
-  \item{idColToPred}{\code{integer}. Indices des colonnes ignorées pour l’affectation.}
+  \item{idColToPred}{\code{integer}. Indices des colonnes ignorées pour l’affectation, non contenues dans Zpred.}
 }
 \value{
 \code{integer} vector des indices de cluster (longueur \code{nrow(Zpred)}).
