@@ -11,7 +11,7 @@ CECpredict(Zpred, params, idColToPred)
 \arguments{
   \item{Zpred}{\code{data.frame}/\code{matrix} de nouvelles observations.}
   \item{params}{\code{list}. Paramètres du modèle retournés par \code{\link{CECclassif}}.}
-  \item{idColToPred}{\code{integer} ou \code{character}. Colonnes à prédire.}
+  \item{idColToPred}{\code{integer}. Colonnes à prédire.}
 }
 \value{
 \code{data.frame} de taille \code{nrow(Zpred) \u00D7 length(idColToPred)} avec les valeurs prédites (facteurs et/ou numériques).
