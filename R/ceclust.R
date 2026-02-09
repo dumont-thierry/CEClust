@@ -485,6 +485,12 @@ CECpredict				<- function(Zpred,params,idColToPred)
 		nameColFactor <- names(colFactor)
 		nameColNum <- names(colNum)
 
+		if(is.character(idColToPred))
+		{
+			id_colFactorToPred <- colFactor[which(nameColFactor%in% idColToPred)]
+			id_colNumToPred 	<- colNum[which(nameColNum%in% idColToPred)]
+			idColToPred 		<- c(id_colNumToPred,id_colFactorToPred)
+		}
 		
 		lambda 		<- params$lambda
 		
@@ -1178,9 +1184,9 @@ optPhi			<- function(Z,param,lambda=1)
 				
 				if(applyLog)
 				{
-					S$density[1:n + (i-1)*n]<-  dmvnorm(Z,mean=m_i, sigma = Sigma_i ,log=TRUE) -log(lambda)
+					S$density[1:n + (i-1)*n]<-  mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ,log=TRUE) -log(lambda)
 				}else{
-					S$density[1:n + (i-1)*n]<- ( dmvnorm(Z,mean=m_i, sigma = Sigma_i ))^(1/lambda)
+					S$density[1:n + (i-1)*n]<- ( mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ))^(1/lambda)
 				}
 				
 			}
