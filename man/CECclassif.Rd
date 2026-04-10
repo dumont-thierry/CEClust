@@ -2,7 +2,7 @@
 % Please edit documentation in R/ceclust.R
 \name{CECclassif}
 \alias{CECclassif}
-\title{Composite Entropy Clustering for mixed data}
+\title{Fit a composite entropy clustering model for one value of lambda.}
 \usage{
 CECclassif(
   Z,
@@ -15,64 +15,75 @@ CECclassif(
   sizeMaxOutlier = 0,
   autoRegroupOutliers = FALSE,
   displayRemainingTime = FALSE,
-  focus = NULL
+  focus = NULL,
+  backend_data = NULL
 )
 }
 \arguments{
-\item{Z}{data.frame or matrix of observations (columns = variables).}
+\item{Z}{Input data. Use a numeric vector or one-column numeric object for
+one-dimensional Gaussian clustering, a numeric matrix/data frame for
+Gaussian multivariate clustering, a factor data frame for discrete data, or
+a mixed data frame for \code{"gaussAndDiscreteVector"}.}
 
-\item{lambda}{numeric (>0). Composite entropy parameter.}
+\item{lambda}{Regularisation parameter of the composite entropy criterion.}
 
-\item{C}{numeric (>0). Bounding constant to stabilize densities.}
+\item{C}{Positive tuning constant used in the criterion evaluation.}
 
-\item{r0}{integer or NULL. Initial number of clusters if provided.}
+\item{r0}{Optional upper bound for the initial number of clusters.}
 
-\item{Nshots}{integer. Number of random restarts (multi-start).}
+\item{Nshots}{Number of repeated random initialisations.}
 
-\item{Nloop}{integer. Maximum number of internal iterations per restart.}
+\item{Nloop}{Maximum number of optimisation iterations per shot.}
 
-\item{familyType}{character. Target family ("gaussAndDiscreteVector", etc.).}
+\item{familyType}{Model family. Supported values are \code{"gaussUniv"},
+\code{"gaussVector"}, \code{"discreteVector"}, and \code{"gaussAndDiscreteVector"}.}
 
-\item{sizeMaxOutlier}{integer. Threshold (minimum size) for a group to be
-considered an outlier to be regrouped (if > 0).}
+\item{sizeMaxOutlier}{Maximum outlier size used by the optional regrouping
+logic.}
 
-\item{autoRegroupOutliers}{logical. Whether to automatically regroup small clusters.}
+\item{autoRegroupOutliers}{Logical. If \code{TRUE}, small outlier groups may be
+merged automatically during fitting.}
 
-\item{displayRemainingTime}{logical. Display estimated remaining computation time.}
+\item{displayRemainingTime}{Logical. If \code{TRUE}, progress information is
+printed across shots.}
 
-\item{focus}{integer, character or NULL. If a factor column is provided,
-clustering is performed separately by level and then aggregated.}
+\item{focus}{Optional column index used by the focused workflow for factor
+conditioning.}
+
+\item{backend_data}{Optional preprocessed backend object returned internally
+by CEClust to reuse numeric/factor encodings across repeated calls.}
 }
 \value{
-A list containing at least:
+A list describing the best solution found over all shots. The main
+components are:
 \itemize{
-\item phi : one-hot membership vector of length n*r.
-\item params : list of estimated parameters (nu, m, Sigma, etc.).
-\item Hphi : value of the objective (composite entropy).
-\item clusters : predicted cluster labels (length n).
-\item REO : final number of retained clusters.
+\item \code{phi}: partition weights stored in vectorised form;
+\item \code{params}: fitted component parameters and tuning settings;
+\item \code{Hphi}: composite entropy criterion at the selected solution;
+\item \code{REO}: realised number of occupied clusters;
+\item \code{clusters}: hard cluster assignment for each observation.
 }
 }
 \description{
-Fits a mixture model (Gaussian for numeric variables
-and multinomial for categorical variables) and returns
-the cluster assignment together with the estimated parameters.
+\code{CECclassif()} is the main fixed-lambda fitting routine of the package. It
+launches several random initialisations, keeps the best solution according to
+the composite entropy criterion, and augments the returned object with a hard
+partition and the realised number of occupied clusters (\code{REO}).
 }
 \examples{
-set.seed(123)
-n <- 100
-# Two Gaussian clusters on 2 variables
-x1 <- rnorm(n, 0, 1); x2 <- rnorm(n, 0, 1)
-x3 <- rnorm(n, 3, 1); x4 <- rnorm(n, 3, 1)
-X  <- rbind(cbind(x1, x2), cbind(x3, x4))
-# A categorical variable correlated with the cluster
-lab <- factor(rep(c("A","B"), each = n))
-Z   <- data.frame(X1 = X[,1], X2 = X[,2], Cat = lab)
+CECconfigure_runtime("base")
+Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 1)
 
-fit <- CECclassif(Z, Nshots = 100)
-table(fit$clusters, lab)
+fit <- CECclassif(
+  Z = Z,
+  lambda = 0.8,
+  C = 10,
+  r0 = 6,
+  Nshots = 3,
+  Nloop = 15,
+  familyType = "gaussAndDiscreteVector"
+)
 
-}
-\seealso{
-\code{\link[=CECclassifNewData]{CECclassifNewData()}}, \code{\link[=CECpredict]{CECpredict()}}
+fit$REO
+table(fit$clusters)
 }
