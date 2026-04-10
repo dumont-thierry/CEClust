@@ -1,3 +1,16 @@
+---
+title: "CEClust"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
 # CEClust
 
 `CEClust` implements composite entropy clustering for Gaussian, categorical,
@@ -62,9 +75,9 @@ Optional packages extend the workflow:
 For a fixed `lambda`, `CECclassif()` runs several initialisations and keeps the
 best solution according to the composite entropy criterion:
 
-```text
-H = H(nu) + sum_x nu_x H(G_x | g_theta_x)
-```
+\[
+H = H(\nu) + \sum_x \nu_x H(G_x \mid g_{\theta_x})
+\]
 
 where:
 
