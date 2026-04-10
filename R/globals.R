@@ -1,0 +1,23 @@
+if (getRversion() >= "2.15.1") {
+  utils::globalVariables(
+    c(
+      "PC1",
+      "PC2",
+      "_CEClust_cec_cpp_choose_clusters",
+      "_CEClust_cec_cpp_cluster_fingerprint",
+      "_CEClust_cec_cpp_discrete_counts",
+      "_CEClust_cec_cpp_gaussian_stats",
+      "_CEClust_cec_cpp_logdens_discrete",
+      "_CEClust_cec_cpp_logdens_gaussian",
+      "_CEClust_cec_cpp_phi_from_clusters",
+      "cluster",
+      "diamonds",
+      "n",
+      "shape_value",
+      "species",
+      "value",
+      "x",
+      "y"
+    )
+  )
+}

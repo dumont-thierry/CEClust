@@ -1,19 +1,48 @@
 Package: CEClust
 Type: Package
 Title: Composite Entropy Clustering (CEC) for Mixed Data
-Version: 0.1.2
-Authors@R:
-    person(given = "Thierry", family = "Dumont",
-           email = "tdumont@parisnanterre.fr",
-           role = c("aut", "cre"))
-Description: Unsupervised clustering using Composite Entropy for numeric and categorical data.
-License: MIT + file LICENSE
+Version: 0.2.0
+Authors@R: c(
+    person(
+      given = "Thierry",
+      family = "Dumont",
+      email = "tdumont@parisnanterre.fr",
+      role = c("aut", "cre")
+    )
+  )
+Description: Fits composite entropy clustering models for Gaussian,
+    categorical, and mixed data. The package combines repeated-shot
+    clustering at a fixed regularization value with linked-lambda diagnostic
+    paths, bootstrap-based stability summaries, trajectory repair helpers,
+    and visualization tools for interpreting how partitions evolve across the
+    regularization grid. An optional compiled backend is used automatically
+    when available.
+License: file LICENSE
 Encoding: UTF-8
-Depends: R (>= 3.6)
+Depends:
+    R (>= 4.3.0)
 Imports:
-    stats,
-    mvtnorm
+    clue,
+    graphics,
+    grDevices,
+    grid,
+    mvtnorm,
+    parallel,
+    Rcpp
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    ggplot2,
+    knitr,
+    pkgload,
+    rmarkdown,
+    shiny,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+ByteCompile: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
 URL: https://github.com/dumont-thierry/CEClust
 BugReports: https://github.com/dumont-thierry/CEClust/issues
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+Config/testthat/edition: 3

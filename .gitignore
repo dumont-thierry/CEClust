@@ -1,0 +1,6 @@
+.Rhistory
+.Rproj.user
+*.tar.gz
+src/*.dll
+src/*.o
+src/*.so

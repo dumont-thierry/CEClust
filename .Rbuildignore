@@ -1,0 +1,6 @@
+^README\.md$
+^\.gitignore$
+^README\.Rmd$
+^README_files$
+^\.Rhistory$
+^src/.*\.(o|so|dll)$
