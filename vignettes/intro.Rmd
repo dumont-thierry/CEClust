@@ -178,7 +178,7 @@ best_parts_repaired$converged
 
 The simplest overview is the lambda-grid diagnostic plot:
 
-```{r}
+```{r lambda-grid-plot, fig.width=9, fig.height=7}
 plotCECdiagnoseLambdaGrid(lambda_diag)
 ```
 
