@@ -57,6 +57,7 @@ Z <- simulate_multidim_benchmark_data(
   n = 120,
   p_num = 3,
   p_fac = 2,
+  K = 3,
   seed = 1
 )
 
@@ -92,11 +93,11 @@ The main workflow follows linked paths over a grid of `lambda` values:
 ```{r}
 lambda_diag <- CECdiagnose_lambda_grid_linked(
   Z = Z,
-  lambda_grid = seq(0.2, 1.0, by = 0.2),
-  k0 = 3,
-  B = 3,
+  lambda_grid = seq(0.1, 2.0, by = 0.2),
+  k0 = 10,
+  B = 10,
   C = 10,
-  r0 = 6,
+  r0 = 10,
   Nshots_fresh = 1,
   Nshots_warm = 1,
   Nloop = 15,
@@ -128,7 +129,8 @@ lambda_diag <- CECaddSmoothedDiagnostics(lambda_diag, k = 3)
 stable <- CECidentifyStableLambdas(
   lambda_diag,
   rule = "ratio",
-  ratio_threshold = 0.8,
+  ratio_threshold = 0.8, 
+  stabB_threshold = 0.8,
   min_consecutive = 1
 )
 
@@ -191,14 +193,14 @@ Z_iris <- iris[, -5]
 
 diag_iris <- CECdiagnose_lambda_grid_linked(
   Z = Z_iris,
-  lambda_grid = seq(0.2, 0.6, by = 0.2),
-  k0 = 2,
-  B = 1,
+  lambda_grid = seq(0.01, 2, by = 0.1),
+  k0 = 10,
+  B = 10,
   C = 10,
-  r0 = 4,
-  Nshots_fresh = 1,
-  Nshots_warm = 1,
-  Nloop = 12,
+  r0 = 20,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 20,
   familyType = "gaussVector",
   seed = 1,
   silent = TRUE,
