@@ -274,7 +274,7 @@ PCA-based trajectory display for multivariate numeric data:
 ```r
 diag_iris <- CECdiagnose_lambda_grid_linked(
   iris[, -5],
-  lambda_grid = seq(0.2, 0.6, by = 0.2),
+  lambda_grid = seq(0.01, 0.8, by = 0.1),
   k0 = 3,
   B = 2,
   C = 10,
