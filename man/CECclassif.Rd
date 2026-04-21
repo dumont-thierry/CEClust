@@ -27,7 +27,8 @@ a mixed data frame for \code{"gaussAndDiscreteVector"}.}
 
 \item{lambda}{Regularisation parameter of the composite entropy criterion.}
 
-\item{C}{Positive tuning constant used in the criterion evaluation.}
+\item{C}{Positive upper bound for fitted component densities; independent
+of \code{lambda}.}
 
 \item{r0}{Optional upper bound for the initial number of clusters.}
 

@@ -125,13 +125,13 @@ Rcpp::List cec_cpp_gaussian_stats(const arma::mat& X, const IntegerVector& clust
 
 // [[Rcpp::export]]
 arma::mat cec_cpp_logdens_gaussian(const arma::mat& X, const arma::mat& means, const List& sigma_list, double lambda) {
+  (void)lambda;
   const int n = X.n_rows;
   const int p = X.n_cols;
   const int r = means.n_rows;
 
   arma::mat out(n, r, arma::fill::zeros);
   const double log2pi = std::log(2.0 * M_PI);
-  const double lambda_term = std::log(lambda);
 
   for (int k = 0; k < r; ++k) {
     arma::mat Sigma = as<arma::mat>(sigma_list[k]);
@@ -140,7 +140,7 @@ arma::mat cec_cpp_logdens_gaussian(const arma::mat& X, const arma::mat& means, c
     arma::mat centered = X.each_row() - means.row(k);
     arma::mat solved = arma::solve(arma::trimatl(L), centered.t());
     arma::rowvec quad = arma::sum(arma::square(solved), 0);
-    out.col(k) = (-0.5 * (p * log2pi + logdet) - 0.5 * quad.t()) - lambda_term;
+    out.col(k) = -0.5 * (p * log2pi + logdet) - 0.5 * quad.t();
   }
 
   return out;

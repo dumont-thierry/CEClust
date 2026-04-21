@@ -80,3 +80,29 @@ test_that("PCA trajectory helpers work for multivariate numeric data", {
   expect_true(all(c("PC1", "PC2", "id", "lambda", "cluster", "REO") %in% names(path_df)))
   expect_s3_class(p, "ggplot")
 })
+
+test_that("CECpredict predicts all missing numeric coordinates cluster-wise", {
+  CECpredict_internal <- getFromNamespace("CECpredict", "CEClust")
+
+  params <- list(
+    familyType = "gaussAndDiscreteVector",
+    states = 1:2,
+    nu = c(0.5, 0.5),
+    lambda = 1,
+    C = 10,
+    colFactor = 1,
+    colNum = 2:3,
+    factors = c("a", "b"),
+    discreteProbList = list(
+      matrix(c(0.9, 0.1), nrow = 2, ncol = 1),
+      matrix(c(0.1, 0.9), nrow = 2, ncol = 1)
+    ),
+    m = matrix(c(10, 100, 20, 200), nrow = 2, byrow = TRUE),
+    Sigma = list(diag(2), diag(2))
+  )
+
+  Zpred <- data.frame(f = factor(c("a", "b", "a"), levels = c("a", "b")))
+  pred <- CECpredict_internal(Zpred, params, idColToPred = c(2, 3))
+
+  expect_equal(unname(as.matrix(pred)), matrix(c(10, 100, 20, 200, 10, 100), ncol = 2, byrow = TRUE))
+})

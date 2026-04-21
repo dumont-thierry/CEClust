@@ -10,6 +10,8 @@ Authors@R: c(
       role = c("aut", "cre")
     )
   )
+Author: Thierry Dumont [aut, cre]
+Maintainer: Thierry Dumont <tdumont@parisnanterre.fr>
 Description: Fits composite entropy clustering models for Gaussian,
     categorical, and mixed data. The package combines repeated-shot
     clustering at a fixed regularization value with linked-lambda diagnostic

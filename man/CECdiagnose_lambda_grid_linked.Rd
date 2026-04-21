@@ -88,7 +88,8 @@ removed and the grid is sorted increasingly.}
 
 \item{B}{Number of linked bootstrap paths.}
 
-\item{C}{Positive tuning constant used by the composite entropy criterion.}
+\item{C}{Positive upper bound for fitted component densities; independent
+of \code{lambda}.}
 
 \item{r0}{Optional upper bound for the initial number of clusters.}
 

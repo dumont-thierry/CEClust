@@ -187,13 +187,18 @@ CECprepare_discrete_block <- function(Z) {
 		function(j) length(unique(codes[codes[, j] > 0L, j])),
 		integer(1)
 	)
+	level_present_by_coord <- lapply(
+		seq_len(l),
+		function(j) tabulate(codes[, j], nbins = length(factors)) > 0L
+	)
 
 	list(
 		df = Z,
 		codes = codes,
 		factors = factors,
 		n_levels = length(factors),
-		n_unique_by_coord = n_unique_by_coord
+		n_unique_by_coord = n_unique_by_coord,
+		level_present_by_coord = level_present_by_coord
 	)
 }
 
@@ -340,7 +345,8 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 #'   Gaussian multivariate clustering, a factor data frame for discrete data, or
 #'   a mixed data frame for `"gaussAndDiscreteVector"`.
 #' @param lambda Regularisation parameter of the composite entropy criterion.
-#' @param C Positive tuning constant used in the criterion evaluation.
+#' @param C Positive upper bound for fitted component densities; independent
+#'   of `lambda`.
 #' @param r0 Optional upper bound for the initial number of clusters.
 #' @param Nshots Number of repeated random initialisations.
 #' @param Nloop Maximum number of optimisation iterations per shot.
@@ -1067,8 +1073,12 @@ CECpredict				<- function(Zpred,params,idColToPred)
 		if(length(colFactorPred)>0)
 			colFactorPred 	<- regroupCols[1:length(colFactorPred)]
 		
-		 
-		colNumPred 		<- regroupCols[(1+length(colFactorPred)):length(regroupCols)]
+		if(length(regroupCols)>length(colFactorPred))
+		{
+			colNumPred 		<- regroupCols[(1+length(colFactorPred)):length(regroupCols)]
+		}else{
+			colNumPred 		<- c()
+		}
 		
 		paramsPred$colFactor	<- colFactorPred
 		paramsPred$colNum		<- colNumPred
@@ -1165,20 +1175,23 @@ CECpredict				<- function(Zpred,params,idColToPred)
 			}else{
 				m 			<- params$m
 				predNum 	<- as.data.frame(matrix(NA,dim(Zpred)[1],length(colNumMissing)))
+				for(x in 1:r)
 				{
-					 
 					mx  		<- m[x,]
-					 
+
 					posx 		<- which(XpredHat==x)
-				 
-					for (j in 1:length(colNumMissing))
+
+					if(length(posx)>0)
 					{
-						col_j 		<- colNumMissing[j]
-						
-						m_jj		<- mx[col_j]
-						predNum[posx,j] 		<- m_jj  
+						for (j in 1:length(colNumMissing))
+						{
+							col_j 		<- colNumMissing[j]
+
+							m_jj		<- mx[col_j]
+							predNum[posx,j] 		<- m_jj
+						}
 					}
-				
+
 				}
 			
 			}
@@ -1378,7 +1391,7 @@ optPhi			<- function(Z,param,lambda=1)
 	nu 				<- param$nu 
 	r 				<- length(nu)
 	logG 			<- CECdens(Z=Z,param=param,lambda=lambda,applyLog=TRUE)
-	logG$density 	<- rep(log(nu),each=n)  +logG$density
+	logG$density 	<- rep(log(nu),each=n)  + logG$density / lambda
 	densityM 		<- vectToMat(logG$density,r)
 	loc				<- max.col(densityM, ties.method = "first")
 	phi				<- rep(0,n*r)
@@ -1452,9 +1465,9 @@ optPhi			<- function(Z,param,lambda=1)
 				idx_i 	<- 1:n + (i-1)*n
 				if(applyLog)
 				{
-					density[idx_i] <- dnorm(Z,mean=m_i,sd=s_i,log=TRUE) -log(lambda)
+					density[idx_i] <- dnorm(Z,mean=m_i,sd=s_i,log=TRUE)
 				}else{
-					density[idx_i] <- (dnorm(Z,mean=m_i,sd=s_i))^(1/lambda)
+					density[idx_i] <- dnorm(Z,mean=m_i,sd=s_i)
 				}
 				
 			}
@@ -1502,7 +1515,9 @@ optPhi			<- function(Z,param,lambda=1)
 			nr 		<- length(phi)
 			r 		<- nr/n
 			
-			s2Min 	<- 1/(sqrt(2*pi)*C^lambda) 
+			# C bounds the Gaussian density independently of lambda.
+			# Since varPhi stores variances, the lower bound is s_min^2.
+			s2Min 	<- (1/(sqrt(2*pi)*C))^2
 			
 			
 			nuPhi 	<- phiToNu(phi,lambda,C,r,isPhiAlreadyMat = FALSE)
@@ -1837,7 +1852,13 @@ optPhi			<- function(Z,param,lambda=1)
 					counts_i <- counts_list[[i]]
 					discreteProbList[[i]] <- matrix(NA_real_, discrete$n_levels, ncol(discrete$codes))
 					for (j in seq_len(ncol(discrete$codes))) {
+						valid_levels_j <- if (!is.null(discrete$level_present_by_coord)) {
+							discrete$level_present_by_coord[[j]]
+						} else {
+							tabulate(discrete$codes[, j], nbins = discrete$n_levels) > 0L
+						}
 						tbl_ij <- counts_i[, j]
+						tbl_ij[!valid_levels_j] <- NA_real_
 						tbl_ij <- tbl_ij / sum(tbl_ij, na.rm = TRUE)
 
 						toLift <- which(!is.na(tbl_ij) & tbl_ij < 1 / C_by_coord[j])
@@ -1941,7 +1962,7 @@ optPhi			<- function(Z,param,lambda=1)
 						mean = params$m[i, ],
 						sigma = params$Sigma[[i]],
 						log = TRUE
-					) - log(lambda)
+					)
 				}
 				return(out)
 			}
@@ -2016,12 +2037,13 @@ optPhi			<- function(Z,param,lambda=1)
 				isTRUE(backend_data$optimized) &&
 				CECis_fast_family(param$familyType)) {
 				logdens_mat <- CECcompute_logdens_matrix_fast(backend_data, param, lambda = lambda)
+				score_logdens_mat <- logdens_mat / lambda
 				if (CECfast_backend_available()) {
-					choice <- CECget_fast_fun("cec_cpp_choose_clusters")(logdens_mat, param$nu)
+					choice <- CECget_fast_fun("cec_cpp_choose_clusters")(score_logdens_mat, param$nu)
 					clusters <- as.integer(choice$clusters)
-					assigned_logdens <- as.numeric(choice$assigned_logdens)
+					assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
 				} else {
-					score_mat <- sweep(logdens_mat, 2, log(param$nu), "+")
+					score_mat <- sweep(score_logdens_mat, 2, log(param$nu), "+")
 					clusters <- max.col(score_mat, ties.method = "first")
 					assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
 				}
@@ -2105,147 +2127,15 @@ optPhi			<- function(Z,param,lambda=1)
 				
 				if(applyLog)
 				{
-					density[idx_i] <- mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ,log=TRUE) -log(lambda)
+					density[idx_i] <- mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ,log=TRUE)
 				}else{
-					density[idx_i] <- ( mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ))^(1/lambda)
+					density[idx_i] <- mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i)
 				}
 				
 			}
 		 
 			return(list(density = density))
 			
-		}
-		
-		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
-		{
-			if(!is.matrix(Z))
-				Z <- as.matrix(Z)
-			
-			n 		<- dim(Z)[1]
-			l 		<- dim(Z)[2]
-			
-			nr 		<- length(phi)
-		
-			r 		<- nr/n
-				
-			
-			nu 		<- phiToNu(phi=phi,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE)
-			
-			statesToKeep 	<- which(nu>0) 
-			if(length(statesToKeep)<r)
-			{
-				
-				indToKeep <- which(rep(1:r,each=n) %in%statesToKeep)
-				phi <- phi[indToKeep]
-				r 	<- length(statesToKeep)
-				nu 	<- nu[statesToKeep]
-			}
-			
-		
-			states 	<- 1:r
-			
-			
-			
-			m 		<- phiToMeanVec(phi=phi,Z=Z,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE,nuPhi = nu)
-			
-			
-		
-			
-			Sigma	<- phiToCovMat(phi=phi,Z=Z,lambda=lambda,C=C,r=r,isPhiAlreadyMat = FALSE,nuPhi = nu,mPhi=m)
-			
-			bound_s <- 1/(sqrt(2*pi)*C^(lambda/l))
-			
-			
-			functionBoundReached <-  c()
-			
-			for(i in 1:r)
-			{
-				Sigma_i 	<- Sigma[[i]]
-				
-				eigen_decomp <- eigen(Sigma_i)
-
-				# Valeurs propres 
-				eigenvalues <- eigen_decomp$values
-				eigenvalues <- abs(eigenvalues)
-				s_i 		<- sqrt(eigenvalues)
-				
-				if(prod(s_i)<bound_s^l)
-				{
-					functionBoundReached <- c(functionBoundReached,i)
-					
-					if(TRUE)
-					{
-						for(j in 1:l)
-						{
-							if(prod(eigenvalues[1:j])<bound_s^(2*j))
-								if(j>1)
-								{
-									eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									
-									increaseEigenValue = which(eigenvalues[1:(j-1)]<eigenvalues[j])
-									if(length(increaseEigenValue)>0)
-									{
-										eigenvalues[increaseEigenValue] <- eigenvalues[j]
-									}
-									
-									eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									
-								}else{
-									eigenvalues[j] <- bound_s^2
-								}
-								 
-								
-						}
-					}
-					
-					if(FALSE)
-					{
-						positiveEigenvalue <- which(eigenvalues>0)
-						if(length(positiveEigenvalue)>0)
-						{
-							eigenvalues[eigenvalues==0] =min(c( min(eigenvalues[positiveEigenvalue])/1000, bound_s^2))
-						}else{
-							eigenvalues[eigenvalues==0] =  bound_s^2
-						}
-						
-						if(prod(eigenvalues)!=0)
-						{
-							eigenvalues = eigenvalues*(bound_s^(2*l))/(prod(eigenvalues))
-						}else{
-								
-							for(j in 1:l)
-							{
-								if(prod(eigenvalues[1:j])<bound_s^(2*j))
-									if(j>1)
-									{
-										eigenvalues[j] <- bound_s^(2*j)/prod(eigenvalues[1:(j-1)])
-									}else{
-										eigenvalues[j] <- bound_s^2
-									}
-									
-							}
-						}
-							
-					}
-					
-					
-					if(l>1)
-					{
-						D <- diag(eigenvalues)
-						eigenvectors <- eigen_decomp$vectors
-						Sigma[[i]]	<- eigenvectors %*% D %*% solve(eigenvectors)
-					}else{
-						Sigma[[i]] <- matrix(eigenvalues,1,1)
-					} 
-				}	
-
-				Sigma[[i]] = (Sigma[[i]]+t(Sigma[[i]]))/2						
-			}
-			 
-			
-			params	<- list(states=states,nu=nu,m=m,Sigma=Sigma,lambda=lambda,C=C,familyType ="gaussVector",phi=phi,functionBoundReached=functionBoundReached)
-			
-			return(params)
 		}
 		
 		optParam_gaussVector 			<- function(Z,phi,lambda=1,C=1)
@@ -2500,7 +2390,7 @@ optPhi			<- function(Z,param,lambda=1)
 			functionBoundReached <- unique(functionBoundReached)
 			 
 			
-			params	<- list(states=states,nu=nu,factors=factors,discreteProbList=discreteProbList,lambda=lambda,C=C,familyType ="discreteVector",phi=phi)
+			params	<- list(states=states,nu=nu,factors=factors,discreteProbList=discreteProbList,lambda=lambda,C=C,familyType ="discreteVector",phi=phi,functionBoundReached=functionBoundReached)
 			
 			return(params)
 		}
@@ -4816,7 +4706,7 @@ plotCECdiagnoseLambdaGrid <- function(
 
   oldpar <- par(no.readonly = TRUE)
   on.exit(par(oldpar))
-  par(mfrow = c(2, 2))
+  par(mfrow = c(2, 2), mar = c(3.8, 3.8, 2.2, 1), mgp = c(2.2, 0.7, 0))
 
   plot_metric(df[[stab0_name]], ylab = "stability", main = expression(stab[0](lambda)), ylim = c(0, 1))
   plot_metric(df[[stabB_name]], ylab = "stability", main = expression(stab[B](lambda)), ylim = c(0, 1), h = stabB_threshold)
@@ -6252,7 +6142,8 @@ CECfollowLambdaPath <- function(
 #'   removed and the grid is sorted increasingly.
 #' @param k0 Number of linked paths fitted on the original data.
 #' @param B Number of linked bootstrap paths.
-#' @param C Positive tuning constant used by the composite entropy criterion.
+#' @param C Positive upper bound for fitted component densities; independent
+#'   of `lambda`.
 #' @param r0 Optional upper bound for the initial number of clusters.
 #' @param Nshots_fresh Number of fresh random starts used at the first lambda of
 #'   each path.

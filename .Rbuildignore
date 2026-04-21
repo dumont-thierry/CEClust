@@ -4,3 +4,6 @@
 ^README_files$
 ^\.Rhistory$
 ^src/.*\.(o|so|dll)$
+^\.check-lib$
+^.*\.Rcheck$
+^.*\.tar\.gz$
