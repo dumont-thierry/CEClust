@@ -12,7 +12,9 @@ CECdetectPartitionChanges(
   partition_metric = c("match", "ARI"),
   sim_threshold = 0.8,
   criterion = c("REO_or_threshold", "REO_only", "threshold_only", "REO_and_threshold"),
-  include_first = TRUE
+  include_first = TRUE,
+  method = c("consecutive", "regime_reference"),
+  lambda_subset = NULL
 )
 
 CECcheckBestPartitionCoherence(best_partitions_obj, Z, tol = 1e-10)
@@ -48,6 +50,14 @@ partition similarity.}
 
 \item{include_first}{Logical. If \code{TRUE}, the first lambda value is always
 reported as the start of a new regime.}
+
+\item{method}{Change-detection method. \code{"consecutive"} compares each
+partition to the previous lambda. \code{"regime_reference"} compares each
+partition to the reference partition at the beginning of the current
+regime and updates the reference when a change is detected.}
+
+\item{lambda_subset}{Optional subset of lambda values on which changes are
+detected. This is useful for detecting regimes only on stable lambdas.}
 
 \item{Z}{Original data set. It is required for coherence checks and repair
 operations, and recommended when extracting partitions so that raw criterion

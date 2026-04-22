@@ -4402,7 +4402,10 @@ CECrelabelToReference <- function(ref, target) {
 #
 # A change is flagged if:
 # - REO changes, OR
-# - similarity between consecutive best partitions < sim_threshold
+# - similarity drops below sim_threshold.
+# By default the comparison is local between consecutive lambdas. With
+# method = "regime_reference", each lambda is compared to the first partition
+# of the current regime; a new regime starts whenever a change is detected.
 # ------------------------------------------------------------
 #' Detect change points along a best-partition trajectory.
 #'
@@ -4419,6 +4422,12 @@ CECrelabelToReference <- function(ref, target) {
 #'   partition similarity.
 #' @param include_first Logical. If `TRUE`, the first lambda value is always
 #'   reported as the start of a new regime.
+#' @param method Change-detection method. `"consecutive"` compares each
+#'   partition to the previous lambda. `"regime_reference"` compares each
+#'   partition to the reference partition at the beginning of the current
+#'   regime and updates the reference when a change is detected.
+#' @param lambda_subset Optional subset of lambda values on which changes are
+#'   detected. This is useful for detecting regimes only on stable lambdas.
 #' @return `CECdetectPartitionChanges()` returns a list with a summary data
 #'   frame, the lambda values flagged as change points, and the settings used to
 #'   detect them.
@@ -4428,10 +4437,13 @@ CECdetectPartitionChanges <- function(
   partition_metric = c("match", "ARI"),
   sim_threshold = 0.80,
   criterion = c("REO_or_threshold", "REO_only", "threshold_only", "REO_and_threshold"),
-  include_first = TRUE
+  include_first = TRUE,
+  method = c("consecutive", "regime_reference"),
+  lambda_subset = NULL
 ) {
   partition_metric <- match.arg(partition_metric)
   criterion <- match.arg(criterion)
+  method <- match.arg(method)
 
   best_list <- best_partitions_obj$best
   ok <- vapply(best_list, function(x) !is.null(x), logical(1))
@@ -4445,20 +4457,46 @@ CECdetectPartitionChanges <- function(
       criterion = criterion,
       partition_metric = partition_metric,
       sim_threshold = sim_threshold,
-      include_first = include_first
+      include_first = include_first,
+      method = method,
+      lambda_subset = lambda_subset
     ))
   }
 
   lambda <- vapply(best_list, function(x) x$lambda, numeric(1))
+  if (!is.null(lambda_subset)) {
+    keep <- lambda %in% lambda_subset
+    best_list <- best_list[keep]
+    lambda <- lambda[keep]
+  }
+
+  if (length(best_list) == 0) {
+    return(list(
+      summary = data.frame(),
+      change_lambdas = numeric(0),
+      change_indices = integer(0),
+      criterion = criterion,
+      partition_metric = partition_metric,
+      sim_threshold = sim_threshold,
+      include_first = include_first,
+      method = method,
+      lambda_subset = lambda_subset
+    ))
+  }
+
   REO <- vapply(best_list, function(x) x$REO, numeric(1))
   parts <- lapply(best_list, function(x) x$partition)
 
   n <- length(best_list)
 
   sim_prev <- rep(NA_real_, n)
+  sim_ref <- rep(NA_real_, n)
+  ref_index <- rep(NA_integer_, n)
   REO_change <- rep(FALSE, n)
   threshold_change <- rep(FALSE, n)
   is_change <- rep(FALSE, n)
+  current_ref <- 1L
+  ref_index[1] <- current_ref
 
   for (i in 2:n) {
     sim_prev[i] <- partition_similarity(
@@ -4467,8 +4505,21 @@ CECdetectPartitionChanges <- function(
       method = partition_metric
     )
 
-    REO_change[i] <- (REO[i] != REO[i - 1])
-    threshold_change[i] <- (!is.na(sim_prev[i]) && sim_prev[i] < sim_threshold)
+    if (method == "consecutive") {
+      ref_index[i] <- i - 1L
+      sim_ref[i] <- sim_prev[i]
+      REO_change[i] <- (REO[i] != REO[i - 1])
+      threshold_change[i] <- (!is.na(sim_prev[i]) && sim_prev[i] < sim_threshold)
+    } else {
+      ref_index[i] <- current_ref
+      sim_ref[i] <- partition_similarity(
+        parts[[current_ref]],
+        parts[[i]],
+        method = partition_metric
+      )
+      REO_change[i] <- (REO[i] != REO[current_ref])
+      threshold_change[i] <- (!is.na(sim_ref[i]) && sim_ref[i] < sim_threshold)
+    }
 
     is_change[i] <- switch(
       criterion,
@@ -4477,6 +4528,10 @@ CECdetectPartitionChanges <- function(
       REO_or_threshold = REO_change[i] || threshold_change[i],
       REO_and_threshold = REO_change[i] && threshold_change[i]
     )
+
+    if (method == "regime_reference" && is_change[i]) {
+      current_ref <- i
+    }
   }
 
   if (include_first) {
@@ -4488,6 +4543,9 @@ CECdetectPartitionChanges <- function(
     lambda = lambda,
     REO = REO,
     sim_prev = sim_prev,
+    ref_index = ref_index,
+    ref_lambda = lambda[ref_index],
+    sim_ref = sim_ref,
     REO_change = REO_change,
     threshold_change = threshold_change,
     is_change = is_change
@@ -4500,7 +4558,9 @@ CECdetectPartitionChanges <- function(
     criterion = criterion,
     partition_metric = partition_metric,
     sim_threshold = sim_threshold,
-    include_first = include_first
+    include_first = include_first,
+    method = method,
+    lambda_subset = lambda_subset
   )
 }
 
