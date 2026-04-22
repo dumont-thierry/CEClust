@@ -4894,10 +4894,10 @@ plotCECPartitionEvolution1D <- function(
 
   if (piecewise_constant) {
     for (h in seq_along(keep_idx)) {
-      i_start <- keep_idx[h]
+      i_start <- if (h == 1L) 1L else keep_idx[h]
       i_end <- if (h < length(keep_idx)) keep_idx[h + 1] - 1L else m_all
       for (i in i_start:i_end) {
-        Mfull[i, ] <- aligned_all[[i_start]]
+        Mfull[i, ] <- aligned_all[[keep_idx[h]]]
       }
     }
   } else {
