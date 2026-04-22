@@ -3338,6 +3338,58 @@ CECdiagnostics_completed_task_keys <- function(tasks) {
   keys
 }
 
+CECdiagnostics_partition_lengths_in_result <- function(res) {
+  if (is.null(res) || is.null(res$per_lambda)) {
+    return(integer(0))
+  }
+
+  lens <- vapply(
+    res$per_lambda,
+    function(slot_i) {
+      if (is.null(slot_i) || is.null(slot_i$part)) {
+        return(NA_integer_)
+      }
+      length(slot_i$part)
+    },
+    integer(1)
+  )
+
+  unique(stats::na.omit(lens))
+}
+
+CECdiagnostics_validate_result_lengths <- function(results, expected_n, label = "checkpoint") {
+  expected_n <- as.integer(expected_n)
+  bad <- character(0)
+
+  for (i in seq_along(results)) {
+    res <- results[[i]]
+    if (is.null(res)) {
+      next
+    }
+
+    lens <- CECdiagnostics_partition_lengths_in_result(res)
+    if (length(lens) > 0L && any(lens != expected_n)) {
+      result_name <- names(results)[i]
+      if (is.null(result_name) || is.na(result_name) || !nzchar(result_name)) {
+        result_name <- paste0(label, " result #", i)
+      }
+      bad <- c(bad, paste0(result_name, " has partition length(s) ", paste(lens, collapse = ", ")))
+    }
+  }
+
+  if (length(bad) > 0L) {
+    stop(
+      "Existing diagnostic checkpoint results are incompatible with the current data length (n = ",
+      expected_n,
+      "): ",
+      paste(head(bad, 5L), collapse = "; "),
+      ". Choose another checkpoint_dir or remove the old checkpoints."
+    )
+  }
+
+  invisible(TRUE)
+}
+
 CECdiagnostics_new_progress_state <- function(k0, B, show_progress = TRUE) {
   state <- new.env(parent = emptyenv())
   state$show_progress <- isTRUE(show_progress)
@@ -6600,12 +6652,25 @@ CECdiagnose_lambda_grid_linked <- function(
       }
       readRDS(task$result_file)
     })
+    names(fixed_results) <- vapply(
+      tasks$fixed,
+      function(task) if (is.null(task$result_file)) "" else task$result_file,
+      character(1)
+    )
     boot_results <- lapply(tasks$boot, function(task) {
       if (is.null(task$result_file) || !file.exists(task$result_file)) {
         return(NULL)
       }
       readRDS(task$result_file)
     })
+    names(boot_results) <- vapply(
+      tasks$boot,
+      function(task) if (is.null(task$result_file)) "" else task$result_file,
+      character(1)
+    )
+    expected_partition_length <- CECget_n_obs(Z)
+    CECdiagnostics_validate_result_lengths(fixed_results, expected_partition_length, "fixed")
+    CECdiagnostics_validate_result_lengths(boot_results, expected_partition_length, "bootstrap")
   } else {
     fixed_results <- lapply(tasks$fixed, function(task) {
       key <- CECdiagnostics_task_key(task)
