@@ -4486,8 +4486,37 @@ CECdetectPartitionChanges <- function(
 
   REO <- vapply(best_list, function(x) x$REO, numeric(1))
   parts <- lapply(best_list, function(x) x$partition)
+  part_lengths <- vapply(parts, length, integer(1))
+  expected_length <- as.integer(names(sort(table(part_lengths), decreasing = TRUE))[1])
+  ok_length <- part_lengths == expected_length
+
+  if (any(!ok_length)) {
+    warning(
+      "Dropping ", sum(!ok_length),
+      " partition(s) with length inconsistent with the main trajectory in ",
+      "CECdetectPartitionChanges().",
+      call. = FALSE
+    )
+    best_list <- best_list[ok_length]
+    lambda <- lambda[ok_length]
+    REO <- REO[ok_length]
+    parts <- parts[ok_length]
+  }
 
   n <- length(best_list)
+  if (n == 0) {
+    return(list(
+      summary = data.frame(),
+      change_lambdas = numeric(0),
+      change_indices = integer(0),
+      criterion = criterion,
+      partition_metric = partition_metric,
+      sim_threshold = sim_threshold,
+      include_first = include_first,
+      method = method,
+      lambda_subset = lambda_subset
+    ))
+  }
 
   sim_prev <- rep(NA_real_, n)
   sim_ref <- rep(NA_real_, n)
