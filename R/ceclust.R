@@ -1503,7 +1503,7 @@ optPhi			<- function(Z,param,lambda=1)
 			functionBoundReached <- which(s<1/(sqrt(2*pi)*C))
 			s[functionBoundReached] =  1/(sqrt(2*pi)*C) 
 			
-			params	<- list(states=states,nu=nu,m=m,s=s,lambda=lambda,C=C,familyType ="gaussUniv",functionBoundReached=functionBoundReached)
+			params	<- list(states=states,nu=nu,m=m,s=s,lambda=lambda,C=C,familyType ="gaussUniv",phi=phi,functionBoundReached=functionBoundReached)
 			
 			return(params)
 		}
@@ -4956,6 +4956,9 @@ evalCompositeEntropyDecomposed <- function(phi, Z, lambda, C, familyType = "gaus
   n <- if (is.matrix(Z) || is.data.frame(Z)) nrow(Z) else length(Z)
   phi_use <- if (!is.null(params$phi)) params$phi else phi
   r <- length(params$states)
+  if (length(phi_use) != n * r) {
+    stop("Inconsistent phi length in evalCompositeEntropyDecomposed.")
+  }
   phiM <- vectToMat(phi_use, r)
   
   H_cond <- 0
