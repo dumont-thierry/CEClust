@@ -7125,10 +7125,13 @@ CECinteractive_build_cluster_bar_data <- function(
   }
 
   counts <- table(factor(as.character(data_cluster$shape_value), levels = shape_levels))
+  total_n <- sum(counts)
 
   data.frame(
     shape_value = factor(shape_levels, levels = shape_levels),
     n = as.numeric(counts),
+    pct = if (total_n > 0) 100 * as.numeric(counts) / total_n else 0,
+    label = if (total_n > 0) sprintf("%.1f%%", 100 * as.numeric(counts) / total_n) else "0.0%",
     stringsAsFactors = FALSE
   )
 }
@@ -7142,7 +7145,7 @@ CECinteractive_plot_cluster_bar <- function(
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required for interactive plotting. Install it.")
   }
-  shape_value <- n <- NULL
+  shape_value <- n <- label <- NULL
 
   title_text <- if (identical(cluster_filter, "__all__")) {
     paste("Distribution of", qual_var, "across all clusters")
@@ -7155,7 +7158,8 @@ CECinteractive_plot_cluster_bar <- function(
     ggplot2::aes(x = shape_value, y = n)
   ) +
     ggplot2::geom_col(fill = fill_color, alpha = 0.9) +
-    ggplot2::coord_cartesian(ylim = c(0, max(1, bar_data$n, na.rm = TRUE) * 1.08)) +
+    ggplot2::geom_text(ggplot2::aes(label = label), vjust = -0.35, size = 3.5) +
+    ggplot2::coord_cartesian(ylim = c(0, max(1, bar_data$n, na.rm = TRUE) * 1.15)) +
     ggplot2::theme_minimal(base_size = 11) +
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(angle = 30, hjust = 1)
