@@ -4372,7 +4372,13 @@ CECbestPartitionOneLambda <- function(
   if (length(candidates) == 0) return(NULL)
 
   tab <- do.call(rbind, rows)
-  idx <- if (criterion == "projected_H") which.min(tab$H_projected) else which.min(tab$H_raw)
+  score_values <- if (criterion == "projected_H") tab$H_projected else tab$H_raw
+  idx <- .best_finite_index(score_values)
+  if (length(idx) == 0L) {
+    fallback_values <- if (criterion == "projected_H") tab$H_raw else tab$H_projected
+    idx <- .best_finite_index(fallback_values)
+  }
+  if (length(idx) == 0L) return(NULL)
   best <- candidates[[idx]]
 
   REO_best <- if (!is.null(best$fit)) best$fit$REO else length(unique(best$partition))
@@ -5046,11 +5052,14 @@ evalCompositeEntropyDecomposed <- function(phi, Z, lambda, C, familyType = "gaus
   for (i in toKeep) {
     idx_i <- ((i - 1) * n + 1):(i * n)
     phi_i <- phiM[, i]
-    sphi_i <- sum(phi_i)
-    
-    if (sphi_i > 0) {
+    active_i <- which(phi_i > 0)
+
+    if (length(active_i) > 0L) {
+      phi_active <- phi_i[active_i]
+      dens_active <- logg$density[idx_i][active_i]
+      sphi_i <- sum(phi_active)
       H_cond <- H_cond - (1 / lambda) * nu[which(toKeep == i)] *
-        sum(phi_i * logg$density[idx_i]) / sphi_i
+        sum(phi_active * dens_active) / sphi_i
     }
   }
   
@@ -5847,6 +5856,12 @@ plotCECBestPartitions1D <- function(
   x[1]
 }
 
+.best_finite_index <- function(values) {
+  valid <- which(is.finite(values))
+  if (length(valid) == 0L) return(integer(0))
+  valid[which.min(values[valid])]
+}
+
 # ------------------------------------------------------------
 # Decompose one fit on a given data set.
 # ------------------------------------------------------------
@@ -6049,8 +6064,37 @@ CECextractBestPartitions <- function(
       },
       numeric(1)
     )
-    
-    best_id <- which.min(crit_values)
+
+    best_id <- .best_finite_index(crit_values)
+    if (length(best_id) == 0L) {
+      fallback_values <- vapply(
+        candidates,
+        function(x) {
+          if (criterion == "projected_H") .scalar_or_na(x$H_raw) else .scalar_or_na(x$H_projected)
+        },
+        numeric(1)
+      )
+      best_id <- .best_finite_index(fallback_values)
+    }
+    if (length(best_id) == 0L) {
+      out_best[[i]] <- NULL
+      out_rows[[i]] <- data.frame(
+        lambda = lam,
+        source = NA_character_,
+        source_index = NA_integer_,
+        init_origin = NA_character_,
+        path_direction = NA_character_,
+        criterion = criterion,
+        H_projected = NA_real_,
+        H_class_projected = NA_real_,
+        H_cond_projected = NA_real_,
+        H_raw = NA_real_,
+        H_class_raw = NA_real_,
+        H_cond_raw = NA_real_,
+        REO = NA_integer_
+      )
+      next
+    }
     best <- candidates[[best_id]]
     out_best[[i]] <- best
     
@@ -6163,7 +6207,9 @@ CECfit_linked_one_lambda <- function(
 
   candidates <- candidates[ok]
   Hvals <- vapply(candidates, function(x) x$Hphi, numeric(1))
-  candidates[[which.min(Hvals)]]
+  best_idx <- .best_finite_index(Hvals)
+  if (length(best_idx) == 0L) return(NULL)
+  candidates[[best_idx]]
 }
 
 CECfollowLambdaPath <- function(
