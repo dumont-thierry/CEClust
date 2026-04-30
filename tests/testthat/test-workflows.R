@@ -54,7 +54,7 @@ test_that("stable-lambda selection can exclude saturation-heavy lambdas", {
   lambda_diag <- list(
     summary = data.frame(
       lambda = c(0.1, 0.2, 0.3),
-      stab_ratio_mean = c(0.95, 0.95, 0.95),
+      stab_ratio_mean = c(0.70, 0.95, 0.95),
       stabB_mean = c(0.9, 0.9, 0.9)
     )
   )
@@ -79,7 +79,7 @@ test_that("stable-lambda selection can exclude saturation-heavy lambdas", {
   )
 
   expect_equal(stable$summary$sat, c(0.85, 0.2, 0))
-  expect_equal(stable$summary$keep_stability, c(TRUE, TRUE, TRUE))
+  expect_equal(stable$summary$keep_stability, c(FALSE, TRUE, TRUE))
   expect_equal(stable$summary$exclude_saturation, c(TRUE, FALSE, FALSE))
   expect_equal(stable$summary$stable, c(FALSE, TRUE, TRUE))
   expect_equal(stable$lambda_min, 0.2)

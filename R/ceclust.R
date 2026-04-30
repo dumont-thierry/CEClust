@@ -4343,7 +4343,7 @@ CECidentifyStableLambdas <- function(
   stable_info$mask[is.na(stable_info$mask)] <- FALSE
   stable_idx <- which(stable_info$mask)
   lambda_min <- if (length(stable_idx) == 0) NA_real_ else df$lambda[min(stable_idx)]
-  exclude_saturation <- stable_stability & !stable_info$mask
+  exclude_saturation <- !cond_sat
 
   runs <- stable_info$runs
   if (nrow(runs) > 0) {
