@@ -50,6 +50,41 @@ test_that("linked-lambda workflow returns extractable best partitions", {
   expect_true(all(c("repair_log", "coherence_before", "coherence_after") %in% names(repaired)))
 })
 
+test_that("stable-lambda selection can exclude saturation-heavy lambdas", {
+  lambda_diag <- list(
+    summary = data.frame(
+      lambda = c(0.1, 0.2, 0.3),
+      stab_ratio_mean = c(0.95, 0.95, 0.95),
+      stabB_mean = c(0.9, 0.9, 0.9)
+    )
+  )
+
+  best_parts <- list(
+    summary = data.frame(lambda = c(0.1, 0.2, 0.3)),
+    best = list(
+      list(params = list(nu = c(0.85, 0.15), functionBoundReached = 1L)),
+      list(params = list(nu = c(0.20, 0.80), functionBoundReached = 1L)),
+      list(params = list(nu = c(0.10, 0.90), functionBoundReached = integer(0)))
+    )
+  )
+
+  stable <- CECidentifyStableLambdas(
+    lambda_diag,
+    rule = "both",
+    ratio_threshold = 0.8,
+    stabB_threshold = 0.8,
+    sat_threshold = 0.8,
+    use_smoothed = FALSE,
+    best_partitions_obj = best_parts
+  )
+
+  expect_equal(stable$summary$sat, c(0.85, 0.2, 0))
+  expect_equal(stable$summary$keep_stability, c(TRUE, TRUE, TRUE))
+  expect_equal(stable$summary$exclude_saturation, c(TRUE, FALSE, FALSE))
+  expect_equal(stable$summary$stable, c(FALSE, TRUE, TRUE))
+  expect_equal(stable$lambda_min, 0.2)
+})
+
 test_that("PCA trajectory helpers work for multivariate numeric data", {
   Z <- iris[, -5]
 

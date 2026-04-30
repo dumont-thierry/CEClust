@@ -17,7 +17,14 @@ plotCECdiagnoseLambdaGrid(
   use_smoothed = TRUE,
   lambda_min_obj = NULL,
   lambda_stable_obj = NULL,
-  unstable_col = grDevices::adjustcolor("grey70", alpha.f = 0.35)
+  unstable_col = grDevices::adjustcolor("grey70", alpha.f = 0.35),
+  saturation_mark = c("hatch", "shade", "none"),
+  saturation_col = grDevices::adjustcolor("grey15", alpha.f = 0.6),
+  saturation_fill_col = grDevices::adjustcolor("white", alpha.f = 0.15),
+  saturation_border_col = grDevices::adjustcolor("grey10", alpha.f = 0.75),
+  saturation_border_lwd = 0.8,
+  saturation_density = 12,
+  saturation_angle = -45
 )
 
 plotCECBestPartitions1D(
@@ -55,9 +62,18 @@ available.}
 \code{lambda_min}.}
 
 \item{lambda_stable_obj}{Optional output of \code{\link[=CECidentifyStableLambdas]{CECidentifyStableLambdas()}} used
-to shade stable and unstable regions.}
+to shade stable and unstable regions. When the stable-object carries
+saturation diagnostics, lambdas excluded by saturation can be highlighted
+separately.}
 
 \item{unstable_col}{Colour used to shade unstable lambda bands.}
+
+\item{saturation_mark}{Visual mark used for lambdas excluded by the
+saturation filter only. \code{"hatch"} uses reverse diagonal hatching, \code{"shade"}
+uses a semi-transparent overlay, and \code{"none"} disables the extra layer.}
+
+\item{saturation_col, saturation_fill_col, saturation_border_col, saturation_border_lwd, saturation_density, saturation_angle}{Graphical
+parameters used when drawing saturation-only exclusions.}
 
 \item{Z}{Original data set used to build the diagnostic object.}
 

@@ -182,6 +182,31 @@ stable$summary
 chosen rule. The full summary is often more informative than a single selected
 value because it shows whether stability persists across an interval.
 
+If you also want to exclude lambdas for which too much of the sample lives in
+clusters saturating the density bound `C`, extract one representative partition
+per lambda and feed it back into the stability filter:
+
+```r
+best_parts <- CECextractBestPartitions(
+  lambda_diag,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z
+)
+
+stable_sat <- CECidentifyStableLambdas(
+  lambda_diag,
+  rule = "ratio",
+  ratio_threshold = 0.8,
+  stabB_threshold = 0.8,
+  sat_threshold = 0.8,
+  best_partitions_obj = best_parts,
+  min_consecutive = 1
+)
+
+stable_sat$summary
+```
+
 ### 5. Extract one partition per lambda
 
 ```r
