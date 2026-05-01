@@ -1559,6 +1559,68 @@ optPhi			<- function(Z,param,lambda=1)
 		  
 		  return(cov_w)
 		}
+
+		CECproject_eigen_product_floor <- function(lambda_vals, target_prod, kappa_max = 1e8) {
+			lambda_vals <- as.numeric(lambda_vals)
+			lambda_vals[!is.finite(lambda_vals)] <- 0
+			lambda_vals[lambda_vals < 0] <- abs(lambda_vals[lambda_vals < 0])
+
+			p <- length(lambda_vals)
+			if (p == 0L || !is.finite(target_prod) || target_prod <= 0) {
+				return(lambda_vals)
+			}
+
+			target_root <- target_prod^(1 / p)
+			positive_vals <- lambda_vals[lambda_vals > 0]
+			if (length(positive_vals) == 0L) {
+				return(rep(target_root, p))
+			}
+
+			eigen_floor <- max(lambda_vals, na.rm = TRUE) / kappa_max
+			eigen_floor <- max(eigen_floor, .Machine$double.eps)
+			eigen_floor <- min(eigen_floor, target_root)
+
+			out <- pmax(lambda_vals, .Machine$double.eps)
+			free <- rep(TRUE, p)
+
+			for (iter in seq_len(p + 1L)) {
+				fixed <- !free
+				fixed_prod <- if (any(fixed)) prod(out[fixed]) else 1
+				n_free <- sum(free)
+
+				if (n_free == 0L) {
+					out <- rep(target_root, p)
+					break
+				}
+
+				free_prod <- prod(out[free])
+				if (!is.finite(free_prod) || free_prod <= 0 ||
+						!is.finite(fixed_prod) || fixed_prod <= 0) {
+					out[free] <- target_root
+					break
+				}
+
+				scale <- (target_prod / fixed_prod / free_prod)^(1 / n_free)
+				candidate <- out
+				candidate[free] <- out[free] * scale
+				newly_fixed <- free & candidate < eigen_floor
+
+				if (!any(newly_fixed)) {
+					out <- candidate
+					break
+				}
+
+				out[newly_fixed] <- eigen_floor
+				free[newly_fixed] <- FALSE
+			}
+
+			current_prod <- prod(out)
+			if (is.finite(current_prod) && current_prod > 0) {
+				out <- out * (target_prod / current_prod)^(1 / p)
+			}
+
+			out
+		}
 										
 		adjust_covariance 				<- function(res, sigmaZmin,w=NULL,sizeMinSigmaComp=3)
 		{
@@ -1622,7 +1684,7 @@ optPhi			<- function(Z,param,lambda=1)
 				
 				if(det_R<det_Rmin)
 				{
-					lambda_vals <- lambda_vals*(det_Rmin/det_R)^(1/dim(Sigma_emp)[1])
+					lambda_vals <- CECproject_eigen_product_floor(lambda_vals, target_prod = det_Rmin)
 					
 					
 					cor_emp_corrected <- (vectors)%*%diag(lambda_vals,nrow=dim(Sigma_emp)[1],ncol=dim(Sigma_emp)[1])%*%t(vectors)
@@ -1720,7 +1782,7 @@ optPhi			<- function(Z,param,lambda=1)
 					det_Rmin <- detMin / prod(diag(Sigma_emp))
 
 					if (det_R < det_Rmin) {
-						lambda_vals <- lambda_vals * (det_Rmin / det_R)^(1 / dim(Sigma_emp)[1])
+						lambda_vals <- CECproject_eigen_product_floor(lambda_vals, target_prod = det_Rmin)
 						cor_emp_corrected <- vectors %*%
 							diag(lambda_vals, nrow = dim(Sigma_emp)[1], ncol = dim(Sigma_emp)[1]) %*%
 							t(vectors)
