@@ -4788,39 +4788,41 @@ CECdetectPartitionChanges <- function(
   current_ref <- 1L
   ref_index[1] <- current_ref
 
-  for (i in 2:n) {
-    sim_prev[i] <- partition_similarity(
-      parts[[i - 1]],
-      parts[[i]],
-      method = partition_metric
-    )
-
-    if (method == "consecutive") {
-      ref_index[i] <- i - 1L
-      sim_ref[i] <- sim_prev[i]
-      REO_change[i] <- (REO[i] != REO[i - 1])
-      threshold_change[i] <- (!is.na(sim_prev[i]) && sim_prev[i] < sim_threshold)
-    } else {
-      ref_index[i] <- current_ref
-      sim_ref[i] <- partition_similarity(
-        parts[[current_ref]],
+  if (n >= 2L) {
+    for (i in 2:n) {
+      sim_prev[i] <- partition_similarity(
+        parts[[i - 1]],
         parts[[i]],
         method = partition_metric
       )
-      REO_change[i] <- (REO[i] != REO[current_ref])
-      threshold_change[i] <- (!is.na(sim_ref[i]) && sim_ref[i] < sim_threshold)
-    }
 
-    is_change[i] <- switch(
-      criterion,
-      REO_only = REO_change[i],
-      threshold_only = threshold_change[i],
-      REO_or_threshold = REO_change[i] || threshold_change[i],
-      REO_and_threshold = REO_change[i] && threshold_change[i]
-    )
+      if (method == "consecutive") {
+        ref_index[i] <- i - 1L
+        sim_ref[i] <- sim_prev[i]
+        REO_change[i] <- (REO[i] != REO[i - 1])
+        threshold_change[i] <- (!is.na(sim_prev[i]) && sim_prev[i] < sim_threshold)
+      } else {
+        ref_index[i] <- current_ref
+        sim_ref[i] <- partition_similarity(
+          parts[[current_ref]],
+          parts[[i]],
+          method = partition_metric
+        )
+        REO_change[i] <- (REO[i] != REO[current_ref])
+        threshold_change[i] <- (!is.na(sim_ref[i]) && sim_ref[i] < sim_threshold)
+      }
 
-    if (method == "regime_reference" && is_change[i]) {
-      current_ref <- i
+      is_change[i] <- switch(
+        criterion,
+        REO_only = REO_change[i],
+        threshold_only = threshold_change[i],
+        REO_or_threshold = REO_change[i] || threshold_change[i],
+        REO_and_threshold = REO_change[i] && threshold_change[i]
+      )
+
+      if (method == "regime_reference" && is_change[i]) {
+        current_ref <- i
+      }
     }
   }
 
