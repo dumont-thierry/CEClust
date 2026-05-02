@@ -3736,7 +3736,7 @@ CECrun_diagnostic_tasks_parallel_batch <- function(
     active <- active - 1L
     if (next_idx <= length(tasks)) {
       send_call(
-        recv$node,
+        cl[[recv$node]],
         function(task) {
           get("CECrun_diagnostic_task_worker", envir = asNamespace("CEClust"), inherits = FALSE)(task)
         },
