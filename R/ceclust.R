@@ -3090,6 +3090,40 @@ CECrun_bootstrap_lambda_path_task <- function(
   list(b = b_idx, direction = dir_b, boot_indices = ib, per_lambda = per_lambda)
 }
 
+CECdiagnostics_cluster_pids <- function(cl) {
+  out <- tryCatch(
+    unlist(parallel::clusterCall(cl, Sys.getpid), use.names = FALSE),
+    error = function(e) integer(0)
+  )
+  as.integer(out[is.finite(out)])
+}
+
+CECkill_process_pids <- function(pids) {
+  pids <- unique(as.integer(pids[is.finite(pids)]))
+  pids <- setdiff(pids, Sys.getpid())
+  killed <- integer(0)
+
+  for (pid in pids) {
+    ok <- suppressWarnings(try(tools::pskill(pid), silent = TRUE))
+    if (!inherits(ok, "try-error")) {
+      killed <- c(killed, pid)
+    }
+  }
+
+  invisible(killed)
+}
+
+CECstop_diagnostics_cluster <- function(cl, worker_pids = NULL, force = TRUE) {
+  try(parallel::stopCluster(cl), silent = TRUE)
+
+  if (isTRUE(force) && length(worker_pids) > 0L) {
+    Sys.sleep(0.2)
+    CECkill_process_pids(worker_pids)
+  }
+
+  invisible(TRUE)
+}
+
 CECmake_diagnostics_cluster <- function(
   n_cores,
   seed = NULL,
@@ -3097,6 +3131,14 @@ CECmake_diagnostics_cluster <- function(
   backend_enabled = !isTRUE(.CEC_fast_backend$force_disable)
 ) {
   cl <- parallel::makePSOCKcluster(n_cores)
+  worker_pids <- CECdiagnostics_cluster_pids(cl)
+  cleanup_needed <- TRUE
+  on.exit({
+    if (isTRUE(cleanup_needed)) {
+      CECstop_diagnostics_cluster(cl, worker_pids = worker_pids, force = TRUE)
+    }
+  }, add = TRUE)
+
   package_root <- CECget_package_root()
   lib_paths <- .libPaths()
   parallel::clusterCall(
@@ -3145,6 +3187,8 @@ CECmake_diagnostics_cluster <- function(
   if (!is.null(seed)) {
     parallel::clusterSetRNGStream(cl, iseed = seed)
   }
+  attr(cl, "CEClust.worker_pids") <- worker_pids
+  cleanup_needed <- FALSE
   cl
 }
 
@@ -3651,7 +3695,8 @@ CECrun_diagnostic_tasks_parallel_batch <- function(
     context = context,
     backend_enabled = !isTRUE(.CEC_fast_backend$force_disable)
   )
-  on.exit(parallel::stopCluster(cl), add = TRUE)
+  worker_pids <- attr(cl, "CEClust.worker_pids", exact = TRUE)
+  on.exit(CECstop_diagnostics_cluster(cl, worker_pids = worker_pids, force = TRUE), add = TRUE)
 
   results <- vector("list", length(tasks))
   names(results) <- vapply(tasks, CECdiagnostics_task_key, character(1))
