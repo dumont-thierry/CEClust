@@ -6763,6 +6763,8 @@ CECfollowLambdaPath <- function(
 #' @param resume Logical. If `TRUE`, completed tasks already present in
 #'   `checkpoint_dir` are reused.
 #' @param batch_size Number of tasks launched together in each parallel batch.
+#'   Use `Inf` or `"all"` to run all pending tasks through one dynamic worker
+#'   queue.
 #' @param show_progress Logical. If `TRUE`, progress lines are printed while
 #'   tasks complete.
 #' @param rerun_failed_serial Logical. If `TRUE`, unfinished tasks are retried
@@ -6851,10 +6853,25 @@ CECdiagnose_lambda_grid_linked <- function(
   if (is.null(show_progress)) {
     show_progress <- isTRUE(verbose)
   }
+  batch_size_all <- FALSE
   if (is.null(batch_size)) {
     batch_size <- min(n_cores, max(1L, k0 + B))
+  } else if (is.character(batch_size)) {
+    batch_size_all <- tolower(batch_size[1L]) %in% c("all", "full", "queue")
+    if (!isTRUE(batch_size_all)) {
+      suppressWarnings(batch_size <- as.numeric(batch_size[1L]))
+    }
+  } else if (isTRUE(is.infinite(batch_size[1L]))) {
+    batch_size_all <- TRUE
   }
-  batch_size <- max(1L, as.integer(batch_size[1]))
+  if (isTRUE(batch_size_all)) {
+    batch_size <- .Machine$integer.max
+  } else {
+    batch_size <- suppressWarnings(as.integer(batch_size[1L]))
+    if (length(batch_size) == 0L || is.na(batch_size) || batch_size < 1L) {
+      stop("batch_size must be a positive integer, Inf, or 'all'.")
+    }
+  }
 
   if (!is.null(Nshots_init) && missing(Nshots_fresh)) {
     Nshots_fresh <- Nshots_init
@@ -6921,6 +6938,9 @@ CECdiagnose_lambda_grid_linked <- function(
     function(task) !(CECdiagnostics_task_key(task) %in% completed_keys),
     all_tasks
   )
+  if (length(pending_tasks) > 0L) {
+    batch_size <- min(batch_size, length(pending_tasks))
+  }
 
   progress_state <- CECdiagnostics_new_progress_state(k0 = k0, B = B, show_progress = show_progress)
   CECdiagnostics_set_progress_from_keys(progress_state, completed_keys, all_tasks)

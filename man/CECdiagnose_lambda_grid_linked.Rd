@@ -142,7 +142,9 @@ automatically when \code{n_cores > 1}.}
 \item{resume}{Logical. If \code{TRUE}, completed tasks already present in
 \code{checkpoint_dir} are reused.}
 
-\item{batch_size}{Number of tasks launched together in each parallel batch.}
+\item{batch_size}{Number of tasks launched together in each parallel batch.
+Use \code{Inf} or \code{"all"} to run all pending tasks through one dynamic
+worker queue.}
 
 \item{show_progress}{Logical. If \code{TRUE}, progress lines are printed while
 tasks complete.}
