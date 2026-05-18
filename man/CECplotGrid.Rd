@@ -11,7 +11,10 @@ CECplotGrid(x, ...)
 CECplotPartition(x, C = NULL, lambda = NULL, x_var = NULL, y_var = NULL,
   shape_var = "None", ...)
 
-CECplotPath(x, C = NULL, lambda = NULL, ...)
+CECplotPath(x, C = NULL, lambda = NULL, type = c("summary", "partitions"),
+  lambda_stable_obj = NULL, stab_algo_threshold = 0.8,
+  rsi_threshold = 0.8, sat_threshold = 0.1, use_smoothed = FALSE,
+  min_consecutive = 1, ...)
 
 CECexplore(x, ...)
 }
@@ -23,7 +26,22 @@ CECexplore(x, ...)
 \item{...}{Additional plotting or Shiny arguments.}
 
 \item{C, lambda}{Optional selected cell. If omitted, the first retained cell is
-used.}
+used. \code{lambda} is only used by the diagnostic summary path.}
+
+\item{type}{Plot type for \code{CECplotPath()}. \code{"summary"} displays the
+REO path for one \code{C}; \code{"partitions"} displays the one-dimensional
+partition evolution along lambda and shades rejected regions.}
+
+\item{lambda_stable_obj}{Optional output of
+\code{\link[=CECselectStableLambdas]{CECselectStableLambdas()}} used by
+\code{type = "partitions"}. If omitted, it is computed from the grid.}
+
+\item{stab_algo_threshold, rsi_threshold, sat_threshold}{Thresholds used to
+compute rejected lambda regions for \code{type = "partitions"}.}
+
+\item{use_smoothed, min_consecutive}{Stability-selection options forwarded to
+\code{\link[=CECselectStableLambdas]{CECselectStableLambdas()}} for
+\code{type = "partitions"}.}
 
 \item{x_var, y_var}{Optional variables used for multivariate scatter plots. If
 omitted, PCA axes are used when available.}
@@ -31,18 +49,26 @@ omitted, PCA axes are used when available.}
 \item{shape_var}{Optional qualitative variable used for point shapes.}
 }
 \value{
-The static plotting helpers return their plotted data invisibly.
+The static plotting helpers return their plotted data invisibly. For
+\code{CECplotPath()}, this is the single-\code{C} summary table for
+\code{type = "summary"} and the partition-path plotting data for
+\code{type = "partitions"}.
 \code{CECexplore()} returns the value produced by \code{shiny::runApp()}.
 }
 \description{
 These functions are the visual layer of the minimal CEClust API:
 \code{CECplotGrid()} displays the \code{C} by \code{lambda} map,
 \code{CECplotPartition()} inspects a selected partition,
-\code{CECplotPath()} shows the lambda path for one \code{C}, and
+\code{CECplotPath()} shows either the diagnostic lambda path or, for
+one-dimensional data, the partition evolution for one \code{C}, and
 \code{CECexplore()} launches the Shiny explorer.
 }
 \details{
 \code{CECexplore()} requires the optional package \pkg{shiny}. The Shiny
 application is kept as the main interactive interface for selecting grid cells
 and inspecting associated partitions.
+
+For \code{CECplotPath(type = "partitions")}, grey bands indicate lambda values
+that fail the stability or RSI rule. Reverse hatching marks values rejected by
+the saturation rule.
 }

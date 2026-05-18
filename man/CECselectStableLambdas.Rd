@@ -33,3 +33,8 @@ These helpers provide the diagnostic layer of the minimal API. They expose the
 existing stability, RSI, and saturation logic without requiring users to know
 the internal grid-object structure.
 }
+\details{
+When \code{sat_threshold = 0}, \code{CECselectStableLambdas()} keeps lambda
+values with exactly zero saturation and rejects positive saturation values,
+matching the public \code{C x lambda} grid convention.
+}

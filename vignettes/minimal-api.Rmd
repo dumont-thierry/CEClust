@@ -10,102 +10,212 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE
 )
 ```
 
 # Overview
 
-The public CEClust API is organised around a small number of verbs:
+The minimal CEClust API is organised around a small number of verbs:
 
-- `CECclassif()` fits one model for one `lambda`;
+- `CECclassif()` fits one model for one pair `(C, lambda)`;
 - `CECfitLambdaGrid()` scans a lambda grid for one fixed `C`;
-- `CECfitBoundGrid()` scans a `C x lambda` grid;
-- `CECfitPreset()` launches named workflows such as `"iris"`,
-  `"breast_cancer"`, and `"gaussian_1d"`;
-- `CECselectStableLambdas()` and `CECsummariseGrid()` provide diagnostics;
-- `CECplotGrid()`, `CECplotPartition()`, and `CECplotPath()` provide static
-  visual checks;
-- `CECexplore()` launches the Shiny explorer.
+- `CECfitBoundGrid()` scans a full `(C, lambda)` grid;
+- `CECfitPreset()` launches named workflows such as `"gaussian_1d"`,
+  `"iris"`, and `"breast_cancer"`;
+- `CECplotGrid()`, `CECplotPath()`, and `CECplotPartition()` are the first
+  inspection tools;
+- `CECexplore()` launches the Shiny explorer;
+- `CECsummariseGrid()` and `CECselectStableLambdas()` provide diagnostic
+  tables once the plots have been inspected.
 
-# Preset workflows
+# Visual-first workflow
 
-Preset workflows are intended for examples and reproducible checks.
+A CEClust analysis should usually begin with a grid and plots. The diagnostic
+numbers are useful, but they are easier to understand after seeing the
+structure of the path.
 
-```{r eval = FALSE}
+```{r}
 library(CEClust)
 
-iris_grid <- CECfitPreset(
-  "iris",
-  lambda_grid = seq(0.4, 1.0, by = 0.2),
-  C_grid = c(1.5, 2.0),
-  k0 = 2,
-  B = 2,
-  Nshots_fresh = 1,
-  Nshots_warm = 1,
-  Nloop = 10,
-  n_cores = 1,
-  save_results = FALSE
+runtime <- CECconfigure_runtime("auto", max_cores = 4)
+
+article_grid <- CECfitPreset(
+  "gaussian_1d",
+  n = 100,
+  data_seed = 13,
+  algo_seed = 2026035,
+  lambda_grid = seq(0.1, 1.8, by = 0.1),
+  C_grid = c(0.5, 1, 2, 3, 3.5, 4, 4.5, 5, 6, 8),
+  r0 = 10,
+  k0 = 50,
+  B = 50,
+  Nshots_fresh = 50,
+  Nshots_warm = 50,
+  Nloop = 100,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.8,
+  sat_threshold = 0.05,
+  n_cores = runtime$n_cores,
+  checkpoint_dir = NULL,
+  auto_checkpoint = TRUE,
+  resume = TRUE,
+  force_recompute = TRUE
 )
 ```
 
-The returned object contains one row per `C` and `lambda` pair:
+The first plot is the map of the `(C, lambda)` grid:
 
-```{r eval = FALSE}
-head(CECsummariseGrid(iris_grid))
+```{r}
+CECplotGrid(article_grid)
+```
+
+For one-dimensional data, the partition path is often more informative than
+the diagnostic table:
+
+```{r}
+CECplotPath(
+  article_grid,
+  C = 1,
+  type = "partitions",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.8,
+  sat_threshold = 0.05,
+  saturation_mark = "hatch"
+)
+```
+
+Then inspect a selected cell:
+
+```{r}
+CECplotPartition(article_grid, C = 1, lambda = 1)
+```
+
+# One fixed classification
+
+The simple `CECclassif()` entry point is still useful when `C` and `lambda` are
+chosen in advance, or after a grid suggests a reasonable cell.
+
+```{r}
+fit_1_1 <- CECclassif(
+  Z = article_grid$Z,
+  C = 1,
+  lambda = 1,
+  r0 = 10,
+  Nshots = 50,
+  Nloop = 100,
+  familyType = "gaussUniv"
+)
+
+table(fit_1_1$clusters)
+fit_1_1$REO
 ```
 
 # Diagnostics
 
-Stable lambda selection combines the existing stability, RSI, and saturation
-criteria:
+After the visual checks, summarise the grid and select stable lambdas:
 
-```{r eval = FALSE}
-stable <- CECselectStableLambdas(
-  iris_grid,
-  C = 2.0,
+```{r}
+head(CECsummariseGrid(article_grid))
+
+stable_C1 <- CECselectStableLambdas(
+  article_grid,
+  C = 1,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.8,
   sat_threshold = 0.05
 )
 
-stable$kept_lambdas
+stable_C1$kept_lambdas
+stable_C1$summary
 ```
 
-# Plots and Shiny
+# Shiny explorer
 
-The static plot layer uses the same grid object:
+The Shiny interface is kept as the main interactive workflow:
 
-```{r eval = FALSE}
-CECplotGrid(iris_grid)
-CECplotPartition(iris_grid)
-CECplotPath(iris_grid)
+```{r}
+CECexplore(article_grid)
 ```
 
-The Shiny explorer is kept as the main interactive interface:
+# Iris presets
 
-```{r eval = FALSE}
-CECexplore(iris_grid)
+Run iris without using `Species` in the clustering variables:
+
+```{r}
+iris_no_species <- CECfitPreset(
+  "iris",
+  include_species_as_feature = FALSE,
+  quantitative_representation = "raw",
+  r0 = 10,
+  k0 = 20,
+  B = 20,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  n_cores = runtime$n_cores
+)
+
+CECplotGrid(iris_no_species)
+CECplotPartition(iris_no_species)
+CECexplore(iris_no_species)
 ```
 
-# Direct C by lambda grids
+Run iris with `Species` included as a qualitative feature:
 
-For custom data, use `CECfitBoundGrid()`:
+```{r}
+iris_with_species <- CECfitPreset(
+  "iris",
+  include_species_as_feature = TRUE,
+  quantitative_representation = "raw",
+  r0 = 10,
+  k0 = 20,
+  B = 20,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  n_cores = runtime$n_cores
+)
 
-```{r eval = FALSE}
-Z <- simulate_multidim_benchmark_data(n = 120, p_num = 3, p_fac = 0, seed = 1)
+CECplotGrid(iris_with_species)
+CECplotPartition(iris_with_species, shape_var = "Species")
+CECexplore(iris_with_species)
+```
 
-grid <- CECfitBoundGrid(
-  Z = Z,
-  lambda_grid = seq(0.4, 1.0, by = 0.2),
-  C_grid = c(1, 2),
-  familyType = "gaussVector",
-  k0 = 2,
-  B = 2,
-  Nshots_fresh = 1,
-  Nshots_warm = 1,
-  Nloop = 10,
-  n_cores = 1
+# Uniform stress test
+
+For a uniform sample on `[0, 1]`, use a lambda path at `C = 10` and mark
+values that do not satisfy `RSI > 0.9`, `stab_algo > 0.8`, and `sat = 0`.
+
+```{r}
+set.seed(13)
+Z_uniform <- runif(1000)
+
+uniform_grid <- CECfitBoundGrid(
+  Z = Z_uniform,
+  lambda_grid = seq(0.05, 2, by = 0.05),
+  C_grid = 10,
+  r0 = 50,
+  k0 = 20,
+  B = 20,
+  Nshots_fresh = 20,
+  Nshots_warm = 20,
+  Nloop = 100,
+  familyType = "gaussUniv",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0,
+  n_cores = runtime$n_cores
+)
+
+CECplotPath(
+  uniform_grid,
+  C = 10,
+  type = "partitions",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0,
+  saturation_mark = "hatch"
 )
 ```
-

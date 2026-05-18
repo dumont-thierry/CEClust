@@ -16,3 +16,12 @@ test_that("preset names are intentionally small", {
   )
 })
 
+test_that("CECplotPath exposes diagnostic and partition views", {
+  expect_equal(eval(formals(CECplotPath)$type), c("summary", "partitions"))
+  expect_true(all(c(
+    "stab_algo_threshold",
+    "rsi_threshold",
+    "sat_threshold",
+    "lambda_stable_obj"
+  ) %in% names(formals(CECplotPath))))
+})

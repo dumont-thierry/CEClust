@@ -77,6 +77,30 @@ CECfitPreset <- function(
 #' @return A list describing kept and rejected lambdas plus a diagnostic summary.
 #' @export
 CECselectStableLambdas <- function(x, best_parts = NULL, C = NULL, ...) {
+  dots <- list(...)
+  requested_sat_threshold <- NULL
+  if (!is.null(dots$sat_threshold) &&
+      length(dots$sat_threshold) == 1L &&
+      is.finite(dots$sat_threshold) &&
+      dots$sat_threshold <= 0) {
+    requested_sat_threshold <- dots$sat_threshold
+    dots$sat_threshold <- .Machine$double.eps
+  }
+
+  select_keep <- function(lambda_diag, best_parts = NULL) {
+    out <- do.call(
+      identify_cec_grid_lambda_keep,
+      c(
+        list(lambda_diag = lambda_diag, best_parts = best_parts),
+        dots
+      )
+    )
+    if (!is.null(requested_sat_threshold)) {
+      out$sat_threshold <- requested_sat_threshold
+    }
+    out
+  }
+
   if (inherits(x, "CEC_bound_grid") || !is.null(x$runs_by_C)) {
     result <- if (is.null(C)) {
       best <- cec_grid_best_row(x)
@@ -84,26 +108,14 @@ CECselectStableLambdas <- function(x, best_parts = NULL, C = NULL, ...) {
     } else {
       cec_grid_result_for_C(x, C)
     }
-    return(identify_cec_grid_lambda_keep(
-      lambda_diag = result$lambda_diag,
-      best_parts = result$best_parts,
-      ...
-    ))
+    return(select_keep(result$lambda_diag, result$best_parts))
   }
 
   if (!is.null(x$lambda_diag) && !is.null(x$best_parts)) {
-    return(identify_cec_grid_lambda_keep(
-      lambda_diag = x$lambda_diag,
-      best_parts = x$best_parts,
-      ...
-    ))
+    return(select_keep(x$lambda_diag, x$best_parts))
   }
 
-  identify_cec_grid_lambda_keep(
-    lambda_diag = x,
-    best_parts = best_parts,
-    ...
-  )
+  select_keep(x, best_parts)
 }
 
 
@@ -180,16 +192,87 @@ CECplotPartition <- function(
 #'
 #' @param x A `"CEC_bound_grid"` object.
 #' @param C Optional bound value. If omitted, the first retained cell is used.
-#' @param lambda Optional lambda highlighted on the path.
+#' @param lambda Optional lambda highlighted on the diagnostic summary path.
+#' @param type Plot type. `"summary"` displays the REO path for one `C`;
+#'   `"partitions"` displays the one-dimensional partition evolution over
+#'   lambda and shades rejected regions.
+#' @param lambda_stable_obj Optional output of [CECselectStableLambdas()]. When
+#'   omitted and `type = "partitions"`, it is computed from the grid.
+#' @param stab_algo_threshold,rsi_threshold,sat_threshold Thresholds used when
+#'   computing rejected lambda regions for `type = "partitions"`.
+#' @param use_smoothed,min_consecutive Stability-selection options forwarded to
+#'   [CECselectStableLambdas()] for `type = "partitions"`.
 #' @param ... Additional plotting arguments.
-#' @return Invisibly returns the single-`C` summary table.
+#' @return Invisibly returns the plotted summary table for `type = "summary"`
+#'   or the partition-path plotting data for `type = "partitions"`.
 #' @export
-CECplotPath <- function(x, C = NULL, lambda = NULL, ...) {
-  if (is.null(C) || is.null(lambda)) {
+CECplotPath <- function(
+  x,
+  C = NULL,
+  lambda = NULL,
+  type = c("summary", "partitions"),
+  lambda_stable_obj = NULL,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.8,
+  sat_threshold = 0.1,
+  use_smoothed = FALSE,
+  min_consecutive = 1,
+  ...
+) {
+  type <- match.arg(type)
+
+  if (is.null(C) || (type == "summary" && is.null(lambda))) {
     row <- cec_grid_best_row(x)
     C <- if (is.null(C)) row$C[1L] else C
-    lambda <- if (is.null(lambda)) row$lambda[1L] else lambda
+    if (type == "summary") {
+      lambda <- if (is.null(lambda)) row$lambda[1L] else lambda
+    }
   }
+
+  if (type == "partitions") {
+    result <- cec_grid_result_for_C(x, C)
+    Z <- result$Z
+    if (is.data.frame(Z) || is.matrix(Z)) {
+      if (NCOL(Z) != 1L) {
+        stop(
+          "type = 'partitions' is currently implemented for one-dimensional numeric data. ",
+          "Use CECplotGrid(), CECplotPartition(), or CECexplore() for multivariate grids.",
+          call. = FALSE
+        )
+      }
+      Z <- as.numeric(as.data.frame(Z)[[1L]])
+    }
+    if (!is.numeric(Z)) {
+      stop("type = 'partitions' requires one-dimensional numeric data.", call. = FALSE)
+    }
+
+    if (is.null(lambda_stable_obj)) {
+      stable_sat_threshold <- sat_threshold
+      if (length(stable_sat_threshold) == 1L &&
+          is.finite(stable_sat_threshold) &&
+          stable_sat_threshold <= 0) {
+        stable_sat_threshold <- .Machine$double.eps
+      }
+      lambda_stable_obj <- CECselectStableLambdas(
+        x,
+        C = C,
+        stab_algo_threshold = stab_algo_threshold,
+        rsi_threshold = rsi_threshold,
+        sat_threshold = stable_sat_threshold,
+        use_smoothed = use_smoothed,
+        min_consecutive = min_consecutive
+      )
+      lambda_stable_obj$sat_threshold <- sat_threshold
+    }
+
+    return(plotCECPartitionEvolution1D(
+      Z = Z,
+      best_partitions_obj = result$best_parts,
+      lambda_stable_obj = lambda_stable_obj,
+      ...
+    ))
+  }
+
   plot_cec_grid_selected_lambda_path_1d(
     x,
     C = C,
