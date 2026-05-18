@@ -13,11 +13,6 @@ In practice, the two tuning parameters are:
   solutions can become saturated and should not be interpreted as stable
   discoveries.
 
-For mixed data, `C` controls only the quantitative density bound. Qualitative
-variables have a separate optional floor, `Cquali`; by default `Cquali = Inf`,
-so no qualitative frequency floor is applied. The reported saturation `sat`
-therefore reflects quantitative density saturation, not categorical smoothing.
-
 The recommended workflow is therefore visual first:
 
 1. fit a grid of candidate values `(C, lambda)`;
@@ -214,13 +209,13 @@ iris_no_species <- CECfitPreset(
   "iris",
   include_species_as_feature = FALSE,
   quantitative_representation = "raw",
-  lambda_grid = seq(0.4, 1.8, by = 0.1),
-  C_grid = seq(1, 20, by = 1),
+  lambda_grid = seq(0.1, 4, by = 0.5),
+  C_grid = seq(1, 10, by = 2),
   r0 = 10,
   k0 = 20,
   B = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
+  Nshots_fresh = 20,
+  Nshots_warm = 20,
   Nloop = 100
 )
 
@@ -238,13 +233,13 @@ iris_with_species <- CECfitPreset(
   "iris",
   include_species_as_feature = TRUE,
   quantitative_representation = "raw",
-  lambda_grid = seq(0.4, 1.8, by = 0.1),
-  C_grid = seq(1, 20, by = 1),
+  lambda_grid = seq(0.1, 4, by = 0.5),
+  C_grid = seq(1, 10, by = 2),
   r0 = 10,
   k0 = 20,
   B = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
+  Nshots_fresh = 20,
+  Nshots_warm = 20,
   Nloop = 100
 )
 
@@ -290,9 +285,9 @@ CECplotPath(
   uniform_grid,
   C = 10,
   type = "partitions",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
-  sat_threshold = 0,
+  stab_algo_threshold = 0.95,
+  rsi_threshold = 0.95,
+  sat_threshold = 1.1,
   saturation_mark = "hatch"
 )
 
