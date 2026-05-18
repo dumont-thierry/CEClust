@@ -4,21 +4,30 @@
 \alias{CECfitPreset}
 \title{Fit CEClust over a C by lambda grid}
 \usage{
-CECfitBoundGrid(..., save_results = FALSE, output_dir = file.path(tempdir(), "CEClust"))
+CECfitBoundGrid(..., save_results = FALSE,
+  output_dir = file.path(tempdir(), "CEClust"), checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE, resume = FALSE, force_recompute = FALSE)
 
 CECfitPreset(preset = c("gaussian_1d", "iris", "breast_cancer"), ...,
-  save_results = FALSE, output_dir = file.path(tempdir(), "CEClust"))
+  save_results = FALSE, output_dir = file.path(tempdir(), "CEClust"),
+  checkpoint_dir = FALSE, auto_checkpoint = FALSE, resume = FALSE,
+  force_recompute = FALSE)
 }
 \arguments{
 \item{...}{Arguments forwarded to the grid workflow. Common arguments include
 \code{Z}, \code{lambda_grid}, \code{C_grid}, \code{familyType}, \code{k0},
 \code{B}, \code{Nshots_fresh}, \code{Nshots_warm}, \code{Nloop},
-\code{n_cores}, and \code{checkpoint_dir}.}
+\code{n_cores}.}
 
 \item{save_results}{Logical. If \code{TRUE}, save the result as an \code{.rds}
 file. The public wrapper defaults to \code{FALSE}.}
 
 \item{output_dir}{Directory used when \code{save_results = TRUE}.}
+
+\item{checkpoint_dir, auto_checkpoint, resume, force_recompute}{Checkpoint
+controls. By default, the public wrappers do not write checkpoints or result
+files on the user's machine. Set \code{auto_checkpoint = TRUE} or
+\code{checkpoint_dir} explicitly for long runs that should be resumable.}
 
 \item{preset}{Named preset workflow. One of \code{"gaussian_1d"},
 \code{"iris"}, or \code{"breast_cancer"}.}
@@ -37,6 +46,11 @@ entry point.
 \code{CECfitPreset()} launches one of the built-in demonstration workflows.
 }
 \details{
+\code{CECfitBoundGrid()} and \code{CECfitPreset()} do not save results or
+checkpoint files by default. This keeps examples side-effect free. For long
+computations, pass \code{auto_checkpoint = TRUE} or a \code{checkpoint_dir}
+explicitly.
+
 \code{CECfitPreset("breast_cancer")} requires the optional package
 \pkg{mlbench}. ICL comparison helpers require \pkg{mclust}.
 }

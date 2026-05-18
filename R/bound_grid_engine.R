@@ -1579,10 +1579,10 @@
       n_cores = 8,
       batch_size = NULL,
       dynamic_task_queue = TRUE,
-      checkpoint_dir = NULL,
-      auto_checkpoint = TRUE,
-      resume = TRUE,
-      force_recompute = TRUE,
+      checkpoint_dir = FALSE,
+      auto_checkpoint = FALSE,
+      resume = FALSE,
+      force_recompute = FALSE,
       show_progress = interactive(),
       global_progress = TRUE,
       repair_C_trajectories = TRUE,
@@ -1593,7 +1593,7 @@
       lambda_repair_max_iter = 100L,
       repair_alternate_max_iter = 20L,
       output_dir = cec_grid_simulation_dir(),
-      save_results = TRUE,
+      save_results = FALSE,
       verbose = TRUE
     ) {
       ceclust_version <- load_ceclust_for_grid()
@@ -2040,11 +2040,11 @@
       familyType = NULL,
       n_cores = 8,
       batch_size = NULL,
-      checkpoint_dir = NULL,
-      auto_checkpoint = TRUE,
-      resume = TRUE,
-      force_recompute = TRUE,
-      save_results = TRUE,
+      checkpoint_dir = FALSE,
+      auto_checkpoint = FALSE,
+      resume = FALSE,
+      force_recompute = FALSE,
+      save_results = FALSE,
       verbose = TRUE,
       ...
     ) {
@@ -2129,11 +2129,11 @@
       familyType = NULL,
       n_cores = 8,
       batch_size = NULL,
-      checkpoint_dir = NULL,
-      auto_checkpoint = TRUE,
-      resume = TRUE,
-      force_recompute = TRUE,
-      save_results = TRUE,
+      checkpoint_dir = FALSE,
+      auto_checkpoint = FALSE,
+      resume = FALSE,
+      force_recompute = FALSE,
+      save_results = FALSE,
       verbose = TRUE,
       ...
     ) {

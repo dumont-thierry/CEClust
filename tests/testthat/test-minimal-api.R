@@ -25,3 +25,16 @@ test_that("CECplotPath exposes diagnostic and partition views", {
     "lambda_stable_obj"
   ) %in% names(formals(CECplotPath))))
 })
+
+test_that("public grid wrappers do not write files by default", {
+  bound_defaults <- as.list(formals(CECfitBoundGrid))
+  preset_defaults <- as.list(formals(CECfitPreset))
+
+  for (defaults in list(bound_defaults, preset_defaults)) {
+    expect_false(defaults$save_results)
+    expect_false(defaults$checkpoint_dir)
+    expect_false(defaults$auto_checkpoint)
+    expect_false(defaults$resume)
+    expect_false(defaults$force_recompute)
+  }
+})

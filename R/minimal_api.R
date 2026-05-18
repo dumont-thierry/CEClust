@@ -8,22 +8,32 @@
 #'
 #' @param ... Arguments forwarded to the internal grid engine. Common arguments
 #'   include `Z`, `lambda_grid`, `C_grid`, `familyType`, `k0`, `B`,
-#'   `Nshots_fresh`, `Nshots_warm`, `Nloop`, `n_cores`, and `checkpoint_dir`.
+#'   `Nshots_fresh`, `Nshots_warm`, `Nloop`, and `n_cores`.
 #' @param save_results Logical. If `TRUE`, save the returned object as an `.rds`
 #'   file. Defaults to `FALSE` in the public wrapper.
 #' @param output_dir Directory used when `save_results = TRUE`.
+#' @param checkpoint_dir,auto_checkpoint,resume,force_recompute Checkpoint
+#'   controls. The public defaults do not write checkpoint files.
 #' @return An object of class `"CEC_bound_grid"` containing the original data,
 #'   per-`C` lambda-grid fits, a combined `summary` table, and metadata.
 #' @export
 CECfitBoundGrid <- function(
   ...,
   save_results = FALSE,
-  output_dir = file.path(tempdir(), "CEClust")
+  output_dir = file.path(tempdir(), "CEClust"),
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  resume = FALSE,
+  force_recompute = FALSE
 ) {
   out <- run_cec_grid(
     ...,
     save_results = save_results,
-    output_dir = output_dir
+    output_dir = output_dir,
+    checkpoint_dir = checkpoint_dir,
+    auto_checkpoint = auto_checkpoint,
+    resume = resume,
+    force_recompute = force_recompute
   )
   class(out) <- unique(c("CEC_bound_grid", "CEC_grid", class(out)))
   out
@@ -50,14 +60,27 @@ CECfitPreset <- function(
   preset = c("gaussian_1d", "iris", "breast_cancer"),
   ...,
   save_results = FALSE,
-  output_dir = file.path(tempdir(), "CEClust")
+  output_dir = file.path(tempdir(), "CEClust"),
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  resume = FALSE,
+  force_recompute = FALSE
 ) {
   preset <- match.arg(preset)
+  grid_args <- list(
+    ...,
+    save_results = save_results,
+    output_dir = output_dir,
+    checkpoint_dir = checkpoint_dir,
+    auto_checkpoint = auto_checkpoint,
+    resume = resume,
+    force_recompute = force_recompute
+  )
   out <- switch(
     preset,
-    gaussian_1d = CECfitBoundGrid(..., save_results = save_results, output_dir = output_dir),
-    iris = run_cec_grid_iris(..., save_results = save_results, output_dir = output_dir),
-    breast_cancer = run_cec_grid_breast_cancer(..., save_results = save_results, output_dir = output_dir)
+    gaussian_1d = do.call(CECfitBoundGrid, grid_args),
+    iris = do.call(run_cec_grid_iris, grid_args),
+    breast_cancer = do.call(run_cec_grid_breast_cancer, grid_args)
   )
   class(out) <- unique(c("CEC_bound_grid", "CEC_grid", class(out)))
   out

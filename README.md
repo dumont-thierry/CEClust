@@ -38,6 +38,10 @@ CECsummariseGrid(...)
 CECselectStableLambdas(...)
 ```
 
+By default, `CECfitBoundGrid()` and `CECfitPreset()` keep results in memory and
+do not write checkpoint or result files. Checkpoints are an explicit option for
+long runs, not part of the basic user call.
+
 ## Installation
 
 Current development branch:
@@ -95,8 +99,6 @@ split into several artificial clusters.
 ```r
 library(CEClust)
 
-runtime <- CECconfigure_runtime("auto", max_cores = 8)
-
 article_grid <- CECfitPreset(
   "gaussian_1d",
   n = 100,
@@ -112,14 +114,7 @@ article_grid <- CECfitPreset(
   Nloop = 100,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.8,
-  sat_threshold = 0.05,
-  n_cores = runtime$n_cores,
-  batch_size = NULL,
-  dynamic_task_queue = TRUE,
-  checkpoint_dir = NULL,
-  auto_checkpoint = TRUE,
-  resume = TRUE,
-  force_recompute = TRUE
+  sat_threshold = 0.05
 )
 ```
 
@@ -221,12 +216,7 @@ iris_no_species <- CECfitPreset(
   B = 20,
   Nshots_fresh = 10,
   Nshots_warm = 10,
-  Nloop = 100,
-  n_cores = runtime$n_cores,
-  checkpoint_dir = NULL,
-  auto_checkpoint = TRUE,
-  resume = TRUE,
-  force_recompute = TRUE
+  Nloop = 100
 )
 
 CECplotGrid(iris_no_species)
@@ -250,12 +240,7 @@ iris_with_species <- CECfitPreset(
   B = 20,
   Nshots_fresh = 10,
   Nshots_warm = 10,
-  Nloop = 100,
-  n_cores = runtime$n_cores,
-  checkpoint_dir = NULL,
-  auto_checkpoint = TRUE,
-  resume = TRUE,
-  force_recompute = TRUE
+  Nloop = 100
 )
 
 CECplotGrid(iris_with_species)
@@ -288,12 +273,7 @@ uniform_grid <- CECfitBoundGrid(
   familyType = "gaussUniv",
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.9,
-  sat_threshold = 0,
-  n_cores = runtime$n_cores,
-  checkpoint_dir = NULL,
-  auto_checkpoint = TRUE,
-  resume = TRUE,
-  force_recompute = TRUE
+  sat_threshold = 0
 )
 ```
 
