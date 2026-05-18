@@ -135,7 +135,7 @@ value in mind.
 ### 3. Diagnose a lambda grid
 
 ```r
-lambda_diag <- CECdiagnose_lambda_grid_linked(
+lambda_diag <- CECfitLambdaGrid(
   Z = Z,
   lambda_grid = seq(0.2, 1.4, by = 0.2),
   k0 = 4,
@@ -270,7 +270,7 @@ One-dimensional inspection for scalar numeric data:
 ```r
 Z_1d <- rnorm(80)
 
-diag_1d <- CECdiagnose_lambda_grid_linked(
+diag_1d <- CECfitLambdaGrid(
   Z = Z_1d,
   lambda_grid = seq(0.2, 1.0, by = 0.2),
   k0 = 3,
@@ -297,7 +297,7 @@ plotCECBestPartitions1D(Z_1d, best_1d)
 PCA-based trajectory display for multivariate numeric data:
 
 ```r
-diag_iris <- CECdiagnose_lambda_grid_linked(
+diag_iris <- CECfitLambdaGrid(
   iris[, -5],
   lambda_grid = seq(0.01, 0.8, by = 0.1),
   k0 = 3,

@@ -4,6 +4,8 @@
   refreshed metadata, NEWS, and package-level documentation.
 - Consolidated the public workflow around fixed-lambda fitting, linked-lambda
   diagnostics, best-partition extraction, trajectory repair, and visualization.
+- Renamed the main lambda-grid workflow to `CECfitLambdaGrid()`, while keeping
+  `CECdiagnose_lambda_grid_linked()` as a backward-compatible alias.
 - Reworked the user-facing documentation for exported functions, including more
   explicit return values, workflow-oriented examples, and clearer descriptions
   of runtime and stability diagnostics.

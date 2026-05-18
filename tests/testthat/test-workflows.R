@@ -13,7 +13,7 @@ test_that("runtime configuration returns the expected structure", {
 test_that("linked-lambda workflow returns extractable best partitions", {
   Z <- simulate_multidim_benchmark_data(n = 60, p_num = 3, p_fac = 2, seed = 11)
 
-  lambda_diag <- CECdiagnose_lambda_grid_linked(
+  lambda_diag <- CECfitLambdaGrid(
     Z = Z,
     lambda_grid = seq(0.2, 0.6, by = 0.2),
     k0 = 2,
@@ -88,7 +88,7 @@ test_that("stable-lambda selection can exclude saturation-heavy lambdas", {
 test_that("PCA trajectory helpers work for multivariate numeric data", {
   Z <- iris[, -5]
 
-  lambda_diag <- CECdiagnose_lambda_grid_linked(
+  lambda_diag <- CECfitLambdaGrid(
     Z = Z,
     lambda_grid = seq(0.2, 0.4, by = 0.2),
     k0 = 2,

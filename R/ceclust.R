@@ -3243,7 +3243,7 @@ CECformat_elapsed_time <- function(start_time, end_time = Sys.time()) {
   sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
-CECtemp_checkpoint_dir <- function(prefix = "cecdiagnose_lambda_grid_linked", signature = NULL) {
+CECtemp_checkpoint_dir <- function(prefix = "CECfitLambdaGrid", signature = NULL) {
   root <- Sys.getenv("TEMP", unset = "")
   if (!nzchar(root)) {
     root <- tempdir()
@@ -4195,8 +4195,8 @@ CECmovingAverage <- function(x, k = 3) {
 # ------------------------------------------------------------
 #' Add smoothed summary curves to a linked-lambda diagnostic object.
 #'
-#' @rdname CECdiagnose_lambda_grid_linked
-#' @param lambda_diag Object returned by [CECdiagnose_lambda_grid_linked()].
+#' @rdname CECfitLambdaGrid
+#' @param lambda_diag Object returned by [CECfitLambdaGrid()].
 #' @param k Width of the moving-average smoother applied to the selected summary
 #'   columns.
 #' @param ratio_col,stab0_col,stabB_col,H_col Column names in
@@ -4364,7 +4364,7 @@ CECboundSaturationTable <- function(best_partitions_obj) {
 
 #' Identify stable lambda regions from a diagnostic summary.
 #'
-#' @rdname CECdiagnose_lambda_grid_linked
+#' @rdname CECfitLambdaGrid
 #' @param rule Stability rule. `"ratio"` uses the bootstrap-to-fixed stability
 #'   ratio, `"stabB"` uses bootstrap stability alone, and `"both"` requires the
 #'   two conditions simultaneously. When saturation information is available,
@@ -5098,7 +5098,7 @@ CECshadeLambdaBands <- function(
 #' @rdname plotCECdiagnoseInteractive
 #' @param Z Original data set used for plotting. For
 #'   `plotCECBestPartitions1D()`, this should be one-dimensional and numeric.
-#' @param lambda_diag Object returned by [CECdiagnose_lambda_grid_linked()].
+#' @param lambda_diag Object returned by [CECfitLambdaGrid()].
 #' @param ratio_col,stab0_col,stabB_col,H_col Column names used in the lambda
 #'   summary plot.
 #' @param use_smoothed Logical. If `TRUE`, smoothed summary columns are used when
@@ -6290,12 +6290,12 @@ CECdecompose_fit_on_data <- function(fit, Z) {
 #' Extract one representative partition for each lambda in a diagnostic object.
 #'
 #' `CECextractBestPartitions()` condenses the output of
-#' [CECdiagnose_lambda_grid_linked()] into one representative partition per
+#' [CECfitLambdaGrid()] into one representative partition per
 #' lambda value. Downstream helpers can then assess coherence, repair
 #' trajectories, and identify change points along the selected lambda path.
 #'
 #' @rdname CECextractBestPartitions
-#' @param lambda_diag Object returned by [CECdiagnose_lambda_grid_linked()].
+#' @param lambda_diag Object returned by [CECfitLambdaGrid()].
 #' @param source Candidate pool used when selecting the representative partition:
 #'   `"fixed"` uses runs on the original data, `"bootstrap"` uses projected
 #'   bootstrap fits, and `"all"` combines both.
@@ -6311,7 +6311,7 @@ CECdecompose_fit_on_data <- function(fit, Z) {
 #' @examples
 #' CECconfigure_runtime("base")
 #' Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 2)
-#' lambda_diag <- CECdiagnose_lambda_grid_linked(
+#' lambda_diag <- CECfitLambdaGrid(
 #'   Z = Z,
 #'   lambda_grid = seq(0.2, 0.8, by = 0.2),
 #'   k0 = 2,
@@ -6725,7 +6725,7 @@ CECfollowLambdaPath <- function(
 # ------------------------------------------------------------
 #' Diagnose a grid of lambda values with linked forward and backward paths.
 #'
-#' `CECdiagnose_lambda_grid_linked()` is the main workflow for studying how the
+#' `CECfitLambdaGrid()` is the main workflow for studying how the
 #' fitted partition evolves across a sequence of regularisation values. For each
 #' `lambda`, the function combines repeated runs on the original data with
 #' bootstrap trajectories projected back on the reference data set. The result
@@ -6776,7 +6776,7 @@ CECfollowLambdaPath <- function(
 #'   Rand index.
 #' @param stability_approach Strategy used to summarise bootstrap stability.
 #'
-#' @return `CECdiagnose_lambda_grid_linked()` returns a list with:
+#' @return `CECfitLambdaGrid()` returns a list with:
 #' - `summary`: one row per lambda with stability and criterion summaries;
 #' - `details`: the full per-lambda objects used to build downstream summaries;
 #' - `lambda_grid`: the analysed lambda grid;
@@ -6788,7 +6788,7 @@ CECfollowLambdaPath <- function(
 #' Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 1)
 #' runtime <- CECconfigure_runtime("base")
 #'
-#' lambda_diag <- CECdiagnose_lambda_grid_linked(
+#' lambda_diag <- CECfitLambdaGrid(
 #'   Z = Z,
 #'   lambda_grid = seq(0.2, 0.8, by = 0.2),
 #'   k0 = 2,
@@ -6814,7 +6814,7 @@ CECfollowLambdaPath <- function(
 #' head(lambda_diag$summary)
 #' stable$lambda_min
 #' @export
-CECdiagnose_lambda_grid_linked <- function(
+CECfitLambdaGrid <- function(
   Z,
   lambda_grid = seq(0.1, 2, by = 0.1),
   k0 = 10,
@@ -7271,6 +7271,10 @@ CECdiagnose_lambda_grid_linked <- function(
     )
   )
 }
+
+#' @rdname CECfitLambdaGrid
+#' @export
+CECdiagnose_lambda_grid_linked <- CECfitLambdaGrid
 
 #' Build a PCA-ready data frame describing partition trajectories.
 #'
@@ -7964,7 +7968,7 @@ CECinteractive_plot_2d <- function(
 #'
 #' @rdname plotCECdiagnoseInteractive
 #' @param obj Either a `lambda_diag` object returned by
-#'   [CECdiagnose_lambda_grid_linked()] or a `best_parts` object returned by
+#'   [CECfitLambdaGrid()] or a `best_parts` object returned by
 #'   [CECextractBestPartitions()].
 #' @param Z Original data set used to build the diagnostic object.
 #' @param source Candidate pool used when `obj` is a `lambda_diag` object and
@@ -7982,7 +7986,7 @@ CECinteractive_plot_2d <- function(
 #'
 #' @examples
 #' Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 3)
-#' lambda_diag <- CECdiagnose_lambda_grid_linked(
+#' lambda_diag <- CECfitLambdaGrid(
 #'   Z = Z,
 #'   lambda_grid = seq(0.2, 0.8, by = 0.2),
 #'   k0 = 2,
@@ -8006,7 +8010,7 @@ CECinteractive_plot_2d <- function(
 #' plotCECdiagnoseLambdaGrid(lambda_diag, use_smoothed = FALSE)
 #'
 #' path_df <- build_partition_path_df(iris[, -5], CECextractBestPartitions(
-#'   CECdiagnose_lambda_grid_linked(
+#'   CECfitLambdaGrid(
 #'     iris[, -5],
 #'     lambda_grid = seq(0.2, 0.4, by = 0.2),
 #'     k0 = 2,

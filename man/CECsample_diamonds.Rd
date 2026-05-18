@@ -27,7 +27,7 @@ CECconfigure_runtime("base")
 Z_diamonds <- CECsample_diamonds(n_max = 80, seed = 1)
 str(Z_diamonds)
 
-diag_diamonds <- CECdiagnose_lambda_grid_linked(
+diag_diamonds <- CECfitLambdaGrid(
   Z = Z_diamonds,
   lambda_grid = seq(0.2, 0.8, by = 0.2),
   k0 = 2,

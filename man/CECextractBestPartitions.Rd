@@ -68,7 +68,7 @@ decompositions can be recovered when available.}
 \item{max_iter}{Maximum number of forward/backward propagation rounds used by
 the repair heuristic.}
 
-\item{lambda_diag}{Object returned by \code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}}.}
+\item{lambda_diag}{Object returned by \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}.}
 
 \item{source}{Candidate pool used when selecting the representative partition:
 \code{"fixed"} uses runs on the original data, \code{"bootstrap"} uses projected
@@ -97,14 +97,14 @@ labels;
 }
 \description{
 \code{CECextractBestPartitions()} condenses the output of
-\code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}} into one representative partition per
+\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}} into one representative partition per
 lambda value. Downstream helpers can then assess coherence, repair
 trajectories, and identify change points along the selected lambda path.
 }
 \examples{
 CECconfigure_runtime("base")
 Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 2)
-lambda_diag <- CECdiagnose_lambda_grid_linked(
+lambda_diag <- CECfitLambdaGrid(
   Z = Z,
   lambda_grid = seq(0.2, 0.8, by = 0.2),
   k0 = 2,

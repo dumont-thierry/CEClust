@@ -16,7 +16,7 @@ The typical workflow is:
 \enumerate{
 \item configure the runtime with \code{\link[=CECconfigure_runtime]{CECconfigure_runtime()}};
 \item fit one model with \code{\link[=CECclassif]{CECclassif()}} or diagnose a grid with
-\code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}};
+\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}};
 \item extract representative partitions with \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}};
 \item inspect stability and visual summaries with
 \code{\link[=CECidentifyStableLambdas]{CECidentifyStableLambdas()}}, \code{\link[=plotCECdiagnoseLambdaGrid]{plotCECdiagnoseLambdaGrid()}}, and
@@ -29,7 +29,7 @@ The typical workflow is:
 \item \code{\link[=CECconfigure_runtime]{CECconfigure_runtime()}} configures pure-R or optional fast-backend
 execution.
 \item \code{\link[=CECclassif]{CECclassif()}} fits a repeated-shot CEC model for one \code{lambda}.
-\item \code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}} evaluates a grid of \code{lambda} values
+\item \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}} evaluates a grid of \code{lambda} values
 using linked forward and backward paths.
 \item \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}} summarises one representative partition per
 \code{lambda}.

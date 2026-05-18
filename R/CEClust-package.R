@@ -9,7 +9,7 @@
 #'
 #' 1. configure the runtime with [CECconfigure_runtime()];
 #' 2. fit one model with [CECclassif()] or diagnose a grid with
-#'    [CECdiagnose_lambda_grid_linked()];
+#'    [CECfitLambdaGrid()];
 #' 3. extract representative partitions with [CECextractBestPartitions()];
 #' 4. inspect stability and visual summaries with
 #'    [CECidentifyStableLambdas()], [plotCECdiagnoseLambdaGrid()], and
@@ -19,7 +19,7 @@
 #' - [CECconfigure_runtime()] configures pure-R or optional fast-backend
 #'   execution.
 #' - [CECclassif()] fits a repeated-shot CEC model for one `lambda`.
-#' - [CECdiagnose_lambda_grid_linked()] evaluates a grid of `lambda` values
+#' - [CECfitLambdaGrid()] evaluates a grid of `lambda` values
 #'   using linked forward and backward paths.
 #' - [CECextractBestPartitions()] summarises one representative partition per
 #'   `lambda`.

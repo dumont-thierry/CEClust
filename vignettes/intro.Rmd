@@ -46,7 +46,7 @@ runtime_auto
 ```
 
 The returned `n_cores` value can be passed directly to
-`CECdiagnose_lambda_grid_linked()`.
+`CECfitLambdaGrid()`.
 
 # Example data
 
@@ -91,7 +91,7 @@ when you want to inspect one candidate value quickly.
 The main workflow follows linked paths over a grid of `lambda` values:
 
 ```{r}
-lambda_diag <- CECdiagnose_lambda_grid_linked(
+lambda_diag <- CECfitLambdaGrid(
   Z = Z,
   lambda_grid = seq(0.1, 2.0, by = 0.2),
   k0 = 10,
@@ -216,7 +216,7 @@ four numeric variables.
 ```{r}
 Z_iris <- iris[, -5]
 
-diag_iris <- CECdiagnose_lambda_grid_linked(
+diag_iris <- CECfitLambdaGrid(
   Z = Z_iris,
   lambda_grid = seq(0.01, 2, by = 0.1),
   k0 = 10,
@@ -257,7 +257,7 @@ between raw variable pairs and a PCA representation.
 # Remarks
 
 - Use `CECclassif()` when you want one clustering solution for one `lambda`.
-- Use `CECdiagnose_lambda_grid_linked()` when you want to study robustness
+- Use `CECfitLambdaGrid()` when you want to study robustness
   across a grid.
 - Use `CECextractBestPartitions()` to obtain a compact trajectory that is easy
   to plot or compare.

@@ -50,7 +50,7 @@ plotCECdiagnoseInteractive(
 )
 }
 \arguments{
-\item{lambda_diag}{Object returned by \code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}}.}
+\item{lambda_diag}{Object returned by \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}.}
 
 \item{ratio_col, stab0_col, stabB_col, H_col}{Column names used in the lambda
 summary plot.}
@@ -92,7 +92,7 @@ parameters used when drawing saturation-only exclusions.}
 \item{path_df}{Data frame returned by \code{\link[=build_partition_path_df]{build_partition_path_df()}}.}
 
 \item{obj}{Either a \code{lambda_diag} object returned by
-\code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}} or a \code{best_parts} object returned by
+\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}} or a \code{best_parts} object returned by
 \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}}.}
 
 \item{source}{Candidate pool used when \code{obj} is a \code{lambda_diag} object and
@@ -135,7 +135,7 @@ switches automatically to a histogram-based display.
 }
 \examples{
 Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 3)
-lambda_diag <- CECdiagnose_lambda_grid_linked(
+lambda_diag <- CECfitLambdaGrid(
   Z = Z,
   lambda_grid = seq(0.2, 0.8, by = 0.2),
   k0 = 2,
@@ -159,7 +159,7 @@ best_parts <- CECextractBestPartitions(lambda_diag, source = "fixed", Z = Z)
 plotCECdiagnoseLambdaGrid(lambda_diag, use_smoothed = FALSE)
 
 path_df <- build_partition_path_df(iris[, -5], CECextractBestPartitions(
-  CECdiagnose_lambda_grid_linked(
+  CECfitLambdaGrid(
     iris[, -5],
     lambda_grid = seq(0.2, 0.4, by = 0.2),
     k0 = 2,

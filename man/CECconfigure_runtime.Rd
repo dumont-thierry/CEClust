@@ -57,7 +57,7 @@ A list with class \code{"CEC_runtime_config"} containing:
 \item \code{profile}: the selected execution profile;
 \item \code{use_cpp}: whether the optional compiled backend is active;
 \item \code{n_cores}: the recommended number of workers for
-\code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}};
+\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}};
 \item \code{max_cores} and \code{prefer_multicore}: the decision inputs used by the helper;
 \item \code{performance}: the output of \code{\link[=CECperformanceInfo]{CECperformanceInfo()}}.
 }
@@ -67,7 +67,7 @@ This helper provides an easy entry point for users who want either a
 conservative pure-R setup or an automatic "use the fast path when available"
 setup. The function immediately applies the backend choice through
 \code{\link[=CECset_fast_backend]{CECset_fast_backend()}} and returns the number of cores that should be passed
-to \code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}}.
+to \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}.
 }
 \details{
 The \code{"base"} profile disables the optional compiled backend and forces

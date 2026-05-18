@@ -35,5 +35,5 @@ The returned data frame combines Gaussian numeric variables and categorical
 variables sampled from cluster-specific multinomial distributions.
 }
 \seealso{
-\code{\link[=CECclassif]{CECclassif()}}, \code{\link[=CECdiagnose_lambda_grid_linked]{CECdiagnose_lambda_grid_linked()}}
+\code{\link[=CECclassif]{CECclassif()}}, \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}
 }

@@ -24,7 +24,7 @@ CECdefault_n_cores <- function(max_cores = 8L, detected_cores = NULL) {
 #' conservative pure-R setup or an automatic "use the fast path when available"
 #' setup. The function immediately applies the backend choice through
 #' [CECset_fast_backend()] and returns the number of cores that should be passed
-#' to [CECdiagnose_lambda_grid_linked()].
+#' to [CECfitLambdaGrid()].
 #'
 #' The `"base"` profile disables the optional compiled backend and forces
 #' single-core execution. The `"auto"` profile activates the compiled backend
@@ -46,7 +46,7 @@ CECdefault_n_cores <- function(max_cores = 8L, detected_cores = NULL) {
 #' - `profile`: the selected execution profile;
 #' - `use_cpp`: whether the optional compiled backend is active;
 #' - `n_cores`: the recommended number of workers for
-#'   [CECdiagnose_lambda_grid_linked()];
+#'   [CECfitLambdaGrid()];
 #' - `max_cores` and `prefer_multicore`: the decision inputs used by the helper;
 #' - `performance`: the output of [CECperformanceInfo()].
 #'
@@ -127,7 +127,7 @@ print.CEC_runtime_config <- function(x, ...) {
 #' @return A data frame mixing numeric and factor columns. The returned data is
 #'   designed for lightweight examples, tests, and documentation.
 #'
-#' @seealso [CECclassif()], [CECdiagnose_lambda_grid_linked()]
+#' @seealso [CECclassif()], [CECfitLambdaGrid()]
 #' @export
 simulate_multidim_benchmark_data <- function(n = 2500,
 											 p_num = 8,
@@ -201,7 +201,7 @@ simulate_multidim_benchmark_data <- function(n = 2500,
 #' Z_diamonds <- CECsample_diamonds(n_max = 80, seed = 1)
 #' str(Z_diamonds)
 #'
-#' diag_diamonds <- CECdiagnose_lambda_grid_linked(
+#' diag_diamonds <- CECfitLambdaGrid(
 #'   Z = Z_diamonds,
 #'   lambda_grid = seq(0.2, 0.8, by = 0.2),
 #'   k0 = 2,
