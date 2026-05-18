@@ -7,20 +7,22 @@
 \title{CEClust: Composite Entropy Clustering for Mixed Data}
 \description{
 \code{CEClust} provides methods for composite entropy clustering on Gaussian,
-categorical, and mixed data sets. The package covers both repeated-shot
-estimation for a fixed regularization value and linked-lambda diagnostics to
-study how cluster structure evolves over a grid of \code{lambda} values.
+categorical, and mixed data sets. The package exposes a compact user API for
+fixed-lambda fits, lambda-grid diagnostics, C by lambda grid exploration, and
+static or interactive visual inspection.
 }
 \details{
 The typical workflow is:
 \enumerate{
 \item configure the runtime with \code{\link[=CECconfigure_runtime]{CECconfigure_runtime()}};
-\item fit one model with \code{\link[=CECclassif]{CECclassif()}} or diagnose a grid with
-\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}};
-\item extract representative partitions with \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}};
-\item inspect stability and visual summaries with
-\code{\link[=CECidentifyStableLambdas]{CECidentifyStableLambdas()}}, \code{\link[=plotCECdiagnoseLambdaGrid]{plotCECdiagnoseLambdaGrid()}}, and
-\code{\link[=plotCECdiagnoseInteractive]{plotCECdiagnoseInteractive()}}.
+\item fit one model with \code{\link[=CECclassif]{CECclassif()}}, scan a lambda grid with
+\code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}, or scan a C by lambda grid with
+\code{\link[=CECfitBoundGrid]{CECfitBoundGrid()}};
+\item select stable lambda values with \code{\link[=CECselectStableLambdas]{CECselectStableLambdas()}} and extract
+representative partitions with \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}};
+\item inspect summaries with \code{\link[=CECsummariseGrid]{CECsummariseGrid()}}, static plots with
+\code{\link[=CECplotGrid]{CECplotGrid()}}, \code{\link[=CECplotPartition]{CECplotPartition()}}, and
+\code{\link[=CECplotPath]{CECplotPath()}}, or the Shiny explorer with \code{\link[=CECexplore]{CECexplore()}}.
 }
 }
 \section{Main entry points}{
@@ -31,9 +33,14 @@ execution.
 \item \code{\link[=CECclassif]{CECclassif()}} fits a repeated-shot CEC model for one \code{lambda}.
 \item \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}} evaluates a grid of \code{lambda} values
 using linked forward and backward paths.
-\item \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}} summarises one representative partition per
-\code{lambda}.
-\item \code{\link[=plotCECdiagnoseInteractive]{plotCECdiagnoseInteractive()}} launches an interactive partition explorer.
+\item \code{\link[=CECfitBoundGrid]{CECfitBoundGrid()}} evaluates a C by \code{lambda} grid.
+\item \code{\link[=CECfitPreset]{CECfitPreset()}} runs named preset workflows such as
+\code{"iris"}, \code{"breast_cancer"}, and \code{"gaussian_1d"}.
+\item \code{\link[=CECselectStableLambdas]{CECselectStableLambdas()}} and
+\code{\link[=CECsummariseGrid]{CECsummariseGrid()}} provide compact diagnostics.
+\item \code{\link[=CECplotGrid]{CECplotGrid()}}, \code{\link[=CECplotPartition]{CECplotPartition()}},
+\code{\link[=CECplotPath]{CECplotPath()}}, and \code{\link[=CECexplore]{CECexplore()}} provide static
+and interactive visualisation.
 }
 }
 

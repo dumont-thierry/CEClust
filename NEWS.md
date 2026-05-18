@@ -6,6 +6,9 @@
   diagnostics, best-partition extraction, trajectory repair, and visualization.
 - Renamed the main lambda-grid workflow to `CECfitLambdaGrid()`, while keeping
   `CECdiagnose_lambda_grid_linked()` as a backward-compatible alias.
+- Added a minimal high-level grid API: `CECfitBoundGrid()`, `CECfitPreset()`,
+  `CECselectStableLambdas()`, `CECsummariseGrid()`, `CECplotGrid()`,
+  `CECplotPartition()`, `CECplotPath()`, and `CECexplore()`.
 - Reworked the user-facing documentation for exported functions, including more
   explicit return values, workflow-oriented examples, and clearer descriptions
   of runtime and stability diagnostics.

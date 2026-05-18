@@ -37,6 +37,8 @@ LinkingTo:
 Suggests:
     ggplot2,
     knitr,
+    mclust,
+    mlbench,
     pkgload,
     rmarkdown,
     shiny,

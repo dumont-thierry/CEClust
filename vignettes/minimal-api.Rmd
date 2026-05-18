@@ -1,0 +1,111 @@
+---
+title: "Minimal CEClust API"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Minimal CEClust API}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+The public CEClust API is organised around a small number of verbs:
+
+- `CECclassif()` fits one model for one `lambda`;
+- `CECfitLambdaGrid()` scans a lambda grid for one fixed `C`;
+- `CECfitBoundGrid()` scans a `C x lambda` grid;
+- `CECfitPreset()` launches named workflows such as `"iris"`,
+  `"breast_cancer"`, and `"gaussian_1d"`;
+- `CECselectStableLambdas()` and `CECsummariseGrid()` provide diagnostics;
+- `CECplotGrid()`, `CECplotPartition()`, and `CECplotPath()` provide static
+  visual checks;
+- `CECexplore()` launches the Shiny explorer.
+
+# Preset workflows
+
+Preset workflows are intended for examples and reproducible checks.
+
+```{r eval = FALSE}
+library(CEClust)
+
+iris_grid <- CECfitPreset(
+  "iris",
+  lambda_grid = seq(0.4, 1.0, by = 0.2),
+  C_grid = c(1.5, 2.0),
+  k0 = 2,
+  B = 2,
+  Nshots_fresh = 1,
+  Nshots_warm = 1,
+  Nloop = 10,
+  n_cores = 1,
+  save_results = FALSE
+)
+```
+
+The returned object contains one row per `C` and `lambda` pair:
+
+```{r eval = FALSE}
+head(CECsummariseGrid(iris_grid))
+```
+
+# Diagnostics
+
+Stable lambda selection combines the existing stability, RSI, and saturation
+criteria:
+
+```{r eval = FALSE}
+stable <- CECselectStableLambdas(
+  iris_grid,
+  C = 2.0,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.8,
+  sat_threshold = 0.05
+)
+
+stable$kept_lambdas
+```
+
+# Plots and Shiny
+
+The static plot layer uses the same grid object:
+
+```{r eval = FALSE}
+CECplotGrid(iris_grid)
+CECplotPartition(iris_grid)
+CECplotPath(iris_grid)
+```
+
+The Shiny explorer is kept as the main interactive interface:
+
+```{r eval = FALSE}
+CECexplore(iris_grid)
+```
+
+# Direct C by lambda grids
+
+For custom data, use `CECfitBoundGrid()`:
+
+```{r eval = FALSE}
+Z <- simulate_multidim_benchmark_data(n = 120, p_num = 3, p_fac = 0, seed = 1)
+
+grid <- CECfitBoundGrid(
+  Z = Z,
+  lambda_grid = seq(0.4, 1.0, by = 0.2),
+  C_grid = c(1, 2),
+  familyType = "gaussVector",
+  k0 = 2,
+  B = 2,
+  Nshots_fresh = 1,
+  Nshots_warm = 1,
+  Nloop = 10,
+  n_cores = 1
+)
+```
+

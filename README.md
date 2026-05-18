@@ -11,10 +11,28 @@ The package includes helpers for:
 
 - selecting a conservative runtime configuration;
 - fitting linked forward/backward lambda paths;
+- fitting complete `C x lambda` grids;
 - summarising bootstrap stability;
 - extracting one representative partition per lambda;
 - detecting or repairing changes along a lambda trajectory;
-- visualising static and interactive outputs.
+- visualising static outputs and launching the Shiny explorer.
+
+The minimal public workflow is:
+
+```r
+CECclassif(...)          # one lambda
+CECfitLambdaGrid(...)    # one C, several lambdas
+CECfitBoundGrid(...)     # several C values and several lambdas
+CECfitPreset("iris")     # built-in demonstration workflows
+
+CECselectStableLambdas(...)
+CECsummariseGrid(...)
+
+CECplotGrid(...)
+CECplotPartition(...)
+CECplotPath(...)
+CECexplore(...)          # Shiny explorer
+```
 
 ## Package goal
 
@@ -53,6 +71,8 @@ Optional packages extend the workflow:
 
 - `ggplot2` for PCA-based graphics and example data;
 - `shiny` for the interactive explorer;
+- `mlbench` for the breast-cancer preset;
+- `mclust` for optional ICL comparisons;
 - `knitr` and `rmarkdown` for the vignette and README rendering;
 - `pkgload` for development-mode parallel workers when the package has not yet
   been installed.

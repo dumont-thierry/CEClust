@@ -25,6 +25,11 @@ The second task is often the most informative in practice, because it reveals
 stable and unstable regions instead of forcing a single regularisation choice
 too early.
 
+For complete `C x lambda` studies, the minimal high-level API is
+`CECfitBoundGrid()`, `CECfitPreset()`, `CECsummariseGrid()`, `CECplotGrid()`,
+`CECplotPartition()`, `CECplotPath()`, and `CECexplore()`. See
+`vignette("minimal-api", package = "CEClust")` for that workflow.
+
 # Runtime configuration
 
 Before fitting a model, it is useful to choose a runtime profile.
