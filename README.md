@@ -13,6 +13,11 @@ In practice, the two tuning parameters are:
   solutions can become saturated and should not be interpreted as stable
   discoveries.
 
+For mixed data, `C` controls only the quantitative density bound. Qualitative
+variables have a separate optional floor, `Cquali`; by default `Cquali = Inf`,
+so no qualitative frequency floor is applied. The reported saturation `sat`
+therefore reflects quantitative density saturation, not categorical smoothing.
+
 The recommended workflow is therefore visual first:
 
 1. fit a grid of candidate values `(C, lambda)`;

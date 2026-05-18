@@ -7,7 +7,7 @@
 #' diagnostics, plotting, or interactive exploration.
 #'
 #' @param ... Arguments forwarded to the internal grid engine. Common arguments
-#'   include `Z`, `lambda_grid`, `C_grid`, `familyType`, `k0`, `B`,
+#'   include `Z`, `lambda_grid`, `C_grid`, `Cquali`, `familyType`, `k0`, `B`,
 #'   `Nshots_fresh`, `Nshots_warm`, `Nloop`, and `n_cores`.
 #' @param save_results Logical. If `TRUE`, save the returned object as an `.rds`
 #'   file. Defaults to `FALSE` in the public wrapper.

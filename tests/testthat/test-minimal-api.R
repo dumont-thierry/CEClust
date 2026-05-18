@@ -38,3 +38,36 @@ test_that("public grid wrappers do not write files by default", {
     expect_false(defaults$force_recompute)
   }
 })
+
+test_that("qualitative floors are separate from density saturation", {
+  expect_identical(eval(formals(CECclassif)$Cquali), Inf)
+  expect_identical(eval(formals(CECfitLambdaGrid)$Cquali), Inf)
+
+  Z <- data.frame(q = factor(c("a", "b", "b", "b", "b")))
+  backend <- CECprepare_backend_data(Z, familyType = "discreteVector")
+  clusters <- rep(1L, nrow(Z))
+
+  params_inf <- CECoptParam_fast_from_clusters(
+    backend,
+    clusters,
+    C = 1,
+    Cquali = Inf
+  )
+  expect_equal(params_inf$functionBoundReached, integer(0))
+  expect_equal(params_inf$qualitativeBoundReached, integer(0))
+  expect_equal(sort(params_inf$discreteProbList[[1]][, 1]), c(0.2, 0.8))
+
+  params_floor <- CECoptParam_fast_from_clusters(
+    backend,
+    clusters,
+    C = 1,
+    Cquali = 3
+  )
+  expect_equal(params_floor$functionBoundReached, integer(0))
+  expect_equal(params_floor$qualitativeBoundReached, 1L)
+  expect_equal(
+    sort(params_floor$discreteProbList[[1]][, 1]),
+    c(1 / 3, 2 / 3),
+    tolerance = 1e-12
+  )
+})

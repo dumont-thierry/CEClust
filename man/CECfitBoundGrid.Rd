@@ -15,7 +15,8 @@ CECfitPreset(preset = c("gaussian_1d", "iris", "breast_cancer"), ...,
 }
 \arguments{
 \item{...}{Arguments forwarded to the grid workflow. Common arguments include
-\code{Z}, \code{lambda_grid}, \code{C_grid}, \code{familyType}, \code{k0},
+\code{Z}, \code{lambda_grid}, \code{C_grid}, \code{Cquali},
+\code{familyType}, \code{k0},
 \code{B}, \code{Nshots_fresh}, \code{Nshots_warm}, \code{Nloop},
 \code{n_cores}.}
 

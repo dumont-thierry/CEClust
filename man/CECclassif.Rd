@@ -2,12 +2,13 @@
 % Please edit documentation in R/ceclust.R
 \name{CECclassif}
 \alias{CECclassif}
-\title{Fit a composite entropy clustering model for one value of lambda.}
+\title{Fit a composite entropy clustering model for one value of lambda}
 \usage{
 CECclassif(
   Z,
   lambda = 1,
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nshots = 100,
   Nloop = 1000,
@@ -29,6 +30,10 @@ a mixed data frame for \code{"gaussAndDiscreteVector"}.}
 
 \item{C}{Positive upper bound for fitted component densities; independent
 of \code{lambda}.}
+
+\item{Cquali}{Minimum-frequency control for qualitative variables. The
+default \code{Inf} applies no qualitative frequency floor. Qualitative floors
+are tracked separately from density-bound saturation.}
 
 \item{r0}{Optional upper bound for the initial number of clusters.}
 

@@ -333,7 +333,7 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 	)
 }
 
-#' Fit a composite entropy clustering model for one value of lambda.
+#' Fit a composite entropy clustering model for one value of lambda
 #'
 #' `CECclassif()` is the main fixed-lambda fitting routine of the package. It
 #' launches several random initialisations, keeps the best solution according to
@@ -347,6 +347,9 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 #' @param lambda Regularisation parameter of the composite entropy criterion.
 #' @param C Positive upper bound for fitted component densities; independent
 #'   of `lambda`.
+#' @param Cquali Minimum-frequency control for qualitative variables. The
+#'   default `Inf` applies no qualitative frequency floor. Qualitative floors
+#'   are tracked separately from density-bound saturation.
 #' @param r0 Optional upper bound for the initial number of clusters.
 #' @param Nshots Number of repeated random initialisations.
 #' @param Nloop Maximum number of optimisation iterations per shot.
@@ -389,7 +392,7 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 #' fit$REO
 #' table(fit$clusters)
 #' @export
-CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL)
+CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL)
 {
 	displayPlotEntropy = FALSE
 	if(!is.null(focus))
@@ -405,7 +408,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 			{
 				fac_f 			<- focus_fac[f]
 				pos_f 			<- which(Z[,focus]==fac_f)
-				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL)
+				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,Cquali=Cquali,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL)
 				NU[f]			<- length(pos_f)
 				R[f] 			<- length(results[[f]]$params$states)
 				H[f] 			<- results[[f]]$Hphi	
@@ -429,6 +432,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 			results_tot$params$factors 	<- results[[1]]$params$factors 
 			results_tot$params$lambda 	<- lambda
 			results_tot$params$C 		<- C
+			results_tot$params$Cquali 	<- Cquali
 			
 			if(length(results[[1]]$params$discreteProbList)>0)
 				results_tot$params$discreteProbList <- list()
@@ -503,7 +507,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 			results_tot$params$nu	<- nu_tot
 			
 			
-			Hphi_tot <- evalCompositeEntropy(phi=phi_tot ,Z=Z,lambda=lambda,C=C,familyType=familyType)
+			Hphi_tot <- evalCompositeEntropy(phi=phi_tot ,Z=Z,lambda=lambda,C=C,Cquali=Cquali,familyType=familyType)
 			
 			results_tot$Hphi <- Hphi_tot
 			
@@ -579,6 +583,7 @@ CECclassif				<- function(Z,lambda=1,C=1,r0=NULL,Nshots = 100,Nloop=1000,familyT
 			Z = Z,
 			lambda = lambda,
 			C = C,
+			Cquali = Cquali,
 			r0 = r0,
 			Nloop = Nloop,
 			phi0 = phi0,
@@ -633,6 +638,7 @@ CECrun_one_shot_with_regroup <- function(
 	Z,
 	lambda = 1,
 	C = 1,
+	Cquali = Inf,
 	r0 = NULL,
 	Nloop = 1000,
 	phi0 = NULL,
@@ -652,6 +658,7 @@ CECrun_one_shot_with_regroup <- function(
 		Z = Z,
 		lambda = lambda,
 		C = C,
+		Cquali = Cquali,
 		r0 = r0,
 		Nloop = Nloop,
 		phi0 = phi0,
@@ -706,6 +713,7 @@ CECrun_one_shot_with_regroup <- function(
 					Z = Z,
 					lambda = lambda,
 					C = C,
+					Cquali = Cquali,
 					r0 = r0,
 					Nloop = Nloop,
 					phi0 = phi0_next,
@@ -871,6 +879,7 @@ CECfit_warm_multi <- function(
 	lambda,
 	phi0,
 	C = 1,
+	Cquali = Inf,
 	r0 = NULL,
 	Nshots_warm = 5,
 	Nloop = 300,
@@ -913,6 +922,7 @@ CECfit_warm_multi <- function(
 				Z = Z,
 				lambda = lambda,
 				C = C,
+				Cquali = Cquali,
 				r0 = r0,
 				Nloop = Nloop,
 				phi0 = phi0_k,
@@ -1825,7 +1835,70 @@ optPhi			<- function(Z,param,lambda=1)
 			logdens_mat[cbind(seq_along(clusters), clusters)]
 		}
 
-		CECoptParam_fast_from_clusters <- function(backend_data, clusters, lambda = 1, C = 1) {
+		CECfloor_discrete_probabilities <- function(prob, min_prob) {
+			prob <- as.numeric(prob)
+			valid <- !is.na(prob)
+			out <- prob
+
+			if (!any(valid)) {
+				out[is.na(out)] <- 0
+				return(list(prob = out, boundReached = FALSE))
+			}
+
+			out[valid] <- pmax(out[valid], 0)
+			total <- sum(out[valid], na.rm = TRUE)
+			if (!is.finite(total) || total <= 0) {
+				out[valid] <- 0
+				out[is.na(out)] <- 0
+				return(list(prob = out, boundReached = FALSE))
+			}
+			out[valid] <- out[valid] / total
+
+			if (!is.finite(min_prob) || min_prob <= 0) {
+				out[is.na(out)] <- 0
+				return(list(prob = out, boundReached = FALSE))
+			}
+
+			present <- valid & out > 0
+			K_present <- sum(present)
+			if (K_present == 0L) {
+				out[is.na(out)] <- 0
+				return(list(prob = out, boundReached = FALSE))
+			}
+			if (K_present * min_prob >= 1) {
+				stop("Cquali must be larger than the number of observed levels in each cluster.", call. = FALSE)
+			}
+
+			fixed_small <- rep(FALSE, length(out))
+			boundReached <- FALSE
+			repeat {
+				new_small <- present & !fixed_small & out < min_prob
+				if (!any(new_small)) break
+
+				fixed_small[new_small] <- TRUE
+				boundReached <- TRUE
+				out[fixed_small] <- min_prob
+
+				big <- present & !fixed_small
+				target_sum <- 1 - sum(fixed_small) * min_prob
+				if (target_sum < 0 || (!any(big) && target_sum > .Machine$double.eps)) {
+					stop("Cquali is too small for the observed qualitative levels.", call. = FALSE)
+				}
+				if (any(big)) {
+					big_sum <- sum(out[big])
+					if (!is.finite(big_sum) || big_sum <= 0) {
+						stop("Cannot renormalize qualitative probabilities with the requested Cquali.", call. = FALSE)
+					}
+					out[big] <- out[big] / big_sum * target_sum
+				}
+			}
+
+			out[!present & valid] <- 0
+			out[is.na(out)] <- 0
+			list(prob = out, boundReached = boundReached)
+		}
+
+		CECoptParam_fast_from_clusters <- function(backend_data, clusters, lambda = 1, C = 1, Cquali = Inf) {
 			clusters <- CECcompress_clusters(clusters)
 			n <- length(clusters)
 			r <- length(unique(clusters))
@@ -1906,9 +1979,10 @@ optPhi			<- function(Z,param,lambda=1)
 					}
 				}
 				nu <- cluster_sizes / n
-				C_by_coord <- pmax(10 * discrete$n_unique_by_coord, C)
+				Cquali_by_coord <- rep(Cquali, length.out = ncol(discrete$codes))
 				discreteProbList <- vector("list", r)
 				functionBoundReached <- integer()
+				qualitativeBoundReached <- integer()
 
 				for (i in seq_len(r)) {
 					counts_i <- counts_list[[i]]
@@ -1923,19 +1997,11 @@ optPhi			<- function(Z,param,lambda=1)
 						tbl_ij[!valid_levels_j] <- NA_real_
 						tbl_ij <- tbl_ij / sum(tbl_ij, na.rm = TRUE)
 
-						toLift <- which(!is.na(tbl_ij) & tbl_ij < 1 / C_by_coord[j])
-						toShrink <- which(!is.na(tbl_ij) & tbl_ij >= 1 / C_by_coord[j])
-
-						if (length(toLift) > 0) {
-							functionBoundReached <- c(functionBoundReached, i)
+						floored <- CECfloor_discrete_probabilities(tbl_ij, min_prob = 1 / Cquali_by_coord[j])
+						if (isTRUE(floored$boundReached)) {
+							qualitativeBoundReached <- c(qualitativeBoundReached, i)
 						}
-
-						tbl_ij[toLift] <- 1 / C_by_coord[j]
-						if (length(toShrink) > 0) {
-							tbl_ij[toShrink] <- tbl_ij[toShrink] / sum(tbl_ij[toShrink]) * (1 - sum(tbl_ij[toLift]))
-						}
-						tbl_ij[is.na(tbl_ij)] <- 0
-						discreteProbList[[i]][, j] <- tbl_ij
+						discreteProbList[[i]][, j] <- floored$prob
 					}
 				}
 
@@ -1946,8 +2012,10 @@ optPhi			<- function(Z,param,lambda=1)
 					discreteProbList = discreteProbList,
 					lambda = lambda,
 					C = C,
+					Cquali = Cquali,
 					familyType = "discreteVector",
-					functionBoundReached = unique(functionBoundReached)
+					functionBoundReached = unique(functionBoundReached),
+					qualitativeBoundReached = unique(qualitativeBoundReached)
 				))
 			}
 
@@ -1972,11 +2040,12 @@ optPhi			<- function(Z,param,lambda=1)
 						),
 						clusters = clusters,
 						lambda = lambda,
-						C = C
+						C = C,
+						Cquali = Cquali
 					)
 					params$factors <- paramsFact$factors
 					params$discreteProbList <- paramsFact$discreteProbList
-					functionBoundReached <- c(functionBoundReached, paramsFact$functionBoundReached)
+					params$qualitativeBoundReached <- paramsFact$qualitativeBoundReached
 				}
 
 				if (!is.null(backend_data$X_num)) {
@@ -1988,7 +2057,8 @@ optPhi			<- function(Z,param,lambda=1)
 						),
 						clusters = clusters,
 						lambda = lambda,
-						C = C
+						C = C,
+						Cquali = Cquali
 					)
 					params$m <- paramsNum$m
 					params$Sigma <- paramsNum$Sigma
@@ -1996,6 +2066,7 @@ optPhi			<- function(Z,param,lambda=1)
 				}
 
 				params$functionBoundReached <- unique(functionBoundReached)
+				params$Cquali <- Cquali
 				return(params)
 			}
 
@@ -2361,7 +2432,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 		
-		optParam_discreteVector 			<- function(Z,phi,lambda=1,C=1)
+		optParam_discreteVector 			<- function(Z,phi,lambda=1,C=1,Cquali=Inf)
 		{
 			 
 			if(!is.data.frame(Z))
@@ -2406,17 +2477,7 @@ optPhi			<- function(Z,param,lambda=1)
 				nu 	<- nu[statesToKeep]
 			}
 			
-			C_by_coord = rep(1/0.0005,l)
-			if(TRUE)
-			{
-				uniqueFactors  = list()
-				for(j in 1:l)
-				{
-					uniqueFactors[[j]] <- unique(Z[,j])
-					C_by_coord[j]  = max(c(10*length(uniqueFactors[[j]]),C))
-				}
-				
-			}
+			Cquali_by_coord <- rep(Cquali, length.out = l)
 			
 			
 			states 	<- 1:r
@@ -2427,6 +2488,7 @@ optPhi			<- function(Z,param,lambda=1)
 			discreteProbList <- list()
 			
 			functionBoundReached <-  c()
+			qualitativeBoundReached <- c()
 			for(i in 1:r)
 			{
 				discreteProbList[[i]] <- matrix(NA,length(factors),l)
@@ -2434,30 +2496,25 @@ optPhi			<- function(Z,param,lambda=1)
 				{
 					tbl_ij 					<- tapply(phiM[,i], Z[,j], sum)
 					tbl_ij 					<- tbl_ij/sum(tbl_ij,na.rm=TRUE)
-					
-					toLift					<- which(!is.na(tbl_ij) & tbl_ij<1/C_by_coord[j])
-					toShrink    			<- which(!is.na(tbl_ij) & tbl_ij>=1/C_by_coord[j])
-					
-					if(length(toLift)>0)
-						functionBoundReached <- c(functionBoundReached,i)
-						
-					tbl_ij[toLift]  		<- 1/C_by_coord[j] 
-					tbl_ij[toShrink] 		<- tbl_ij[toShrink]/(sum(tbl_ij[toShrink]))*(1-sum(tbl_ij[toLift]) )
-					
-					tbl_ij[is.na(tbl_ij)] 	<- 0 
-					discreteProbList[[i]][,j] <- tbl_ij
+
+					floored <- CECfloor_discrete_probabilities(tbl_ij, min_prob = 1 / Cquali_by_coord[j])
+					if (isTRUE(floored$boundReached)) {
+						qualitativeBoundReached <- c(qualitativeBoundReached, i)
+					}
+					discreteProbList[[i]][,j] <- floored$prob
 				}
 			}
 			
 			functionBoundReached <- unique(functionBoundReached)
+			qualitativeBoundReached <- unique(qualitativeBoundReached)
 			 
 			
-			params	<- list(states=states,nu=nu,factors=factors,discreteProbList=discreteProbList,lambda=lambda,C=C,familyType ="discreteVector",phi=phi,functionBoundReached=functionBoundReached)
+			params	<- list(states=states,nu=nu,factors=factors,discreteProbList=discreteProbList,lambda=lambda,C=C,Cquali=Cquali,familyType ="discreteVector",phi=phi,functionBoundReached=functionBoundReached,qualitativeBoundReached=qualitativeBoundReached)
 			
 			return(params)
 		}
 		
-		evalCompositeEntropy_discreteVector 	<- function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
+		evalCompositeEntropy_discreteVector 	<- function(phi ,Z,lambda,C,Cquali=Inf,includeClassEntropy = TRUE)
 		{	
 			if(!is.data.frame(Z))
 			{
@@ -2482,7 +2539,7 @@ optPhi			<- function(Z,param,lambda=1)
 			n 		<- dim(Z)[1]
 			
 			
-			params <- optParam_discreteVector(Z= Z,phi=phi,lambda=lambda,C=C)
+			params <- optParam_discreteVector(Z= Z,phi=phi,lambda=lambda,C=C,Cquali=Cquali)
 			  
 			nuPhi 	<- params$nu
 			
@@ -2560,7 +2617,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 	
-		optParam_gaussAndDiscreteVector		<- function(Z,phi,lambda=1,C=1)
+		optParam_gaussAndDiscreteVector		<- function(Z,phi,lambda=1,C=1,Cquali=Inf)
 		{
 			  
 			if(!is.data.frame(Z))
@@ -2573,10 +2630,11 @@ optPhi			<- function(Z,param,lambda=1)
 			colFactor 	<- which(Zclass=="factor")
 			colNum  	<- which(Zclass=="numeric")
 			functionBoundReached <- c()
+			qualitativeBoundReached <- c()
 			
 			if(length(colFactor)>0)
 			{
-				paramsFact  <- optParam_discreteVector(Z= Z[,which(Zclass=="factor"),drop=FALSE],phi=phi,lambda=lambda,C=C)
+				paramsFact  <- optParam_discreteVector(Z= Z[,which(Zclass=="factor"),drop=FALSE],phi=phi,lambda=lambda,C=C,Cquali=Cquali)
 				
 				params$states 	<- paramsFact$states
 				params$nu		<- paramsFact$nu
@@ -2586,7 +2644,7 @@ optPhi			<- function(Z,param,lambda=1)
 				params$C	 	<- paramsFact$C
 				params$phi	 	<- paramsFact$phi
 				
-				functionBoundReached <- paramsFact$functionBoundReached
+				qualitativeBoundReached <- paramsFact$qualitativeBoundReached
 				
 			}
 			
@@ -2608,14 +2666,16 @@ optPhi			<- function(Z,param,lambda=1)
 			functionBoundReached <- unique(functionBoundReached)
 			
 			params$functionBoundReached <- functionBoundReached
+			params$qualitativeBoundReached <- unique(qualitativeBoundReached)
 			params$familyType	<- "gaussAndDiscreteVector"
 			params$colFactor	<- colFactor
 			params$colNum		<- colNum
+			params$Cquali		<- Cquali
 			
 			return(params)
 		}
 		
-		evalCompositeEntropy_gaussAndDiscreteVector 	<- function(phi ,Z,lambda,C,includeClassEntropy = TRUE)
+		evalCompositeEntropy_gaussAndDiscreteVector 	<- function(phi ,Z,lambda,C,Cquali=Inf,includeClassEntropy = TRUE)
 		{	
 			if(!is.data.frame(Z))
 				Z <- as.data.frame(Z)
@@ -2623,7 +2683,7 @@ optPhi			<- function(Z,param,lambda=1)
 			n 		<- dim(Z)[1]
 			
 			
-			params <- optParam_gaussAndDiscreteVector(Z= Z,phi=phi,lambda=lambda,C=C)
+			params <- optParam_gaussAndDiscreteVector(Z= Z,phi=phi,lambda=lambda,C=C,Cquali=Cquali)
 			  
 			nuPhi 	<- params$nu
 			 
@@ -2638,7 +2698,7 @@ optPhi			<- function(Z,param,lambda=1)
 			
 			if(length(which(Zclass=="factor"))>0)
 			{
-				H <- H + evalCompositeEntropy_discreteVector(phi=phi,Z=Z[,which(Zclass=="factor"),drop=FALSE],lambda=lambda,C=C,includeClassEntropy=FALSE)
+				H <- H + evalCompositeEntropy_discreteVector(phi=phi,Z=Z[,which(Zclass=="factor"),drop=FALSE],lambda=lambda,C=C,Cquali=Cquali,includeClassEntropy=FALSE)
 			}
 			
 			if(length(which(Zclass=="numeric"))>0)
@@ -2653,15 +2713,25 @@ optPhi			<- function(Z,param,lambda=1)
 	}
 }
 
-optParam 		<- function(Z,phi,lambda=1,C=1,familyType ="gaussAndDiscreteVector")
+optParam 		<- function(Z,phi,lambda=1,C=1,Cquali=Inf,familyType ="gaussAndDiscreteVector")
 {		
-	params <- getFamilyFunction("optParam_", familyType)(Z = Z, phi = phi, lambda = lambda, C = C)
+	fn <- getFamilyFunction("optParam_", familyType)
+	params <- if (familyType %in% c("discreteVector", "gaussAndDiscreteVector")) {
+		fn(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali)
+	} else {
+		fn(Z = Z, phi = phi, lambda = lambda, C = C)
+	}
 	return(params)	
 }
 
-evalCompositeEntropy <- function(phi ,Z,lambda,C,familyType="gaussAndDiscreteVector")
+evalCompositeEntropy <- function(phi ,Z,lambda,C,Cquali=Inf,familyType="gaussAndDiscreteVector")
 {
-	H <- getFamilyFunction("evalCompositeEntropy_", familyType)(phi = phi, Z = Z, lambda = lambda, C = C)
+	fn <- getFamilyFunction("evalCompositeEntropy_", familyType)
+	H <- if (familyType %in% c("discreteVector", "gaussAndDiscreteVector")) {
+		fn(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali)
+	} else {
+		fn(phi = phi, Z = Z, lambda = lambda, C = C)
+	}
 	return(H)
 }
 	
@@ -2669,6 +2739,7 @@ CECclassifOneShot_legacy <- function(
 	Z,
 	lambda = 1,
 	C = 1,
+	Cquali = Inf,
 	r0 = NULL,
 	Nloop = 1000,
 	phi0 = NULL,
@@ -2697,9 +2768,9 @@ CECclassifOneShot_legacy <- function(
 	H <- c()
 
 	for (i in 1:Nloop) {
-		params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, familyType = familyType)
+		params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 		if (displayPlotEntropy) {
-			H[i] <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, familyType = familyType)
+			H[i] <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 			plot(H, main = "entropy", xlab = "nLoop", ylab = "H")
 		}
 
@@ -2717,13 +2788,13 @@ CECclassifOneShot_legacy <- function(
 		phiFingerPrint <- c(phiFingerPrint, phiFingerPrint_i)
 	}
 
-	params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, familyType = familyType)
+	params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 	phi <- optPhi(Z = Z, param = params, lambda = lambda)
-	Hphi <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, familyType = params$familyType)
+	Hphi <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = params$familyType)
 	list(phi = phi, params = params, Hphi = Hphi)
 }
 
-CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,familyType="gaussAndDiscreteVector",displayPlotEntropy = FALSE,backend_data=NULL)
+CECclassifOneShot 		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nloop=1000,phi0 = NULL,familyType="gaussAndDiscreteVector",displayPlotEntropy = FALSE,backend_data=NULL)
 {
 	n <- CECget_n_obs(Z)
 
@@ -2740,6 +2811,7 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 				Z = Z,
 				lambda = lambda,
 				C = C,
+				Cquali = Cquali,
 				r0 = r0,
 				Nloop = Nloop,
 				phi0 = phi0,
@@ -2771,9 +2843,9 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 	H_plot <- c()
 	for (i in seq_len(Nloop)) {
 		if (is.null(clusters_current)) {
-			params <- optParam(Z = Z, phi = phi_current, lambda = lambda, C = C, familyType = familyType)
+			params <- optParam(Z = Z, phi = phi_current, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 			if (displayPlotEntropy) {
-				H_plot[i] <- evalCompositeEntropy(phi = phi_current, Z = Z, lambda = lambda, C = C, familyType = familyType)
+				H_plot[i] <- evalCompositeEntropy(phi = phi_current, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 				plot(H_plot, main = "entropy", xlab = "nLoop", ylab = "H")
 			}
 		} else {
@@ -2781,7 +2853,8 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 				backend_data = backend_data,
 				clusters = clusters_current,
 				lambda = lambda,
-				C = C
+				C = C,
+				Cquali = Cquali
 			)
 			if (displayPlotEntropy) {
 				logdens_current <- CECcompute_logdens_matrix_fast(backend_data, params, lambda = lambda)
@@ -2814,6 +2887,7 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 				Z = Z,
 				lambda = lambda,
 				C = C,
+				Cquali = Cquali,
 				r0 = r0,
 				Nloop = Nloop,
 				phi0 = phi_current,
@@ -2828,7 +2902,8 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,r0=NULL,Nloop=1000,phi0 = NULL,fa
 		backend_data = backend_data,
 		clusters = clusters_current,
 		lambda = lambda,
-		C = C
+		C = C,
+		Cquali = Cquali
 	)
 	logdens_final <- CECcompute_logdens_matrix_fast(backend_data, params_final, lambda = lambda)
 	assigned_final <- CECassigned_logdens_from_matrix(logdens_final, clusters_current)
@@ -2949,6 +3024,7 @@ CECrun_fixed_lambda_path_task <- function(
   Z,
   lambda_grid,
   C,
+  Cquali = Inf,
   r0,
   Nshots_fresh,
   Nshots_warm,
@@ -2969,6 +3045,7 @@ CECrun_fixed_lambda_path_task <- function(
     lambda_grid = lambda_grid,
     direction = dir_rep,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nshots_fresh = Nshots_fresh,
     Nshots_warm = Nshots_warm,
@@ -3023,6 +3100,7 @@ CECrun_bootstrap_lambda_path_task <- function(
   Z,
   lambda_grid,
   C,
+  Cquali = Inf,
   r0,
   Nshots_fresh,
   Nshots_warm,
@@ -3044,6 +3122,7 @@ CECrun_bootstrap_lambda_path_task <- function(
     lambda_grid = lambda_grid,
     direction = dir_b,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nshots_fresh = Nshots_fresh,
     Nshots_warm = Nshots_warm,
@@ -3345,6 +3424,7 @@ CECdiagnostics_make_task_meta <- function(
   k0,
   B,
   C,
+  Cquali = Inf,
   r0,
   Nshots_fresh,
   Nshots_warm,
@@ -3362,6 +3442,7 @@ CECdiagnostics_make_task_meta <- function(
     k0 = k0,
     B = B,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nshots_fresh = Nshots_fresh,
     Nshots_warm = Nshots_warm,
@@ -3584,6 +3665,7 @@ CECrun_diagnostic_task_worker <- function(task, context = NULL) {
           Z = context$Z,
           lambda_grid = context$lambda_grid,
           C = context$C,
+          Cquali = context$Cquali,
           r0 = context$r0,
           Nshots_fresh = context$Nshots_fresh,
           Nshots_warm = context$Nshots_warm,
@@ -3601,6 +3683,7 @@ CECrun_diagnostic_task_worker <- function(task, context = NULL) {
           Z = context$Z,
           lambda_grid = context$lambda_grid,
           C = context$C,
+          Cquali = context$Cquali,
           r0 = context$r0,
           Nshots_fresh = context$Nshots_fresh,
           Nshots_warm = context$Nshots_warm,
@@ -3758,6 +3841,7 @@ CECfit_safe <- function(
   Z,
   lambda,
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nshots = 100,
   Nloop = 1000,
@@ -3778,6 +3862,7 @@ CECfit_safe <- function(
         Z = Z,
         lambda = lambda,
         C = C,
+        Cquali = Cquali,
         r0 = r0,
         Nshots = Nshots,
         Nloop = Nloop,
@@ -3805,7 +3890,7 @@ CECfit_safe <- function(
 # ------------------------------------------------------------
 CECfit_warm <- function(
   Z, lambda, phi0 = NULL,
-  C = 1, r0 = NULL,
+  C = 1, Cquali = Inf, r0 = NULL,
   Nshots = 3, Nloop = 30,
   familyType = "gaussUniv"
 ) {
@@ -3813,6 +3898,7 @@ CECfit_warm <- function(
     return(
       CECclassif(
         Z = Z, lambda = lambda, C = C, r0 = r0,
+        Cquali = Cquali,
         Nshots = Nshots, Nloop = Nloop,
         familyType = familyType
       )
@@ -3823,6 +3909,7 @@ CECfit_warm <- function(
     Z = Z,
     lambda = lambda,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nloop = Nloop,
     phi0 = phi0,
@@ -3855,6 +3942,7 @@ CECproject_fit_on_reference <- function(fit, Zref, lambda = NULL) {
     Z = Zref,
     lambda = lambda,
     C = params$C,
+    Cquali = if (is.null(params$Cquali)) Inf else params$Cquali,
     familyType = params$familyType
   )
 
@@ -5431,8 +5519,8 @@ plotCECPartitionEvolution1D <- function(
 # Composite entropy criterion decomposition.
 # H = H(nu) + sum_x nu_x H(G_x | g_{theta_x})
 # ------------------------------------------------------------
-evalCompositeEntropyDecomposed <- function(phi, Z, lambda, C, familyType = "gaussAndDiscreteVector") {
-  params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, familyType = familyType)
+evalCompositeEntropyDecomposed <- function(phi, Z, lambda, C, Cquali = Inf, familyType = "gaussAndDiscreteVector") {
+  params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
   
   nu <- params$nu
   toKeep <- which(nu > 0)
@@ -5495,6 +5583,7 @@ CECevaluatePartitionOnLambda <- function(
   Z,
   lambda,
   C = 1,
+  Cquali = Inf,
   familyType = "gaussAndDiscreteVector"
 ) {
   phi <- CECpartitionToPhi(partition)
@@ -5504,6 +5593,7 @@ CECevaluatePartitionOnLambda <- function(
     Z = Z,
     lambda = lambda,
     C = C,
+    Cquali = Cquali,
     familyType = familyType
   )
 
@@ -5600,8 +5690,18 @@ CECcheckBestPartitionCoherence <- function(
     numeric(1)
   )
 
+  Cquali_vec <- vapply(
+    best_list,
+    function(x) {
+      val <- get_fit_param(x, "Cquali", default = Inf)
+      if (length(val) == 0) Inf else as.numeric(val[1])
+    },
+    numeric(1)
+  )
+
   familyType_default <- familyType[which(!is.na(familyType))[1]]
   C_default <- Cvec[which(!is.na(Cvec))[1]]
+  Cquali_default <- Cquali_vec[which(!is.na(Cquali_vec))[1]]
 
   if (length(familyType_default) == 0 || is.na(familyType_default)) {
     stop("Unable to infer familyType from best_partitions_obj.")
@@ -5626,6 +5726,7 @@ CECcheckBestPartitionCoherence <- function(
     if (k > 1) {
       lam_prev <- lambda[k - 1]
       C_prev <- if (is.na(Cvec[k - 1])) C_default else Cvec[k - 1]
+      Cquali_prev <- if (is.na(Cquali_vec[k - 1])) Cquali_default else Cquali_vec[k - 1]
       family_prev <- if (is.na(familyType[k - 1])) familyType_default else familyType[k - 1]
 
       prev_lambda[k] <- lam_prev
@@ -5634,6 +5735,7 @@ CECcheckBestPartitionCoherence <- function(
         Z = Z,
         lambda = lam_prev,
         C = C_prev,
+        Cquali = Cquali_prev,
         familyType = family_prev
       )$H_total
       H_prev_of_Pkm1[k] <- CECevaluatePartitionOnLambda(
@@ -5641,6 +5743,7 @@ CECcheckBestPartitionCoherence <- function(
         Z = Z,
         lambda = lam_prev,
         C = C_prev,
+        Cquali = Cquali_prev,
         familyType = family_prev
       )$H_total
       prev_gap[k] <- H_prev_of_Pk[k] - H_prev_of_Pkm1[k]
@@ -5650,6 +5753,7 @@ CECcheckBestPartitionCoherence <- function(
     if (k < n) {
       lam_next <- lambda[k + 1]
       C_next <- if (is.na(Cvec[k + 1])) C_default else Cvec[k + 1]
+      Cquali_next <- if (is.na(Cquali_vec[k + 1])) Cquali_default else Cquali_vec[k + 1]
       family_next <- if (is.na(familyType[k + 1])) familyType_default else familyType[k + 1]
 
       next_lambda[k] <- lam_next
@@ -5658,6 +5762,7 @@ CECcheckBestPartitionCoherence <- function(
         Z = Z,
         lambda = lam_next,
         C = C_next,
+        Cquali = Cquali_next,
         familyType = family_next
       )$H_total
       H_next_of_Pkp1[k] <- CECevaluatePartitionOnLambda(
@@ -5665,6 +5770,7 @@ CECcheckBestPartitionCoherence <- function(
         Z = Z,
         lambda = lam_next,
         C = C_next,
+        Cquali = Cquali_next,
         familyType = family_next
       )$H_total
       next_gap[k] <- H_next_of_Pk[k] - H_next_of_Pkp1[k]
@@ -5756,6 +5862,7 @@ CECbuildBestPartitionObjectAtLambda <- function(
   lambda,
   Z,
   C = 1,
+  Cquali = Inf,
   familyType = "gaussAndDiscreteVector",
   template_obj = NULL,
   eval_obj = NULL,
@@ -5769,6 +5876,7 @@ CECbuildBestPartitionObjectAtLambda <- function(
       Z = Z,
       lambda = lambda,
       C = C,
+      Cquali = Cquali,
       familyType = familyType
     )
   }
@@ -5971,8 +6079,18 @@ CECrepairBestPartitionTrajectory <- function(
     numeric(1)
   )
 
+  Cquali_vec <- vapply(
+    best_sorted,
+    function(x) {
+      val <- get_fit_param(x, "Cquali", default = Inf)
+      if (length(val) == 0) Inf else as.numeric(val[1])
+    },
+    numeric(1)
+  )
+
   familyType_default <- familyType_vec[which(!is.na(familyType_vec))[1]]
   C_default <- C_vec[which(!is.na(C_vec))[1]]
+  Cquali_default <- Cquali_vec[which(!is.na(Cquali_vec))[1]]
 
   if (length(familyType_default) == 0 || is.na(familyType_default)) {
     stop("Unable to infer familyType from best_partitions_obj.")
@@ -5987,6 +6105,10 @@ CECrepairBestPartitionTrajectory <- function(
 
   get_slot_C <- function(idx) {
     if (is.na(C_vec[idx])) C_default else C_vec[idx]
+  }
+
+  get_slot_Cquali <- function(idx) {
+    if (is.na(Cquali_vec[idx])) Cquali_default else Cquali_vec[idx]
   }
 
   coherence_before <- CECcheckBestPartitionCoherence(best_partitions_obj, Z, tol = tol)
@@ -6010,6 +6132,7 @@ CECrepairBestPartitionTrajectory <- function(
       Z = Z,
       lambda = lambda_sorted[idx],
       C = get_slot_C(idx),
+      Cquali = get_slot_Cquali(idx),
       familyType = get_slot_family(idx)
     )
 
@@ -6049,6 +6172,7 @@ CECrepairBestPartitionTrajectory <- function(
           lambda = lambda_sorted[k + 1L],
           Z = Z,
           C = get_slot_C(k + 1L),
+          Cquali = get_slot_Cquali(k + 1L),
           familyType = get_slot_family(k + 1L),
           template_obj = best_sorted[[k]],
           eval_obj = eval_right,
@@ -6085,6 +6209,7 @@ CECrepairBestPartitionTrajectory <- function(
           lambda = lambda_sorted[k - 1L],
           Z = Z,
           C = get_slot_C(k - 1L),
+          Cquali = get_slot_Cquali(k - 1L),
           familyType = get_slot_family(k - 1L),
           template_obj = best_sorted[[k]],
           eval_obj = eval_left,
@@ -6277,6 +6402,7 @@ CECdecompose_fit_on_data <- function(fit, Z) {
     Z = Z,
     lambda = fit$params$lambda,
     C = fit$params$C,
+    Cquali = if (is.null(fit$params$Cquali)) Inf else fit$params$Cquali,
     familyType = fit$params$familyType
   )
   
@@ -6540,6 +6666,7 @@ CECfit_linked_one_lambda <- function(
   phi_prev = NULL,
   direction = c("forward", "backward"),
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nloop = 300,
   Nshots_warm = 5,
@@ -6565,6 +6692,7 @@ CECfit_linked_one_lambda <- function(
         lambda = lambda,
         phi0 = phi_prev,
         C = C,
+        Cquali = Cquali,
         r0 = r0,
         Nshots_warm = Nshots_warm,
         Nloop = Nloop,
@@ -6586,6 +6714,7 @@ CECfit_linked_one_lambda <- function(
       Z = Z,
       lambda = lambda,
       C = C,
+      Cquali = Cquali,
       r0 = r0,
       Nshots = Nshots_fresh,
       Nloop = Nloop,
@@ -6621,6 +6750,7 @@ CECfollowLambdaPath <- function(
   lambda_grid,
   direction = c("forward", "backward"),
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nshots_fresh = 5,
   Nshots_warm = 5,
@@ -6670,6 +6800,7 @@ CECfollowLambdaPath <- function(
         Z = Z,
         lambda = lam,
         C = C,
+        Cquali = Cquali,
         r0 = r0,
         Nshots = Nshots_fresh,
         Nloop = Nloop,
@@ -6694,6 +6825,7 @@ CECfollowLambdaPath <- function(
         phi_prev = phi_prev,
         direction = direction,
         C = C,
+        Cquali = Cquali,
         r0 = r0,
         Nloop = Nloop,
         Nshots_warm = Nshots_warm,
@@ -6738,6 +6870,9 @@ CECfollowLambdaPath <- function(
 #' @param B Number of linked bootstrap paths.
 #' @param C Positive upper bound for fitted component densities; independent
 #'   of `lambda`.
+#' @param Cquali Minimum-frequency control for qualitative variables. The
+#'   default `Inf` applies no qualitative frequency floor. Qualitative floors
+#'   are tracked separately from density-bound saturation.
 #' @param r0 Optional upper bound for the initial number of clusters.
 #' @param Nshots_fresh Number of fresh random starts used at the first lambda of
 #'   each path.
@@ -6820,6 +6955,7 @@ CECfitLambdaGrid <- function(
   k0 = 10,
   B = 10,
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nshots_fresh = 5,
   Nshots_warm = 5,
@@ -6892,6 +7028,7 @@ CECfitLambdaGrid <- function(
     k0 = k0,
     B = B,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nshots_fresh = Nshots_fresh,
     Nshots_warm = Nshots_warm,
@@ -6960,6 +7097,7 @@ CECfitLambdaGrid <- function(
     Z = Z,
     lambda_grid = lambda_grid,
     C = C,
+    Cquali = Cquali,
     r0 = r0,
     Nshots_fresh = Nshots_fresh,
     Nshots_warm = Nshots_warm,
@@ -7264,6 +7402,8 @@ CECfitLambdaGrid <- function(
     execution = list(
       n_cores = n_cores,
       batch_size = batch_size,
+      C = C,
+      Cquali = Cquali,
       checkpoint_enabled = checkpoint_info$enabled,
       checkpoint_dir = checkpoint_info$dir,
       auto_checkpoint = checkpoint_info$auto,

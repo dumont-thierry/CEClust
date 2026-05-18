@@ -36,6 +36,7 @@ CECfitLambdaGrid(
   k0 = 10,
   B = 10,
   C = 1,
+  Cquali = Inf,
   r0 = NULL,
   Nshots_fresh = 5,
   Nshots_warm = 5,
@@ -104,6 +105,10 @@ removed and the grid is sorted increasingly.}
 
 \item{C}{Positive upper bound for fitted component densities; independent
 of \code{lambda}.}
+
+\item{Cquali}{Minimum-frequency control for qualitative variables. The
+default \code{Inf} applies no qualitative frequency floor. Qualitative floors
+are tracked separately from density-bound saturation.}
 
 \item{r0}{Optional upper bound for the initial number of clusters.}
 
