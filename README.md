@@ -1,11 +1,11 @@
 # CEClust
 
-`CEClust` implements composite entropy clustering unidimensional, multidimentional, categorical,
-and mixed data. The package is built around a simple idea: do not trust one
-isolated clustering run before looking at how the partition changes when the
-regularisation changes.
+`CEClust` implements composite entropy clustering for one-dimensional,
+multidimensional, categorical, and mixed data. The package is built around a
+simple idea: do not trust one isolated clustering run before looking at how the
+partition changes when the regularisation changes.
 
-In practice, the two tuning parameters are:
+In practice, the two main tuning parameters are:
 
 - `lambda`, which controls the regularisation and therefore the granularity of
   the partition;
@@ -13,7 +13,12 @@ In practice, the two tuning parameters are:
   solutions can become saturated and should not be interpreted as stable
   discoveries.
 
-The recommended workflow is therefore visual first:
+For mixed data, `C` controls only the quantitative density bound. Qualitative
+variables have a separate optional floor, `Cquali`; by default `Cquali = Inf`,
+so no qualitative frequency floor is applied. The reported saturation `sat`
+therefore reflects quantitative density saturation, not categorical smoothing.
+
+The recommended workflow is visual first:
 
 1. fit a grid of candidate values `(C, lambda)`;
 2. plot the grid and the lambda path before reading detailed diagnostics;
@@ -27,7 +32,6 @@ The minimal public API is:
 CECclassif(...)          # one C and one lambda
 CECfitLambdaGrid(...)    # one C and several lambdas
 CECfitBoundGrid(...)     # several C values and several lambdas
-CECfitPreset("iris")     # built-in workflows
 
 CECplotGrid(...)         # C x lambda map
 CECplotPath(...)         # REO path or 1D partition path
@@ -38,9 +42,9 @@ CECsummariseGrid(...)
 CECselectStableLambdas(...)
 ```
 
-By default, `CECfitBoundGrid()` and `CECfitPreset()` keep results in memory and
-do not write checkpoint or result files. Checkpoints are an explicit option for
-long runs, not part of the basic user call.
+By default, `CECfitBoundGrid()` keeps results in memory and does not write
+checkpoint or result files. Checkpoints are an explicit option for long runs,
+not part of the basic user call.
 
 ## Installation
 
@@ -53,7 +57,7 @@ remotes::install_github(
   build_vignettes = TRUE
 )
 ```
- 
+
 From a local source folder:
 
 ```r
@@ -64,7 +68,7 @@ Optional packages extend the workflow:
 
 - `shiny` for `CECexplore()`;
 - `ggplot2` for some multivariate displays;
-- `mlbench` for the breast-cancer preset;
+- `mlbench` for the breast-cancer data example;
 - `mclust` for optional ICL comparisons;
 - `knitr` and `rmarkdown` for vignettes.
 
@@ -73,7 +77,9 @@ Optional packages extend the workflow:
 For fixed `C` and `lambda`, `CECclassif()` runs several random starts and keeps
 the best solution according to the composite entropy criterion:
 
-\[H = H(\nu) + \sum_x \nu_x H(G_x \mid g_{\theta_x})\]
+```math
+H = H(\nu) + \sum_x \nu_x H(G_x \mid g_{\theta_x})
+```
 
 A single run is useful when `C` and `lambda` are already chosen. For model
 selection, the package follows complete lambda trajectories and, when needed,
@@ -81,19 +87,33 @@ complete `(C, lambda)` grids. The plots are deliberately the first outputs to
 look at: they show whether a candidate solution lives inside a coherent region
 or is just a local accident.
 
-## 1D Gaussian-mixture example
+## 1D Gaussian-Mixture Example
 
-This is the main toy example. It simulates data from the package's Gaussian
-mixture model, then evaluates the same kind of grid as the article workflow.
-This replaces the misleading example where a single standard Gaussian could be
-split into several artificial clusters.
+This is the main toy example. It simulates data from a Gaussian mixture, then
+evaluates the same kind of `(C, lambda)` grid as the article workflow. This is
+preferable to using one standard Gaussian, where artificial clusters can be
+created by overfitting.
 
 ```r
 library(CEClust)
 
-article_grid <- CECfitPreset(
-  "gaussian_1d",
-  n = 100,
+set.seed(13)
+n <- 100
+mu <- 2 * sqrt(3) * c(-3, -1.75, -0.75, 0, 0.75, 1.75, 3)
+sd_vec <- c(0.2, 1, 0.5, 1, 0.5, 1, 0.2)
+pi_vec <- c(0.5, 2, 0.5, 1, 0.5, 2, 0.5)
+pi_vec <- pi_vec / sum(pi_vec)
+
+component <- sample.int(length(mu), size = n, replace = TRUE, prob = pi_vec)
+Z_1d <- rnorm(n, mean = mu[component], sd = sd_vec[component])
+```
+
+Fit a full `(C, lambda)` grid on these data:
+
+```r
+article_grid <- CECfitBoundGrid(
+  Z = Z_1d,
+  dataset_name = "gaussian_mixture_1d",
   data_seed = 13,
   algo_seed = 2026035,
   lambda_grid = seq(0.1, 1.8, by = 0.1),
@@ -104,26 +124,19 @@ article_grid <- CECfitPreset(
   Nshots_fresh = 10,
   Nshots_warm = 10,
   Nloop = 100,
+  familyType = "gaussUniv",
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.8,
   sat_threshold = 0.05
 )
 ```
 
-### Start with plots
-
-The first plot is the `(C, lambda)` grid. Kept cells are coloured by REO;
-rejected cells are hatched according to instability, RSI, or saturation.
+Start with plots. The grid shows retained and rejected cells; the path view
+shows how the partition changes as `lambda` varies for a fixed `C`.
 
 ```r
 CECplotGrid(article_grid)
-```
 
-For one-dimensional data, the lambda path can be read as a sequence of
-partitions. Horizontal bands mark values of `lambda`; grey or hatched regions
-are values rejected by the diagnostic rules.
-
-```r
 CECplotPath(
   article_grid,
   C = 1,
@@ -133,22 +146,16 @@ CECplotPath(
   sat_threshold = 0.05,
   saturation_mark = "hatch"
 )
-```
 
-Then inspect the selected partition itself.
-
-```r
 CECplotPartition(article_grid, C = 1, lambda = 1)
 ```
 
-### Same data, one simple classification
-
-Once the data and plots are understood, a single classification at `C = 1` and
-`lambda = 1` is straightforward:
+Once the data and plots are understood, fit one simple classification at
+`C = 1` and `lambda = 1`:
 
 ```r
 fit_1_1 <- CECclassif(
-  Z = article_grid$Z,
+  Z = Z_1d,
   C = 1,
   lambda = 1,
   r0 = 10,
@@ -160,8 +167,6 @@ fit_1_1 <- CECclassif(
 table(fit_1_1$clusters)
 fit_1_1$REO
 ```
-
-### Then summarise diagnostics
 
 Diagnostics should confirm what the plots suggest, not replace visual
 inspection.
@@ -182,25 +187,27 @@ stable_C1$kept_lambdas
 stable_C1$summary
 ```
 
-### Open the Shiny grid explorer
-
-The same grid can be explored interactively. This is the easiest way to move
-between the grid, selected partitions, variables, clusters, and lambda paths.
+The same grid can be explored interactively in Shiny:
 
 ```r
 CECexplore(article_grid)
 ```
 
-## Iris without and with Species
+## Iris Without Species
 
-The iris preset keeps the same API but changes the data type. First run the
-classification on the four quantitative variables only.
+Here the clustering is unsupervised: only the four quantitative iris variables
+are used. The known species labels are kept only for display and interpretation.
 
 ```r
-iris_no_species <- CECfitPreset(
-  "iris",
-  include_species_as_feature = FALSE,
-  quantitative_representation = "raw",
+Z_iris <- iris[, 1:4]
+
+iris_no_species <- CECfitBoundGrid(
+  Z = Z_iris,
+  display_data = iris,
+  labels = iris$Species,
+  label_name = "Species",
+  dataset_name = "iris_quantitative",
+  algo_seed = 2026030,
   lambda_grid = seq(0.1, 4, by = 0.5),
   C_grid = seq(1, 10, by = 2),
   r0 = 10,
@@ -208,31 +215,65 @@ iris_no_species <- CECfitPreset(
   B = 20,
   Nshots_fresh = 20,
   Nshots_warm = 20,
-  Nloop = 100
+  Nloop = 100,
+  familyType = "gaussVector"
 )
+```
 
+Plot first, then inspect one selected partition or launch the Shiny explorer.
+
+```r
 CECplotGrid(iris_no_species)
 CECplotPartition(iris_no_species)
 CECexplore(iris_no_species)
 ```
 
-Then include `Species` as a qualitative variable in the clustering data. This
-is not the usual unsupervised iris benchmark; it is useful when you explicitly
-want to study a mixed quantitative/categorical representation.
+A simple fixed-parameter classification on the same variables is:
 
 ```r
-iris_with_species <- CECfitPreset(
-  "iris",
-  include_species_as_feature = TRUE,
-  quantitative_representation = "raw",
+iris_fit <- CECclassif(
+  Z = Z_iris,
+  C = 4,
+  lambda = 1,
+  r0 = 10,
+  Nshots = 20,
+  Nloop = 100,
+  familyType = "gaussVector"
+)
+
+table(iris_fit$clusters, iris$Species)
+```
+
+## Iris With Species As A Qualitative Variable
+
+This is not the usual unsupervised iris benchmark: `Species` is now included in
+the clustering variables. It is useful when you explicitly want to study a mixed
+quantitative/categorical representation. With the default `Cquali = Inf`, the
+qualitative variable is not treated as a saturation constraint.
+
+```r
+Z_iris_species <- data.frame(
+  iris[, 1:4],
+  Species = iris$Species
+)
+
+iris_with_species <- CECfitBoundGrid(
+  Z = Z_iris_species,
+  display_data = Z_iris_species,
+  labels = iris$Species,
+  label_name = "Species",
+  dataset_name = "iris_with_species",
+  algo_seed = 2026030,
   lambda_grid = seq(0.1, 4, by = 0.5),
   C_grid = seq(1, 10, by = 2),
+  Cquali = Inf,
   r0 = 10,
   k0 = 20,
   B = 20,
   Nshots_fresh = 20,
   Nshots_warm = 20,
-  Nloop = 100
+  Nloop = 100,
+  familyType = "gaussAndDiscreteVector"
 )
 
 CECplotGrid(iris_with_species)
@@ -240,7 +281,24 @@ CECplotPartition(iris_with_species, shape_var = "Species")
 CECexplore(iris_with_species)
 ```
 
-## Uniform example on [0, 1]
+The corresponding fixed-parameter classification is:
+
+```r
+iris_species_fit <- CECclassif(
+  Z = Z_iris_species,
+  C = 4,
+  Cquali = Inf,
+  lambda = 1,
+  r0 = 10,
+  Nshots = 20,
+  Nloop = 100,
+  familyType = "gaussAndDiscreteVector"
+)
+
+table(iris_species_fit$clusters, iris$Species)
+```
+
+## Uniform Example On [0, 1]
 
 The uniform example is a stress test. There is no Gaussian-mixture structure to
 recover, so the lambda path should be interpreted with caution. Here the
@@ -277,9 +335,9 @@ CECplotPath(
   uniform_grid,
   C = 10,
   type = "partitions",
-  stab_algo_threshold = 0.95,
-  rsi_threshold = 0.95,
-  sat_threshold = 1.1,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0,
   saturation_mark = "hatch"
 )
 
@@ -300,21 +358,7 @@ uniform_stable <- CECselectStableLambdas(
 uniform_stable$summary
 ```
 
-## Presets
-
-Presets are named entry points for examples that should remain easy to launch:
-
-```r
-CECfitPreset("gaussian_1d")
-CECfitPreset("iris")
-CECfitPreset("breast_cancer")
-```
-
-They are intentionally thin wrappers around `CECfitBoundGrid()`. Arguments such
-as `lambda_grid`, `C_grid`, `k0`, `B`, `Nshots_fresh`, `Nloop`, `n_cores`, and
-checkpoint options can still be passed explicitly.
-
-## Further reading
+## Further Reading
 
 ```r
 vignette("minimal-api", package = "CEClust")
