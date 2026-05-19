@@ -4115,7 +4115,9 @@
             selected_C = sel$C,
             selected_lambda = sel$lambda,
             grid_summary = current_summary(),
-            sensibility = p$sensibility
+            sensibility = p$sensibility,
+            main = "REO phase diagram: click a cell to inspect its partition",
+            show_legend = FALSE
           )
         })
 
