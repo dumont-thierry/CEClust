@@ -223,8 +223,8 @@ iris_no_species <- CECfitBoundGrid(
 Plot first, then inspect one selected partition or launch the Shiny explorer.
 
 ```r
-CECplotGrid(iris_no_species)
-CECplotPartition(iris_no_species)
+CECplotGrid(iris_no_species) 
+CECplotPartition(iris_no_species, shape_var = "Species",C = 1, lambda = 1)
 CECexplore(iris_no_species)
 ```
 
@@ -277,7 +277,7 @@ iris_with_species <- CECfitBoundGrid(
 )
 
 CECplotGrid(iris_with_species)
-CECplotPartition(iris_with_species, shape_var = "Species")
+CECplotPartition(iris_with_species, shape_var = "Species",C = 1, lambda = 1)
 CECexplore(iris_with_species)
 ```
 
