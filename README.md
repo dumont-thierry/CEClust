@@ -303,7 +303,7 @@ table(iris_species_fit$clusters, iris$Species)
 The uniform example is a stress test. There is no Gaussian-mixture structure to
 recover, so the lambda path should be interpreted with caution. Here the
 diagnostic thresholds are deliberately strict: keep lambda values only when
-`RSI > 0.9`, `stab_algo > 0.8`, and saturation is zero.
+`RSI > 0.95`, `stab_algo > 0.95`, and saturation is zero.
 
 ```r
 set.seed(13)
@@ -321,8 +321,8 @@ uniform_grid <- CECfitBoundGrid(
   Nshots_warm = 20,
   Nloop = 100,
   familyType = "gaussUniv",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
+  stab_algo_threshold = 0.95,
+  rsi_threshold = 0.95,
   sat_threshold = 0
 )
 ```
@@ -335,8 +335,8 @@ CECplotPath(
   uniform_grid,
   C = 10,
   type = "partitions",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
+  stab_algo_threshold = 0.95,
+  rsi_threshold = 0.95,
   sat_threshold = 0,
   saturation_mark = "hatch"
 )
@@ -350,8 +350,8 @@ The corresponding diagnostic table is:
 uniform_stable <- CECselectStableLambdas(
   uniform_grid,
   C = 10,
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
+  stab_algo_threshold = 0.95,
+  rsi_threshold = 0.95,
   sat_threshold = 0
 )
 
