@@ -23,7 +23,9 @@ CECexplore(x, ...)
 \code{\link[=CECfitBoundGrid]{CECfitBoundGrid()}} or
 \code{\link[=CECfitPreset]{CECfitPreset()}}.}
 
-\item{...}{Additional plotting or Shiny arguments.}
+\item{...}{Additional plotting or Shiny arguments. For
+\code{CECplotGrid()}, use \code{show_legend = FALSE} to hide the default REO
+and rejection legend.}
 
 \item{C, lambda}{Optional selected cell. If omitted, the first retained cell is
 used. \code{lambda} is only used by the diagnostic summary path.}
@@ -71,4 +73,8 @@ and inspecting associated partitions.
 For \code{CECplotPath(type = "partitions")}, grey bands indicate lambda values
 that fail the stability or RSI rule. Reverse hatching marks values rejected by
 the saturation rule.
+
+\code{CECplotGrid()} displays a legend by default. The colour ramp describes
+REO for retained cells; grey hatched swatches describe cells rejected by
+stability/RSI, saturation, or both.
 }

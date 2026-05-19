@@ -156,7 +156,8 @@ CECsummariseGrid <- function(x, ...) {
 #' Plot a CEClust C by lambda grid.
 #'
 #' @param x A `"CEC_bound_grid"` object.
-#' @param ... Arguments forwarded to the grid plot engine.
+#' @param ... Arguments forwarded to the grid plot engine. Use
+#'   `show_legend = FALSE` to hide the default REO and rejection legend.
 #' @return Invisibly returns the plotted summary data.
 #' @export
 CECplotGrid <- function(x, ...) {

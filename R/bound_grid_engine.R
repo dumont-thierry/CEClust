@@ -2852,6 +2852,63 @@
     }
 
 
+    cec_grid_draw_reo_map_legend <- function(
+      reo_range,
+      reo_col,
+      bad_fill,
+      bad_hatch_col
+    ) {
+      usr <- graphics::par("usr")
+      x_span <- diff(usr[1:2])
+      y_span <- diff(usr[3:4])
+      x0 <- usr[2] + 0.055 * x_span
+      x1 <- usr[2] + 0.115 * x_span
+      label_x <- usr[2] + 0.145 * x_span
+
+      y0 <- usr[3] + 0.52 * y_span
+      y1 <- usr[4] - 0.07 * y_span
+      n_col <- length(reo_col)
+      ys <- seq(y0, y1, length.out = n_col + 1L)
+      for (i in seq_len(n_col)) {
+        graphics::rect(x0, ys[i], x1, ys[i + 1L], col = reo_col[i], border = NA)
+      }
+      graphics::rect(x0, y0, x1, y1, border = "grey25", lwd = 0.8)
+      graphics::text(x0, y1 + 0.05 * y_span, labels = "REO", adj = c(0, 0.5), cex = 0.88)
+      graphics::text(label_x, y0, labels = signif(reo_range[1L], 4), adj = c(0, 0.5), cex = 0.78)
+      graphics::text(label_x, y1, labels = signif(reo_range[2L], 4), adj = c(0, 0.5), cex = 0.78)
+
+      swatch_x0 <- x0
+      swatch_x1 <- x1
+      swatch_h <- 0.055 * y_span
+      gap <- 0.035 * y_span
+      swatch_y <- y0 - 0.16 * y_span
+
+      draw_swatch <- function(label, angle1 = NULL, angle2 = NULL) {
+        graphics::rect(swatch_x0, swatch_y, swatch_x1, swatch_y + swatch_h, col = bad_fill, border = "grey25")
+        if (!is.null(angle1)) {
+          graphics::rect(
+            swatch_x0, swatch_y, swatch_x1, swatch_y + swatch_h,
+            density = 10, angle = angle1, col = bad_hatch_col, border = NA
+          )
+        }
+        if (!is.null(angle2)) {
+          graphics::rect(
+            swatch_x0, swatch_y, swatch_x1, swatch_y + swatch_h,
+            density = 10, angle = angle2, col = bad_hatch_col, border = NA
+          )
+        }
+        graphics::text(label_x, swatch_y + swatch_h / 2, labels = label, adj = c(0, 0.5), cex = 0.76)
+        swatch_y <<- swatch_y - swatch_h - gap
+      }
+
+      draw_swatch("rejected: stability/RSI", angle1 = 45)
+      draw_swatch("rejected: saturation", angle1 = -45)
+      draw_swatch("rejected: both", angle1 = 45, angle2 = -45)
+
+      invisible(NULL)
+    }
+
+
     cec_grid_zone_ids <- function(
       grid_obj,
       grid_summary,
@@ -3045,7 +3102,7 @@
       bad_fill = grDevices::adjustcolor("grey70", alpha.f = 0.72),
       bad_hatch_col = grDevices::adjustcolor("grey25", alpha.f = 0.75),
       draw_zones = TRUE,
-      show_legend = FALSE
+      show_legend = TRUE
     ) {
       s <- if (is.null(grid_summary)) {
         cec_grid_apply_thresholds(
@@ -3063,7 +3120,8 @@
 
       oldpar <- graphics::par(c("mar", "xpd"))
       on.exit(graphics::par(mar = oldpar$mar, xpd = oldpar$xpd), add = TRUE)
-      graphics::par(mar = c(4.2, 4.3, 2.7, 1.1))
+      right_margin <- if (isTRUE(show_legend)) 8.0 else 1.1
+      graphics::par(mar = c(4.2, 4.3, 2.7, right_margin), xpd = NA)
 
       graphics::plot(
         NA,
@@ -3159,9 +3217,8 @@
       graphics::box()
 
       if (isTRUE(show_legend)) {
-        plot_cec_grid_reo_legend(
-          grid_obj = grid_obj,
-          grid_summary = s,
+        cec_grid_draw_reo_map_legend(
+          reo_range = reo_range,
           reo_col = reo_col,
           bad_fill = bad_fill,
           bad_hatch_col = bad_hatch_col
