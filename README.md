@@ -111,7 +111,7 @@ Z_1d <- rnorm(n, mean = mu[component], sd = sd_vec[component])
 Fit a full `(C, lambda)` grid on these data:
 
 ```r
-article_grid <- CECfitBoundGrid(
+partition_over_grid <- CECfitBoundGrid(
   Z = Z_1d,
   dataset_name = "gaussian_mixture_1d",
   data_seed = 13,
@@ -135,10 +135,10 @@ Start with plots. The grid shows retained and rejected cells; the path view
 shows how the partition changes as `lambda` varies for a fixed `C`.
 
 ```r
-CECplotGrid(article_grid)
+CECplotGrid(partition_over_grid)
 
 CECplotPath(
-  article_grid,
+  partition_over_grid,
   C = 1,
   type = "partitions",
   stab_algo_threshold = 0.8,
@@ -147,7 +147,7 @@ CECplotPath(
   saturation_mark = "hatch"
 )
 
-CECplotPartition(article_grid, C = 1, lambda = 1)
+CECplotPartition(partition_over_grid, C = 1, lambda = 1)
 ```
 
 Once the data and plots are understood, fit one simple classification at
@@ -172,11 +172,11 @@ Diagnostics should confirm what the plots suggest, not replace visual
 inspection.
 
 ```r
-article_summary <- CECsummariseGrid(article_grid)
-head(article_summary)
+partition_over_grid_summary <- CECsummariseGrid(partition_over_grid)
+head(partition_over_grid_summary)
 
 stable_C1 <- CECselectStableLambdas(
-  article_grid,
+  partition_over_grid,
   C = 1,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.8,
@@ -190,7 +190,7 @@ stable_C1$summary
 The same grid can be explored interactively in Shiny:
 
 ```r
-CECexplore(article_grid)
+CECexplore(partition_over_grid)
 ```
 
 ## Iris Without Species
