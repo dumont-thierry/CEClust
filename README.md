@@ -49,17 +49,11 @@ Current development branch:
 ```r
 remotes::install_github(
   "dumont-thierry/CEClust",
-  ref = "codex/minimal-api",
+  ref = "minimal-api",
   build_vignettes = TRUE
 )
 ```
-
-Release branch:
-
-```r
-remotes::install_github("dumont-thierry/CEClust", ref = "release-version-update")
-```
-
+ 
 From a local source folder:
 
 ```r
