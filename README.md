@@ -73,9 +73,7 @@ Optional packages extend the workflow:
 For fixed `C` and `lambda`, `CECclassif()` runs several random starts and keeps
 the best solution according to the composite entropy criterion:
 
-\\[
-H = H(\nu) + \sum_x \nu_x H(G_x \mid g_{\theta_x})
-\\]
+\[H = H(\nu) + \sum_x \nu_x H(G_x \mid g_{\theta_x})\]
 
 A single run is useful when `C` and `lambda` are already chosen. For model
 selection, the package follows complete lambda trajectories and, when needed,
