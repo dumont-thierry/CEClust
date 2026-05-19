@@ -1,6 +1,6 @@
 # CEClust
 
-`CEClust` implements composite entropy clustering for Gaussian, categorical,
+`CEClust` implements composite entropy clustering unidimensional, multidimentional, categorical,
 and mixed data. The package is built around a simple idea: do not trust one
 isolated clustering run before looking at how the partition changes when the
 regularisation changes.
