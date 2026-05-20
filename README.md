@@ -114,7 +114,6 @@ Fit a full `(C, lambda)` grid on these data:
 partition_over_grid <- CECfitBoundGrid(
   Z = Z_1d,
   dataset_name = "gaussian_mixture_1d",
-  data_seed = 13,
   algo_seed = 2026035,
   lambda_grid = seq(0.1, 1.8, by = 0.1),
   C_grid = c(0.5, 1, 2, 3, 3.5, 4, 4.5, 5, 6, 8),
@@ -311,7 +310,7 @@ Z_uniform <- runif(1000)
 
 uniform_grid <- CECfitBoundGrid(
   Z = Z_uniform,
-  dataset_name = "uniform_0_1",
+  dataset_name = "uniform_0_1", 
   lambda_grid = seq(0.1, 2, by = 0.1),
   C_grid = seq(0.5, 10, by = 0.5),
   r0 = 50,
