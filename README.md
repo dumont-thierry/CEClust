@@ -312,8 +312,8 @@ Z_uniform <- runif(1000)
 uniform_grid <- CECfitBoundGrid(
   Z = Z_uniform,
   dataset_name = "uniform_0_1",
-  lambda_grid = seq(0.05, 2, by = 0.05),
-  C_grid = 10,
+  lambda_grid = seq(0.1, 2, by = 0.1),
+  C_grid = seq(0.5, 10, by = 0.5),
   r0 = 50,
   k0 = 20,
   B = 20,
@@ -342,6 +342,18 @@ CECplotPath(
 )
 
 CECplotGrid(uniform_grid)
+
+```
+Plot the phase diagram without stability or saturation criteria : 
+
+```r
+CECplotGrid(
+  uniform_grid,
+  stab_algo_threshold = 0 ,
+  rsi_threshold = 0,
+  sat_threshold = 1
+)
+
 ```
 
 The corresponding diagnostic table is:
