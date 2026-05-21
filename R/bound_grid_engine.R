@@ -683,6 +683,11 @@
       summary_row_fun <- ceclust_fun("CECbestPartitionSummaryRow")
       rows <- lapply(best_parts$best, summary_row_fun)
       summary_out <- do.call(rbind, rows)
+      summary_out$final_descent_from_best <- vapply(
+        best_parts$best,
+        function(obj) if (is.null(obj)) FALSE else isTRUE(obj$final_descent_from_best),
+        logical(1)
+      )
       summary_out$C_repaired <- vapply(
         best_parts$best,
         function(obj) if (is.null(obj)) FALSE else isTRUE(obj$C_repaired),
@@ -704,6 +709,188 @@
       )
       best_parts$summary <- summary_out
       best_parts
+    }
+
+
+    cec_grid_final_descent_from_best <- function(
+      runs_by_C,
+      Z,
+      C_grid,
+      lambda_grid,
+      Cquali,
+      familyType,
+      Nloop,
+      tol = 1e-10,
+      verbose = TRUE
+    ) {
+      if (length(runs_by_C) == 0L || length(C_grid) == 0L || length(lambda_grid) == 0L) {
+        return(list(
+          runs_by_C = runs_by_C,
+          descent_log = data.frame(),
+          n_improved = 0L,
+          n_attempted = 0L,
+          tol = tol,
+          Nloop = Nloop
+        ))
+      }
+
+      eval_fun <- ceclust_fun("CECevaluatePartitionOnLambda")
+      build_fun <- ceclust_fun("CECbuildBestPartitionObjectAtLambda")
+      one_shot_fun <- ceclust_fun("CECclassifOneShot")
+      finalize_fun <- ceclust_fun("CECfinalize_classif_result")
+      partition_phi_fun <- ceclust_fun("CECpartitionToPhi")
+      prepare_backend_fun <- ceclust_fun("CECprepare_backend_data")
+
+      backend_data <- prepare_backend_fun(Z, familyType = familyType)
+      descent_log <- list()
+      n_attempted <- 0L
+
+      get_best_lambda <- function(best_parts, j, obj) {
+        if (!is.null(obj) && !is.null(obj$lambda) && length(obj$lambda) > 0L && is.finite(obj$lambda[1L])) {
+          return(as.numeric(obj$lambda[1L]))
+        }
+        if (!is.null(best_parts$summary) &&
+            "lambda" %in% names(best_parts$summary) &&
+            j <= nrow(best_parts$summary) &&
+            is.finite(best_parts$summary$lambda[j])) {
+          return(as.numeric(best_parts$summary$lambda[j]))
+        }
+        NA_real_
+      }
+
+      for (i in seq_along(runs_by_C)) {
+        result_obj <- runs_by_C[[i]]
+        if (is.null(result_obj$best_parts) || is.null(result_obj$best_parts$best)) {
+          next
+        }
+
+        C_value <- C_grid[i]
+        best_parts <- result_obj$best_parts
+
+        for (j in seq_along(best_parts$best)) {
+          best_obj <- best_parts$best[[j]]
+          if (is.null(best_obj)) {
+            next
+          }
+
+          old_partition <- extract_cec_partition(best_obj)
+          old_REO <- if (!is.null(best_obj$REO) && length(best_obj$REO) > 0L) {
+            as.integer(best_obj$REO[1L])
+          } else {
+            length(unique(old_partition))
+          }
+          if (!is.finite(old_REO) || old_REO <= 1L) {
+            next
+          }
+
+          lambda_value <- get_best_lambda(best_parts, j, best_obj)
+          if (!is.finite(lambda_value)) {
+            next
+          }
+
+          old_eval <- eval_fun(
+            partition = old_partition,
+            Z = Z,
+            lambda = lambda_value,
+            C = C_value,
+            Cquali = Cquali,
+            familyType = familyType
+          )
+          old_H <- old_eval$H_total
+
+          phi0 <- partition_phi_fun(old_partition)
+          fit_new <- one_shot_fun(
+            Z = Z,
+            lambda = lambda_value,
+            C = C_value,
+            Cquali = Cquali,
+            r0 = old_REO,
+            Nloop = Nloop,
+            phi0 = phi0,
+            familyType = familyType,
+            displayPlotEntropy = FALSE,
+            backend_data = backend_data
+          )
+          fit_new <- finalize_fun(fit_new)
+          new_partition <- extract_cec_partition(fit_new)
+          new_eval <- eval_fun(
+            partition = new_partition,
+            Z = Z,
+            lambda = lambda_value,
+            C = C_value,
+            Cquali = Cquali,
+            familyType = familyType
+          )
+          new_H <- new_eval$H_total
+          new_REO <- if (!is.null(fit_new$REO) && length(fit_new$REO) > 0L) {
+            as.integer(fit_new$REO[1L])
+          } else {
+            length(unique(new_partition))
+          }
+
+          n_attempted <- n_attempted + 1L
+          improved <- isTRUE(new_H < old_H - tol)
+          if (improved) {
+            new_obj <- build_fun(
+              partition = new_partition,
+              lambda = lambda_value,
+              Z = Z,
+              C = C_value,
+              Cquali = Cquali,
+              familyType = familyType,
+              template_obj = best_obj,
+              eval_obj = new_eval,
+              criterion = if (!is.null(best_parts$criterion)) best_parts$criterion else NULL
+            )
+            new_obj$final_descent_from_best <- TRUE
+            new_obj$final_descent_old_H <- old_H
+            new_obj$final_descent_new_H <- new_H
+            new_obj$final_descent_improvement <- old_H - new_H
+            new_obj$final_descent_old_REO <- old_REO
+            new_obj$final_descent_new_REO <- new_REO
+
+            best_parts$best[[j]] <- new_obj
+          }
+
+          descent_log[[length(descent_log) + 1L]] <- data.frame(
+            C = C_value,
+            lambda = lambda_value,
+            best_index = j,
+            attempted = TRUE,
+            improved = improved,
+            old_H = old_H,
+            new_H = new_H,
+            improvement = old_H - new_H,
+            old_REO = old_REO,
+            new_REO = new_REO,
+            stringsAsFactors = FALSE
+          )
+        }
+
+        result_obj$best_parts <- best_parts
+        runs_by_C[[i]] <- result_obj
+      }
+
+      log_df <- cec_grid_bind_rows_flexible(descent_log)
+      n_improved <- if (nrow(log_df) == 0L) 0L else sum(log_df$improved %in% TRUE, na.rm = TRUE)
+      if (isTRUE(verbose)) {
+        message(
+          "Final CEC descent from repaired best partitions: ",
+          n_improved,
+          " improvement(s) over ",
+          n_attempted,
+          " attempted cell(s)."
+        )
+      }
+
+      list(
+        runs_by_C = runs_by_C,
+        descent_log = log_df,
+        n_improved = n_improved,
+        n_attempted = n_attempted,
+        tol = tol,
+        Nloop = Nloop
+      )
     }
 
 
@@ -1596,6 +1783,8 @@
       lambda_repair_tol = 1e-10,
       lambda_repair_max_iter = 100L,
       repair_alternate_max_iter = 20L,
+      final_descent_from_best = TRUE,
+      final_descent_tol = 1e-10,
       output_dir = cec_grid_simulation_dir(),
       save_results = FALSE,
       verbose = TRUE
@@ -1842,6 +2031,40 @@
         summary_list <- refreshed$summary_list
       }
 
+      final_descent <- list(
+        descent_log = data.frame(),
+        n_improved = 0L,
+        n_attempted = 0L,
+        tol = final_descent_tol,
+        Nloop = Nloop
+      )
+      if (isTRUE(final_descent_from_best)) {
+        final_descent <- cec_grid_final_descent_from_best(
+          runs_by_C = runs_by_C,
+          Z = Z,
+          C_grid = C_grid,
+          lambda_grid = lambda_grid,
+          Cquali = Cquali,
+          familyType = familyType,
+          Nloop = Nloop,
+          tol = final_descent_tol,
+          verbose = verbose
+        )
+        runs_by_C <- final_descent$runs_by_C
+        refreshed <- cec_grid_refresh_all_results(
+          runs_by_C = runs_by_C,
+          Z = Z,
+          C_grid = C_grid,
+          lambda_grid = lambda_grid,
+          partition_metric = partition_metric,
+          change_sim_threshold = change_sim_threshold,
+          change_detection_method = change_detection_method,
+          detect_changes_on_kept_lambdas = detect_changes_on_kept_lambdas
+        )
+        runs_by_C <- refreshed$runs_by_C
+        summary_list <- refreshed$summary_list
+      }
+
       grid_summary <- do.call(rbind, summary_list)
       row.names(grid_summary) <- NULL
 
@@ -1857,6 +2080,7 @@
         runs_by_C = runs_by_C,
         summary = grid_summary,
         C_repair = C_repair,
+        final_descent = final_descent,
         stop_C = stop_C,
         stop_index = stop_index,
         meta = list(
@@ -1895,7 +2119,9 @@
           repair_alternate_trajectories = repair_alternate_trajectories,
           lambda_repair_tol = lambda_repair_tol,
           lambda_repair_max_iter = lambda_repair_max_iter,
-          repair_alternate_max_iter = repair_alternate_max_iter
+          repair_alternate_max_iter = repair_alternate_max_iter,
+          final_descent_from_best = final_descent_from_best,
+          final_descent_tol = final_descent_tol
         )
       )
 

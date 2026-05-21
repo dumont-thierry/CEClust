@@ -18,7 +18,7 @@ CECfitPreset(preset = c("gaussian_1d", "iris", "breast_cancer"), ...,
 \code{Z}, \code{lambda_grid}, \code{C_grid}, \code{Cquali},
 \code{familyType}, \code{k0},
 \code{B}, \code{Nshots_fresh}, \code{Nshots_warm}, \code{Nloop},
-\code{n_cores}.}
+\code{n_cores}, and \code{final_descent_from_best}.}
 
 \item{save_results}{Logical. If \code{TRUE}, save the result as an \code{.rds}
 file. The public wrapper defaults to \code{FALSE}.}
@@ -43,6 +43,11 @@ a grid of density bounds \code{C} and regularisation values \code{lambda}. It
 keeps the existing linked-lambda, bootstrap stability, saturation,
 trajectory-repair, and change-detection logic while exposing a compact public
 entry point.
+
+By default, after the final C/lambda repair passes have stabilised,
+\code{CECfitBoundGrid()} performs one last deterministic CEC descent from the
+current best partition in each non-trivial cell. Set
+\code{final_descent_from_best = FALSE} to skip this final local refinement.
 
 \code{CECfitPreset()} launches one of the built-in demonstration workflows.
 }
