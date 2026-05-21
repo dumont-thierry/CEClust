@@ -115,8 +115,8 @@ partition_over_grid <- CECfitBoundGrid(
   Z = Z_1d,
   dataset_name = "gaussian_mixture_1d",
   algo_seed = 2026035,
-  lambda_grid = seq(0.1, 1.8, by = 0.1),
-  C_grid = c(0.5, 1, 2, 3, 3.5, 4, 4.5, 5, 6, 8),
+  lambda_grid = seq(0.9, 1.7, by = 0.1),
+  C_grid = seq(3, 8, by = 0.25),
   r0 = 10,
   k0 = 20,
   B = 20,
@@ -124,9 +124,9 @@ partition_over_grid <- CECfitBoundGrid(
   Nshots_warm = 10,
   Nloop = 100,
   familyType = "gaussUniv",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.8,
-  sat_threshold = 0.05
+  stab_algo_threshold = 0.95,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
 )
 ```
 
@@ -320,7 +320,7 @@ uniform_grid <- CECfitBoundGrid(
   Nshots_warm = 20,
   Nloop = 100,
   familyType = "gaussUniv",
-  stab_algo_threshold = 0.95,
+  stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
   sat_threshold = 0
 )
