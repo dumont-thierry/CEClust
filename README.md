@@ -134,7 +134,7 @@ set.seed(13)
 Z_uniform <- runif(100)
 
 lambda_uniform <- seq(0.1, 2, by = 0.1)
-C_uniform <- seq(3/10, 3, length.out = 10)
+C_uniform <- seq(3 / 10, 3, length.out = 10)
 ```
 
 Start with the lambda path at a fixed, interpretable value of `C`.
@@ -265,7 +265,7 @@ mixture_1d_7 <- simulate_mixture_1d_7(n = 100, seed = 13)
 Z_1d_7 <- mixture_1d_7$z
 
 lambda_1d_7 <- seq(0.05, 1.5, length.out = 20)
-C_1d_7 <- seq(3/10, 3, length.out = 10)
+C_1d_7 <- seq(3 / 10, 3, length.out = 10)
 ```
 
 Fit the lambda path first. This is useful when one wants to understand
@@ -667,6 +667,142 @@ CECplotPartition(
 )
 
 CECexplore(iris_grid)
+```
+
+## Iris With Species Included in the Clustering Variables
+
+The previous iris example uses `Species` only as a label for
+visualisation and evaluation. In this variant, `Species` is part of the
+data matrix given to CEClust. The clustering is therefore performed on
+mixed data: four Gaussian numeric coordinates and one qualitative
+variable.
+
+This is useful when one wants the algorithm to account for a known
+categorical feature in the composite entropy criterion itself. The
+contingency table at the end should then be read with care: `Species` is
+not an external validation label anymore, because it helped define the
+fitted partition.
+
+``` r
+library(CEClust)
+
+Z_iris_mixed <- iris
+
+lambda_iris_mixed <- seq(0.4, 2.4, by = 0.2)
+C_iris_mixed <- seq(1, 5, by = 0.5)
+```
+
+First inspect the lambda path for one value of `C`.
+
+``` r
+iris_mixed_lambda_path <- CECfitLambdaGrid(
+  Z = Z_iris_mixed,
+  C = 3,
+  Cquali = Inf,
+  lambda_grid = lambda_iris_mixed,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussAndDiscreteVector",
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+head(iris_mixed_lambda_path$summary)
+
+iris_mixed_best <- CECextractBestPartitions(
+  iris_mixed_lambda_path,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z_iris_mixed
+)
+
+head(iris_mixed_best$summary)
+```
+
+Then scan the full `C x lambda` grid.
+
+``` r
+iris_mixed_grid <- CECfitBoundGrid(
+  Z = Z_iris_mixed,
+  display_data = iris,
+  labels = iris$Species,
+  label_name = "Species included in Z",
+  dataset_name = "iris_species_in_clustering",
+  lambda_grid = lambda_iris_mixed,
+  C_grid = C_iris_mixed,
+  Cquali = Inf,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussAndDiscreteVector",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05,
+  n_cores = 2,
+  compact_results = TRUE
+)
+
+iris_mixed_summary <- CECsummariseGrid(iris_mixed_grid)
+head(iris_mixed_summary)
+
+CECplotGrid(
+  iris_mixed_grid,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05
+)
+
+CECplotPath(
+  iris_mixed_grid,
+  C = 3,
+  type = "summary",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05
+)
+
+iris_mixed_stable <- CECselectStableLambdas(
+  iris_mixed_grid,
+  C = 3,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05
+)
+
+iris_mixed_stable$kept_lambdas
+iris_mixed_stable$summary
+
+iris_mixed_partition <- CECextractPartition(
+  iris_mixed_grid,
+  C = 3,
+  lambda = 1.0
+)
+
+table(
+  CEC_cluster = iris_mixed_partition,
+  Species = iris$Species
+)
+
+CECplotPartition(
+  iris_mixed_grid,
+  C = 3,
+  lambda = 1.0,
+  x_var = "Petal.Length",
+  y_var = "Petal.Width",
+  shape_var = "Species"
+)
+
+CECexplore(iris_mixed_grid)
 ```
 
 ## Practical Notes
