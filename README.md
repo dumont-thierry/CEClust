@@ -4,9 +4,9 @@ CEClust
 # CEClust
 
 `CEClust` implements composite entropy clustering for Gaussian,
-categorical, and mixed data. The recommended workflow is to explore a
-grid of values `(C, lambda)`, inspect the resulting phase diagram, and
-then look at selected partitions.
+categorical, and mixed data. The central practical object is the
+empirical CEC phase diagram: one explores how the fitted partition
+changes over a grid of density bounds `C` and entropy weights `lambda`.
 
 The two main tuning parameters are:
 
@@ -32,9 +32,16 @@ CECselectStableLambdas(...)
 CECextractPartition(...)
 ```
 
-By default, grid objects are compact: the package keeps the selected
+By default, grid objects are compact: the package keeps selected
 partitions, fitted parameters, and diagnostics, while avoiding large
 internal copies of assignment matrices.
+
+All examples below are written as explicit steps. They do not call a
+generic “simulate + fit + plot” wrapper: the data generation, the
+lambda-grid fit, the `C x lambda` grid fit, the summaries, the
+extraction, and the plots are shown separately. In this README the code
+chunks are not evaluated automatically, so the interactive explorer and
+the larger grids are never launched during package checks.
 
 ## Installation
 
@@ -57,24 +64,328 @@ Optional packages extend the workflow:
 - `mclust` for optional ICL comparisons;
 - `knitr` and `rmarkdown` for vignettes.
 
-## Synthetic 2D mixture
+## Common Reading Pattern
 
-This example simulates a two-dimensional Gaussian mixture, fits a
-`(C, lambda)` grid, and displays the phase diagram and a selected
-partition. The simulation, estimation, and plots are deliberately
-written as separate steps.
+For each data set, the same pattern is useful.
+
+First, inspect a single-`C` lambda path:
+
+``` r
+lambda_path <- CECfitLambdaGrid(
+  Z = Z,
+  C = C_reference,
+  lambda_grid = lambda_grid,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = family_type,
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+head(lambda_path$summary)
+```
+
+Then scan a full `C x lambda` grid:
+
+``` r
+grid <- CECfitBoundGrid(
+  Z = Z,
+  lambda_grid = lambda_grid,
+  C_grid = C_grid,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = family_type,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0,
+  n_cores = 2,
+  compact_results = TRUE
+)
+
+CECplotGrid(grid)
+CECexplore(grid)
+```
+
+The examples below instantiate this pattern with grids adapted to each
+setting.
+
+## Uniform Distribution, n = 100
+
+This example is the sanity check: the sample is uniform on `[0, 1]`, so
+one does not expect a meaningful intrinsic clustering structure. The
+phase diagram is mainly used to see where fragmentation is driven by the
+interaction between small `lambda` and the density bound `C`.
 
 ``` r
 library(CEClust)
 
-make_sigma_2d <- function(sd_major, sd_minor = sd_major, angle = 0) {
-  rot <- matrix(
-    c(cos(angle), -sin(angle), sin(angle), cos(angle)),
-    nrow = 2,
-    byrow = TRUE
+set.seed(13)
+Z_uniform <- runif(100)
+
+lambda_uniform <- seq(0.1, 2, by = 0.1)
+C_uniform <- seq(0.5, 10, by = 0.5)
+```
+
+Start with the lambda path at a fixed, interpretable value of `C`.
+
+``` r
+uniform_lambda_path <- CECfitLambdaGrid(
+  Z = Z_uniform,
+  C = 10,
+  lambda_grid = lambda_uniform,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussUniv",
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+# Diagnostic table along the lambda path:
+head(uniform_lambda_path$summary)
+
+# Extract one representative partition per lambda.
+uniform_best <- CECextractBestPartitions(
+  uniform_lambda_path,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z_uniform
+)
+
+head(uniform_best$summary)
+```
+
+Now scan the full `C x lambda` grid.
+
+``` r
+uniform_grid <- CECfitBoundGrid(
+  Z = Z_uniform,
+  dataset_name = "uniform_0_1_n100",
+  lambda_grid = lambda_uniform,
+  C_grid = C_uniform,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussUniv",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0,
+  n_cores = 2,
+  compact_results = TRUE
+)
+
+uniform_summary <- CECsummariseGrid(uniform_grid)
+head(uniform_summary)
+
+CECplotGrid(
+  uniform_grid,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+CECplotPath(
+  uniform_grid,
+  C = 10,
+  type = "partitions",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+uniform_stable <- CECselectStableLambdas(
+  uniform_grid,
+  C = 10,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+uniform_stable$kept_lambdas
+uniform_stable$summary
+
+# Extract the partition at one grid cell chosen after reading the diagram.
+uniform_partition <- CECextractPartition(
+  uniform_grid,
+  C = 10,
+  lambda = 1
+)
+
+table(uniform_partition)
+
+CECexplore(uniform_grid)
+```
+
+## One-Dimensional Seven-Class Gaussian Mixture, n = 100
+
+This example is a one-dimensional mixture with seven generating classes.
+The generating labels are kept only for display and interpretation; the
+CEC fit uses only the numeric coordinate.
+
+``` r
+library(CEClust)
+
+simulate_mixture_1d_7 <- function(n, seed = 13) {
+  set.seed(seed)
+
+  weights <- c(0.12, 0.10, 0.18, 0.16, 0.14, 0.17, 0.13)
+  means <- c(-5.0, -3.2, -1.6, 0.0, 1.4, 3.0, 4.8)
+  sds <- c(0.28, 0.22, 0.35, 0.45, 0.30, 0.32, 0.26)
+
+  z_true <- sample.int(length(weights), size = n, replace = TRUE, prob = weights)
+  z <- rnorm(n, mean = means[z_true], sd = sds[z_true])
+
+  data.frame(
+    z = z,
+    true_class = factor(z_true, levels = seq_along(weights))
   )
-  rot %*% diag(c(sd_major^2, sd_minor^2), nrow = 2) %*% t(rot)
 }
+
+mixture_1d_7 <- simulate_mixture_1d_7(n = 100, seed = 13)
+Z_1d_7 <- mixture_1d_7$z
+
+lambda_1d_7 <- seq(0.05, 1.5, length.out = 20)
+C_1d_7 <- seq(0.5, 10, by = 0.5)
+```
+
+Fit the lambda path first. This is useful when one wants to understand
+the resolution effect at a fixed density bound.
+
+``` r
+mixture_1d_7_lambda_path <- CECfitLambdaGrid(
+  Z = Z_1d_7,
+  C = 6,
+  lambda_grid = lambda_1d_7,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussUniv",
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+head(mixture_1d_7_lambda_path$summary)
+
+mixture_1d_7_best <- CECextractBestPartitions(
+  mixture_1d_7_lambda_path,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z_1d_7
+)
+
+head(mixture_1d_7_best$summary)
+```
+
+Then fit the full phase diagram.
+
+``` r
+mixture_1d_7_grid <- CECfitBoundGrid(
+  Z = Z_1d_7,
+  display_data = mixture_1d_7,
+  labels = mixture_1d_7$true_class,
+  label_name = "Generating class",
+  dataset_name = "gaussian_mixture_1d_7_n100",
+  lambda_grid = lambda_1d_7,
+  C_grid = C_1d_7,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussUniv",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0,
+  n_cores = 2,
+  compact_results = TRUE
+)
+
+mixture_1d_7_summary <- CECsummariseGrid(mixture_1d_7_grid)
+head(mixture_1d_7_summary)
+
+CECplotGrid(
+  mixture_1d_7_grid,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+CECplotPath(
+  mixture_1d_7_grid,
+  C = 6,
+  type = "partitions",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+mixture_1d_7_stable <- CECselectStableLambdas(
+  mixture_1d_7_grid,
+  C = 6,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+mixture_1d_7_stable$kept_lambdas
+mixture_1d_7_stable$summary
+
+# Choose a cell after inspecting the phase diagram.
+mixture_1d_7_partition <- CECextractPartition(
+  mixture_1d_7_grid,
+  C = 6,
+  lambda = 0.5
+)
+
+table(
+  CEC_cluster = mixture_1d_7_partition,
+  generating_class = mixture_1d_7$true_class
+)
+
+CECplotPartition(
+  mixture_1d_7_grid,
+  C = 6,
+  lambda = 0.5
+)
+
+CECexplore(mixture_1d_7_grid)
+```
+
+## Two-Dimensional Gaussian Mixture, n = 100
+
+This example uses a two-dimensional mixture with one compact group, one
+broad central group, and one elongated group. Again, labels are supplied
+only for visualisation and evaluation.
+
+``` r
+library(CEClust)
 
 simulate_mixture_2d <- function(n, seed = 13) {
   set.seed(seed)
@@ -102,30 +413,67 @@ simulate_mixture_2d <- function(n, seed = 13) {
   }
 
   colnames(Z) <- c("z1", "z2")
-  list(
-    Z = as.data.frame(Z),
-    z_true = factor(z_true, labels = c("compact", "central", "elongated"))
+  data.frame(
+    z1 = Z[, 1],
+    z2 = Z[, 2],
+    true_component = factor(z_true, labels = c("compact", "central", "elongated"))
   )
 }
 
-mixture_2d <- simulate_mixture_2d(n = 300, seed = 13)
+mixture_2d <- simulate_mixture_2d(n = 100, seed = 13)
+Z_2d <- mixture_2d[, c("z1", "z2")]
+
+lambda_2d <- seq(3 / 20, 3, length.out = 20)
+C_2d <- seq(1 / 10, 2, length.out = 20)
 ```
 
-The generating labels are optional and are passed here only for display
-and evaluation; they are not used as clustering variables.
+A lambda path at a fixed `C` is useful for inspecting how the 2D
+partition changes when only the entropy weight varies.
 
 ``` r
-grid_2d <- CECfitBoundGrid(
-  Z = mixture_2d$Z,
-  display_data = data.frame(mixture_2d$Z, true_component = mixture_2d$z_true),
-  labels = mixture_2d$z_true,
-  label_name = "Generating component",
-  dataset_name = "synthetic_mixture_2d",
-  algo_seed = 202606,
-  lambda_grid = seq(3 / 20, 3, length.out = 12),
-  C_grid = seq(1 / 10, 2, length.out = 12),
+mixture_2d_lambda_path <- CECfitLambdaGrid(
+  Z = Z_2d,
+  C = 1.5,
+  lambda_grid = lambda_2d,
   r0 = 10,
-  k0 = 20,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussVector",
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+head(mixture_2d_lambda_path$summary)
+
+mixture_2d_best <- CECextractBestPartitions(
+  mixture_2d_lambda_path,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z_2d
+)
+
+head(mixture_2d_best$summary)
+```
+
+Now fit the full `C x lambda` grid.
+
+``` r
+mixture_2d_grid <- CECfitBoundGrid(
+  Z = Z_2d,
+  display_data = mixture_2d,
+  labels = mixture_2d$true_component,
+  label_name = "Generating component",
+  dataset_name = "gaussian_mixture_2d_n100",
+  lambda_grid = lambda_2d,
+  C_grid = C_2d,
+  r0 = 10,
+  k0 = 10,
   B = 10,
   Nshots_fresh = 10,
   Nshots_warm = 10,
@@ -138,79 +486,122 @@ grid_2d <- CECfitBoundGrid(
   compact_results = TRUE
 )
 
+mixture_2d_summary <- CECsummariseGrid(mixture_2d_grid)
+head(mixture_2d_summary)
+
 CECplotGrid(
-  grid_2d,
+  mixture_2d_grid,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
   sat_threshold = 0
 )
 
-CECplotPartition(grid_2d, C = grid_2d$C_grid[8], lambda = grid_2d$lambda_grid[6])
+CECplotPath(
+  mixture_2d_grid,
+  C = 1.5,
+  type = "summary",
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
 
-summary_2d <- CECsummariseGrid(grid_2d)
-head(summary_2d)
+mixture_2d_stable <- CECselectStableLambdas(
+  mixture_2d_grid,
+  C = 1.5,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.95,
+  sat_threshold = 0
+)
+
+mixture_2d_stable$kept_lambdas
+mixture_2d_stable$summary
+
+# Choose a representative cell after reading the phase diagram.
+mixture_2d_partition <- CECextractPartition(
+  mixture_2d_grid,
+  C = 1.5,
+  lambda = 1.0
+)
+
+table(
+  CEC_cluster = mixture_2d_partition,
+  generating_component = mixture_2d$true_component
+)
+
+CECplotPartition(
+  mixture_2d_grid,
+  C = 1.5,
+  lambda = 1.0,
+  x_var = "z1",
+  y_var = "z2",
+  shape_var = "true_component"
+)
+
+CECexplore(mixture_2d_grid)
 ```
 
-The article-scale sample sizes are intentionally not run in the README
-or in package checks. They can be launched manually, one at a time, by
-uncommenting the corresponding lines and reusing the explicit
-`CECfitBoundGrid()` call above.
+## Iris With Labels for Visualisation and Evaluation
 
-``` r
-# Optional long runs; uncomment manually when needed.
-# mixture_2d_1000 <- simulate_mixture_2d(n = 1000, seed = 13)
-# mixture_2d_10000 <- simulate_mixture_2d(n = 10000, seed = 13)
-#
-# grid_2d_1000 <- CECfitBoundGrid(
-#   Z = mixture_2d_1000$Z,
-#   display_data = data.frame(mixture_2d_1000$Z, true_component = mixture_2d_1000$z_true),
-#   labels = mixture_2d_1000$z_true,
-#   label_name = "Generating component",
-#   dataset_name = "synthetic_mixture_2d_n1000",
-#   algo_seed = 202606,
-#   lambda_grid = seq(3 / 20, 3, length.out = 20),
-#   C_grid = seq(1 / 10, 2, length.out = 20),
-#   r0 = 10,
-#   k0 = 20,
-#   B = 20,
-#   Nshots_fresh = 20,
-#   Nshots_warm = 20,
-#   Nloop = 100,
-#   familyType = "gaussVector",
-#   n_cores = 6,
-#   compact_results = TRUE
-# )
-#
-# Repeat the same explicit call with mixture_2d_10000 for the n = 10000 run.
-```
-
-For an interactive inspection:
-
-``` r
-CECexplore(grid_2d)
-```
-
-The complete script is available in `examples/simulation_2d.R`.
-
-## Iris without labels
-
-This is the unsupervised iris example. The four quantitative variables
-are used for clustering, and species labels are not passed to the
-fitting workflow.
+In this example, the clustering variables are the four quantitative iris
+measurements. `Species` is passed only as metadata, so it can be used in
+plots and contingency tables; it is not a clustering variable.
 
 ``` r
 library(CEClust)
 
 Z_iris <- iris[, 1:4]
+display_iris <- iris
 
+lambda_iris <- seq(0.4, 2.4, by = 0.2)
+C_iris <- seq(1, 5, by = 0.5)
+```
+
+The lambda path at fixed `C` gives a first view of the resolution path.
+
+``` r
+iris_lambda_path <- CECfitLambdaGrid(
+  Z = Z_iris,
+  C = 3,
+  lambda_grid = lambda_iris,
+  r0 = 10,
+  k0 = 10,
+  B = 10,
+  Nshots_fresh = 10,
+  Nshots_warm = 10,
+  Nloop = 100,
+  familyType = "gaussVector",
+  seed = 13,
+  n_cores = 2,
+  checkpoint_dir = FALSE,
+  auto_checkpoint = FALSE,
+  show_progress = FALSE
+)
+
+head(iris_lambda_path$summary)
+
+iris_best <- CECextractBestPartitions(
+  iris_lambda_path,
+  source = "fixed",
+  criterion = "projected_H",
+  Z = Z_iris
+)
+
+head(iris_best$summary)
+```
+
+Then fit the complete phase diagram.
+
+``` r
 iris_grid <- CECfitBoundGrid(
   Z = Z_iris,
-  dataset_name = "iris_without_labels",
-  algo_seed = 202606,
-  lambda_grid = seq(0.4, 2.4, by = 0.2),
-  C_grid = seq(1, 5, by = 0.5),
+  display_data = display_iris,
+  labels = iris$Species,
+  label_name = "Species",
+  dataset_name = "iris_with_labels_for_evaluation",
+  lambda_grid = lambda_iris,
+  C_grid = C_iris,
   r0 = 10,
-  k0 = 20,
+  k0 = 10,
   B = 10,
   Nshots_fresh = 10,
   Nshots_warm = 10,
@@ -222,83 +613,95 @@ iris_grid <- CECfitBoundGrid(
   n_cores = 2,
   compact_results = TRUE
 )
-
-CECplotGrid(iris_grid)
-CECplotPartition(iris_grid)
 
 iris_summary <- CECsummariseGrid(iris_grid)
 head(iris_summary)
-```
 
-The complete script is available in `examples/iris_without_labels.R`.
-
-## Iris with labels for evaluation
-
-Here the clustering data are still only the four quantitative variables.
-`Species` is supplied only as metadata for visualisation and evaluation.
-
-``` r
-library(CEClust)
-
-Z_iris <- iris[, 1:4]
-
-iris_grid_labeled <- CECfitBoundGrid(
-  Z = Z_iris,
-  display_data = iris,
-  labels = iris$Species,
-  label_name = "Species",
-  dataset_name = "iris_labels_for_evaluation",
-  algo_seed = 202606,
-  lambda_grid = seq(0.4, 2.4, by = 0.2),
-  C_grid = seq(1, 5, by = 0.5),
-  r0 = 10,
-  k0 = 20,
-  B = 10,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
-  Nloop = 100,
-  familyType = "gaussVector",
+CECplotGrid(
+  iris_grid,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.9,
-  sat_threshold = 0.05,
-  n_cores = 2,
-  compact_results = TRUE
+  sat_threshold = 0.05
 )
 
-CECplotGrid(iris_grid_labeled)
-CECplotPartition(iris_grid_labeled, shape_var = "Species")
-
-iris_labeled_summary <- CECsummariseGrid(iris_grid_labeled)
-head(iris_labeled_summary)
-```
-
-The complete script is available in
-`examples/iris_with_labels_for_evaluation.R`.
-
-## Diagnostics
-
-For each grid cell, CEClust stores diagnostics such as the optimization
-stability, bootstrap stability, relative stability index (RSI), and
-saturation.
-
-``` r
-grid_summary <- CECsummariseGrid(grid_2d)
-
-stable_lambdas <- CECselectStableLambdas(
-  grid_2d,
-  C = grid_2d$C_grid[8],
+CECplotPath(
+  iris_grid,
+  C = 3,
+  type = "summary",
   stab_algo_threshold = 0.8,
-  rsi_threshold = 0.95,
-  sat_threshold = 0
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05
 )
 
-stable_lambdas$kept_lambdas
-stable_lambdas$summary
+iris_stable <- CECselectStableLambdas(
+  iris_grid,
+  C = 3,
+  stab_algo_threshold = 0.8,
+  rsi_threshold = 0.9,
+  sat_threshold = 0.05
+)
+
+iris_stable$kept_lambdas
+iris_stable$summary
+
+# Choose a representative cell after reading the grid and lambda path.
+iris_partition <- CECextractPartition(
+  iris_grid,
+  C = 3,
+  lambda = 1.0
+)
+
+# Species is used here only to evaluate or interpret the unsupervised partition.
+table(
+  CEC_cluster = iris_partition,
+  Species = iris$Species
+)
+
+CECplotPartition(
+  iris_grid,
+  C = 3,
+  lambda = 1.0,
+  x_var = "Petal.Length",
+  y_var = "Petal.Width",
+  shape_var = "Species"
+)
+
+CECexplore(iris_grid)
 ```
 
-The Shiny explorer is usually the most convenient way to compare
-neighbouring cells in a large grid:
+## Practical Notes
+
+The example grids above are deliberately moderate. For
+publication-quality phase diagrams, increase `k0`, `B`, `Nshots_fresh`,
+and `Nshots_warm`, and use more worker processes if available. For long
+runs, prefer explicit checkpoint directories and run one data set at a
+time.
+
+Useful diagnostic columns in `CECsummariseGrid()` include:
 
 ``` r
-CECexplore(grid_2d)
+summary_grid <- CECsummariseGrid(mixture_2d_grid)
+
+summary_grid[
+  order(summary_grid$C, summary_grid$lambda),
+  c("C", "lambda", "REO", "stab_algo", "RSI", "sat")
+]
+```
+
+Typical filtering rules are:
+
+``` r
+admissible_cells <- subset(
+  summary_grid,
+  stab_algo > 0.8 & RSI > 0.95 & sat == 0
+)
+
+admissible_cells
+```
+
+The Shiny explorer remains the recommended interface for comparing
+neighbouring cells and inspecting the associated partitions:
+
+``` r
+CECexplore(mixture_2d_grid)
 ```
