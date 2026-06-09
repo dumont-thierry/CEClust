@@ -134,7 +134,7 @@ set.seed(13)
 Z_uniform <- runif(100)
 
 lambda_uniform <- seq(0.1, 2, by = 0.1)
-C_uniform <- seq(0.5, 10, by = 0.5)
+C_uniform <- seq(3/10, 3, length.out = 10)
 ```
 
 Start with the lambda path at a fixed, interpretable value of `C`.
@@ -142,7 +142,7 @@ Start with the lambda path at a fixed, interpretable value of `C`.
 ``` r
 uniform_lambda_path <- CECfitLambdaGrid(
   Z = Z_uniform,
-  C = 10,
+  C = 1,
   lambda_grid = lambda_uniform,
   r0 = 10,
   k0 = 10,
