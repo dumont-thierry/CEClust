@@ -206,7 +206,7 @@ CECplotGrid(
 
 CECplotPath(
   uniform_grid,
-  C = 10,
+  C = 1,
   type = "partitions",
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
@@ -215,7 +215,7 @@ CECplotPath(
 
 uniform_stable <- CECselectStableLambdas(
   uniform_grid,
-  C = 10,
+  C = 1,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
   sat_threshold = 0
@@ -227,7 +227,7 @@ uniform_stable$summary
 # Extract the partition at one grid cell chosen after reading the diagram.
 uniform_partition <- CECextractPartition(
   uniform_grid,
-  C = 10,
+  C = 1,
   lambda = 1
 )
 
@@ -274,7 +274,7 @@ the resolution effect at a fixed density bound.
 ``` r
 mixture_1d_7_lambda_path <- CECfitLambdaGrid(
   Z = Z_1d_7,
-  C = 6,
+  C = 1,
   lambda_grid = lambda_1d_7,
   r0 = 10,
   k0 = 10,
@@ -339,7 +339,7 @@ CECplotGrid(
 
 CECplotPath(
   mixture_1d_7_grid,
-  C = 6,
+  C = 1,
   type = "partitions",
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
@@ -348,7 +348,7 @@ CECplotPath(
 
 mixture_1d_7_stable <- CECselectStableLambdas(
   mixture_1d_7_grid,
-  C = 6,
+  C = 1,
   stab_algo_threshold = 0.8,
   rsi_threshold = 0.95,
   sat_threshold = 0
@@ -360,7 +360,7 @@ mixture_1d_7_stable$summary
 # Choose a cell after inspecting the phase diagram.
 mixture_1d_7_partition <- CECextractPartition(
   mixture_1d_7_grid,
-  C = 6,
+  C = 1,
   lambda = 0.5
 )
 
@@ -371,7 +371,7 @@ table(
 
 CECplotPartition(
   mixture_1d_7_grid,
-  C = 6,
+  C = 1,
   lambda = 0.5
 )
 
