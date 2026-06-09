@@ -1,6 +1,16 @@
 .Rhistory
+.RData
+.Ruserdata
 .Rproj.user
 *.tar.gz
+*.Rcheck/
 src/*.dll
 src/*.o
 src/*.so
+src/*.dylib
+inst/bench/out/
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo

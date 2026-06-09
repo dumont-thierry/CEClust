@@ -7,19 +7,16 @@
 #'
 #' The typical workflow is:
 #'
-#' 1. configure the runtime with [CECconfigure_runtime()];
-#' 2. fit one model with [CECclassif()], scan a lambda grid with
+#' 1. fit one model with [CECclassif()], scan a lambda grid with
 #'    [CECfitLambdaGrid()], or scan a C by lambda grid with
 #'    [CECfitBoundGrid()];
-#' 3. select stable lambda values with [CECselectStableLambdas()] and extract
-#'    representative partitions with [CECextractBestPartitions()];
-#' 4. inspect summaries with [CECsummariseGrid()], static plots with
+#' 2. select stable lambda values with [CECselectStableLambdas()] and extract
+#'    representative partitions with [CECextractPartition()];
+#' 3. inspect summaries with [CECsummariseGrid()], static plots with
 #'    [CECplotGrid()], [CECplotPartition()], and [CECplotPath()], or the Shiny
 #'    explorer with [CECexplore()].
 #'
 #' @section Main entry points:
-#' - [CECconfigure_runtime()] configures pure-R or optional fast-backend
-#'   execution.
 #' - [CECclassif()] fits a repeated-shot CEC model for one `lambda`.
 #' - [CECfitLambdaGrid()] evaluates a grid of `lambda` values
 #'   using linked forward and backward paths.

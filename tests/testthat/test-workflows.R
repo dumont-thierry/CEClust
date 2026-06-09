@@ -10,6 +10,216 @@ test_that("runtime configuration returns the expected structure", {
   expect_equal(runtime$n_cores, 1L)
 })
 
+test_that("CECclassif skips non-finite shots in mixed base mode", {
+  Z <- simulate_multidim_benchmark_data(n = 500, p_num = 4, p_fac = 2, seed = 11)
+
+  CECconfigure_runtime("base")
+  set.seed(20260525L)
+  fit <- NULL
+  expect_no_error(
+    fit <- CECclassif(
+      Z = Z,
+      lambda = 1,
+      C = 10,
+      r0 = 10,
+      Nshots = 2,
+      Nloop = 5,
+      familyType = "gaussAndDiscreteVector",
+      backend_data = list(optimized = FALSE, raw = Z)
+    )
+  )
+
+  expect_true(is.null(fit) || is.finite(fit$Hphi))
+  if (!is.null(fit)) {
+    expect_equal(length(fit$clusters), nrow(Z))
+  }
+})
+
+test_that("independent shot strategy is reproducible across core counts for non-1D families", {
+  CECconfigure_runtime("fast")
+
+  set.seed(11)
+  cases <- list(
+    gaussVector = list(
+      Z = rbind(
+        matrix(rnorm(40, -2), ncol = 2),
+        matrix(rnorm(40, 2), ncol = 2)
+      ),
+      familyType = "gaussVector"
+    ),
+    discreteVector = list(
+      Z = data.frame(
+        a = factor(rep(c("a", "b"), each = 20)),
+        b = factor(rep(c("x", "y"), each = 20))
+      ),
+      familyType = "discreteVector"
+    ),
+    gaussAndDiscreteVector = list(
+      Z = data.frame(
+        x = c(rnorm(20, -2), rnorm(20, 2)),
+        y = c(rnorm(20, 0), rnorm(20, 3)),
+        f = factor(rep(c("a", "b"), each = 20))
+      ),
+      familyType = "gaussAndDiscreteVector"
+    )
+  )
+
+  for (case in cases) {
+    set.seed(321)
+    sequential <- CECclassif(
+      Z = case$Z,
+      familyType = case$familyType,
+      C = 10,
+      r0 = 4,
+      Nshots = 3,
+      Nloop = 8,
+      shot_strategy = "independent",
+      n_cores = 1
+    )
+
+    set.seed(321)
+    parallel <- CECclassif(
+      Z = case$Z,
+      familyType = case$familyType,
+      C = 10,
+      r0 = 4,
+      Nshots = 3,
+      Nloop = 8,
+      shot_strategy = "independent",
+      n_cores = 2
+    )
+
+    expect_true(is.finite(sequential$Hphi))
+    expect_equal(parallel$Hphi, sequential$Hphi, tolerance = 1e-12)
+    expect_equal(parallel$REO, sequential$REO)
+    expect_equal(parallel$clusters, sequential$clusters)
+  }
+})
+
+test_that("CECclassif returns coherent public fits for non-1D families", {
+  CECconfigure_runtime("fast")
+
+  set.seed(12)
+  cases <- list(
+    gaussVector = list(
+      Z = rbind(
+        matrix(rnorm(40, -2), ncol = 2),
+        matrix(rnorm(40, 2), ncol = 2)
+      ),
+      familyType = "gaussVector"
+    ),
+    discreteVector = list(
+      Z = data.frame(
+        a = factor(rep(c("a", "b"), each = 20)),
+        b = factor(rep(c("x", "y"), each = 20))
+      ),
+      familyType = "discreteVector"
+    ),
+    gaussAndDiscreteVector = list(
+      Z = data.frame(
+        x = c(rnorm(20, -2), rnorm(20, 2)),
+        y = c(rnorm(20, 0), rnorm(20, 3)),
+        f = factor(rep(c("a", "b"), each = 20))
+      ),
+      familyType = "gaussAndDiscreteVector"
+    )
+  )
+
+  for (case_name in names(cases)) {
+    case <- cases[[case_name]]
+    n <- NROW(case$Z)
+
+    set.seed(412)
+    fit <- CECclassif(
+      Z = case$Z,
+      familyType = case$familyType,
+      C = 10,
+      r0 = 4,
+      Nshots = 2,
+      Nloop = 8
+    )
+
+    expect_true(is.finite(fit$Hphi), info = case_name)
+    expect_equal(length(fit$clusters), n, info = case_name)
+    expect_equal(length(fit$phi), n * fit$REO, info = case_name)
+    expect_equal(length(fit$params$phi), length(fit$phi), info = case_name)
+    expect_equal(unclass(fit$params$phi), unclass(fit$phi), info = case_name)
+    expect_equal(fit$params$familyType, case$familyType, info = case_name)
+    expect_equal(length(fit$params$states), fit$REO, info = case_name)
+    expect_equal(length(fit$params$nu), fit$REO, info = case_name)
+    expect_equal(sum(fit$params$nu), 1, tolerance = 1e-12, info = case_name)
+    expect_true(all(fit$clusters >= 1L & fit$clusters <= fit$REO), info = case_name)
+
+    if (case$familyType == "gaussVector") {
+      expect_equal(nrow(fit$params$m), fit$REO)
+      expect_equal(ncol(fit$params$m), NCOL(case$Z))
+      expect_equal(length(fit$params$Sigma), fit$REO)
+    }
+
+    if (case$familyType == "discreteVector") {
+      expect_identical(fit$params$Cquali, Inf)
+      expect_equal(length(fit$params$discreteProbList), fit$REO)
+      expect_equal(fit$params$qualitativeBoundReached, integer(0))
+    }
+
+    if (case$familyType == "gaussAndDiscreteVector") {
+      expect_identical(fit$params$Cquali, Inf)
+      expect_equal(unname(fit$params$colNum), 1:2)
+      expect_equal(unname(fit$params$colFactor), 3L)
+      expect_equal(length(fit$params$Sigma), fit$REO)
+      expect_equal(length(fit$params$discreteProbList), fit$REO)
+      expect_equal(fit$params$qualitativeBoundReached, integer(0))
+    }
+  }
+})
+
+test_that("one-shot entropy plotting remains compatible with legacy and fast paths", {
+  CECconfigure_runtime("fast")
+
+  tmp <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp)
+  on.exit({
+    if (grDevices::dev.cur() > 1L) {
+      grDevices::dev.off()
+    }
+    unlink(tmp)
+  }, add = TRUE)
+
+  set.seed(31)
+  Z_univ <- c(rnorm(10, -1), rnorm(10, 1))
+  fit_univ <- NULL
+  expect_no_error(
+    fit_univ <- CECclassifOneShot(
+      Z = Z_univ,
+      familyType = "gaussUniv",
+      r0 = 3,
+      Nloop = 4,
+      displayPlotEntropy = TRUE
+    )
+  )
+  expect_true(is.finite(fit_univ$Hphi))
+  expect_equal(length(fit_univ$phi) %% length(Z_univ), 0)
+
+  set.seed(32)
+  Z_mixed <- data.frame(
+    x = c(rnorm(10, -1), rnorm(10, 1)),
+    f = factor(rep(c("a", "b"), each = 10))
+  )
+  fit_mixed <- NULL
+  expect_no_error(
+    fit_mixed <- CECclassifOneShot(
+      Z = Z_mixed,
+      familyType = "gaussAndDiscreteVector",
+      C = 10,
+      r0 = 3,
+      Nloop = 4,
+      displayPlotEntropy = TRUE
+    )
+  )
+  expect_true(is.finite(fit_mixed$Hphi))
+  expect_equal(length(fit_mixed$phi) %% nrow(Z_mixed), 0)
+})
+
 test_that("linked-lambda workflow returns extractable best partitions", {
   Z <- simulate_multidim_benchmark_data(n = 60, p_num = 3, p_fac = 2, seed = 11)
 
@@ -86,6 +296,8 @@ test_that("stable-lambda selection can exclude saturation-heavy lambdas", {
 })
 
 test_that("PCA trajectory helpers work for multivariate numeric data", {
+  skip_if_not_installed("ggplot2")
+
   Z <- iris[, -5]
 
   lambda_diag <- CECfitLambdaGrid(

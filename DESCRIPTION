@@ -1,7 +1,7 @@
 Package: CEClust
 Type: Package
-Title: Composite Entropy Clustering (CEC) for Mixed Data
-Version: 0.2.0
+Title: Compact Composite Entropy Clustering Grid Explorer
+Version: 0.2.0.9001
 Authors@R: c(
     person(
       given = "Thierry",
@@ -12,13 +12,11 @@ Authors@R: c(
   )
 Author: Thierry Dumont [aut, cre]
 Maintainer: Thierry Dumont <tdumont@parisnanterre.fr>
-Description: Fits composite entropy clustering models for Gaussian,
-    categorical, and mixed data. The package combines repeated-shot
-    clustering at a fixed regularization value with linked-lambda diagnostic
-    paths, bootstrap-based stability summaries, trajectory repair helpers,
-    and visualization tools for interpreting how partitions evolve across the
-    regularization grid. An optional compiled backend is used automatically
-    when available.
+Description: Fits composite entropy clustering grids with a compact result
+    format focused on the final phase diagram, selected partitions, stability
+    diagnostics, saturation diagnostics, sensitivity summaries, and the Shiny
+    explorer. Dense per-task matrices are discarded as soon as they are no
+    longer needed, which keeps large C by lambda runs manageable.
 License: file LICENSE
 Encoding: UTF-8
 Depends:

@@ -18,7 +18,8 @@ CECfitPreset(preset = c("gaussian_1d", "iris", "breast_cancer"), ...,
 \code{Z}, \code{lambda_grid}, \code{C_grid}, \code{Cquali},
 \code{familyType}, \code{k0},
 \code{B}, \code{Nshots_fresh}, \code{Nshots_warm}, \code{Nloop},
-\code{n_cores}, and \code{final_descent_from_best}.}
+\code{n_cores}, \code{final_descent_from_best}, \code{compact_results}, and
+\code{keep_lambda_details}.}
 
 \item{save_results}{Logical. If \code{TRUE}, save the result as an \code{.rds}
 file. The public wrapper defaults to \code{FALSE}.}
@@ -48,6 +49,12 @@ By default, after the final C/lambda repair passes have stabilised,
 \code{CECfitBoundGrid()} performs one last deterministic CEC descent from the
 current best partition in each non-trivial cell. Set
 \code{final_descent_from_best = FALSE} to skip this final local refinement.
+
+By default, results are compacted before they are returned. Dense membership
+objects such as \code{fit$phi}, \code{fit$params$phi},
+\code{projection$phi}, \code{projection$phiM}, and full
+\code{lambda_diag$details} are not kept in the final grid object. Set
+\code{keep_lambda_details = TRUE} only for debugging small runs.
 
 \code{CECfitPreset()} launches one of the built-in demonstration workflows.
 }

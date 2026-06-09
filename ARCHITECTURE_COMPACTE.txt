@@ -1,0 +1,140 @@
+CEClust compact - principes de maintenance
+=========================================
+
+Objectif
+--------
+
+Cette copie locale du paquet est recentree sur le Shiny final et les sorties
+utiles pour les simulations article. L'objectif n'est pas de conserver tout le
+detail de chaque run, mais de garder ce qui permet de comprendre et reutiliser
+une grille:
+
+- meilleure partition pour chaque cellule (C, lambda);
+- stab_algo;
+- rsi;
+- saturation;
+- changements de phase;
+- extraction d'une partition;
+- diagramme de phase et Shiny.
+
+
+Pourquoi l'ancienne structure explosait
+--------------------------------------
+
+Les objets etaient volumineux parce que les matrices d'appartenance etaient
+repetees a plusieurs niveaux:
+
+  C x taches x lambdas x n x K x copies_de_phi
+
+Dans les checkpoints, on retrouvait typiquement:
+
+- fit$phi;
+- fit$params$phi;
+- projection$phi;
+- projection$phiM.
+
+Pour n = 10000 et K autour de 40, chaque copie de phi peut deja peser plusieurs
+Mo. Quand on multiplie par les taches, les lambdas et les valeurs de C, on
+obtient plusieurs Go sans mecanisme recursif magique: c'est une duplication
+multiplicative.
+
+
+Ce qui est conserve
+-------------------
+
+Dans l'objet final:
+
+- grid$summary: table complete C x lambda;
+- grid$Z, grid$data, grid$display_data: donnees une seule fois;
+- grid$runs_by_C[[i]]$best_parts$summary: resume des meilleures partitions;
+- grid$runs_by_C[[i]]$best_parts$best: partition et metadonnees par lambda;
+- grid$runs_by_C[[i]]$lambda_keep: decisions stab_algo/rsi/saturation;
+- grid$runs_by_C[[i]]$changes: transitions de phase.
+
+Dans chaque meilleur objet, on garde la partition et les scalaires utiles:
+
+- partition;
+- lambda;
+- source;
+- source_index;
+- H_projected;
+- H_raw;
+- REO;
+- parametres du modele sans phi;
+- information de reparation ou descente finale.
+
+
+Ce qui est supprime
+-------------------
+
+Les champs suivants sont supprimes des checkpoints et/ou de l'objet final:
+
+- fit$phi;
+- fit$params$phi;
+- projection$phi;
+- projection$phiM;
+- lambda_diag$details dans l'objet final par defaut;
+- repetitions de Z et data dans chaque runs_by_C.
+
+Si on veut garder les details complets pour une investigation ponctuelle:
+
+  CECfitBoundGrid(..., compact_results = TRUE, keep_lambda_details = TRUE)
+
+Mais pour les grandes grilles article, il faut laisser:
+
+  compact_results = TRUE
+  keep_lambda_details = FALSE
+
+
+API publique
+------------
+
+Fonctions a considerer comme stables:
+
+- CECfitBoundGrid(): calcul principal C x lambda;
+- CECfitPreset(): petits exemples;
+- CECcompactGrid(): compactage d'un objet deja calcule;
+- CECsummariseGrid(): table C x lambda;
+- CECselectStableLambdas(): selection selon stab_algo, rsi, saturation;
+- CECextractPartition(): partition d'une cellule;
+- CECplotGrid(): diagramme de phase;
+- CECplotPath(): chemin lambda;
+- CECplotPartition(): partition selectionnee;
+- CECexplore(): Shiny final.
+
+Tout le reste est interne. On peut le modifier sans promettre une API publique.
+
+
+Emplacements importants
+-----------------------
+
+- R/minimal_api.R
+  API publique courte.
+
+- R/bound_grid_engine.R
+  Moteur C x lambda, compactage final, plots et Shiny.
+
+- R/ceclust.R
+  Coeur CEC, taches lambda, checkpoints et calculs de partitions.
+
+- README.md
+  Exemple utilisateur et principes.
+
+- man/*.Rd
+  Pages d'aide des fonctions exposees.
+
+
+Regle de maintenance
+--------------------
+
+Quand on ajoute un calcul, se poser trois questions:
+
+1. Est-ce necessaire a l'algorithme pendant le passage lambda/C?
+2. Est-ce necessaire au Shiny final ou aux plots?
+3. Est-ce necessaire pour reutiliser les resultats plus tard?
+
+Si la reponse est non aux trois questions, ne pas stocker.
+
+Si une information lourde est reconstructible depuis la partition et les
+donnees, ne pas la stocker durablement.
+

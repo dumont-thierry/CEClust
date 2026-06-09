@@ -14,12 +14,11 @@ static or interactive visual inspection.
 \details{
 The typical workflow is:
 \enumerate{
-\item configure the runtime with \code{\link[=CECconfigure_runtime]{CECconfigure_runtime()}};
 \item fit one model with \code{\link[=CECclassif]{CECclassif()}}, scan a lambda grid with
 \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}}, or scan a C by lambda grid with
 \code{\link[=CECfitBoundGrid]{CECfitBoundGrid()}};
 \item select stable lambda values with \code{\link[=CECselectStableLambdas]{CECselectStableLambdas()}} and extract
-representative partitions with \code{\link[=CECextractBestPartitions]{CECextractBestPartitions()}};
+representative partitions with \code{\link[=CECextractPartition]{CECextractPartition()}};
 \item inspect summaries with \code{\link[=CECsummariseGrid]{CECsummariseGrid()}}, static plots with
 \code{\link[=CECplotGrid]{CECplotGrid()}}, \code{\link[=CECplotPartition]{CECplotPartition()}}, and
 \code{\link[=CECplotPath]{CECplotPath()}}, or the Shiny explorer with \code{\link[=CECexplore]{CECexplore()}}.
@@ -28,8 +27,6 @@ representative partitions with \code{\link[=CECextractBestPartitions]{CECextract
 \section{Main entry points}{
 
 \itemize{
-\item \code{\link[=CECconfigure_runtime]{CECconfigure_runtime()}} configures pure-R or optional fast-backend
-execution.
 \item \code{\link[=CECclassif]{CECclassif()}} fits a repeated-shot CEC model for one \code{lambda}.
 \item \code{\link[=CECfitLambdaGrid]{CECfitLambdaGrid()}} evaluates a grid of \code{lambda} values
 using linked forward and backward paths.

@@ -2,11 +2,17 @@
 \name{CECselectStableLambdas}
 \alias{CECselectStableLambdas}
 \alias{CECsummariseGrid}
+\alias{CECcompactGrid}
+\alias{CECextractPartition}
 \title{Summarise and select stable CEClust grid results}
 \usage{
 CECselectStableLambdas(x, best_parts = NULL, C = NULL, ...)
 
 CECsummariseGrid(x, ...)
+
+CECcompactGrid(x, keep_lambda_details = FALSE)
+
+CECextractPartition(x, C, lambda)
 }
 \arguments{
 \item{x}{A \code{"CEC_bound_grid"} object, a single-\code{C} grid result, or a
@@ -21,12 +27,22 @@ values.}
 \item{...}{Threshold and smoothing arguments, such as
 \code{stab_algo_threshold}, \code{rsi_threshold}, \code{sat_threshold},
 \code{use_smoothed}, and \code{min_consecutive}.}
+
+\item{keep_lambda_details}{Logical. If \code{FALSE}, remove dense
+\code{lambda_diag$details} objects and keep only summaries needed by plots,
+Shiny, and selected partitions.}
+
+\item{lambda}{Selected lambda value for \code{CECextractPartition()}.}
 }
 \value{
 \code{CECselectStableLambdas()} returns a list with kept and rejected lambdas,
 stability/saturation diagnostics, and a compact summary table.
 
 \code{CECsummariseGrid()} returns one row per \code{C} and \code{lambda} pair.
+
+\code{CECcompactGrid()} returns a compact grid object.
+
+\code{CECextractPartition()} returns an integer cluster vector.
 }
 \description{
 These helpers provide the diagnostic layer of the minimal API. They expose the
@@ -37,4 +53,9 @@ the internal grid-object structure.
 When \code{sat_threshold = 0}, \code{CECselectStableLambdas()} keeps lambda
 values with exactly zero saturation and rejects positive saturation values,
 matching the public \code{C x lambda} grid convention.
+
+\code{CECcompactGrid()} removes dense intermediate objects such as stored
+\code{phi} matrices and full lambda details. It keeps the best partition per
+cell, phase diagnostics, saturation diagnostics, and all information used by
+the final Shiny explorer.
 }

@@ -154,6 +154,39 @@ CECsummariseGrid <- function(x, ...) {
 }
 
 
+#' Compact a CEClust grid object.
+#'
+#' `CECcompactGrid()` removes dense intermediate matrices and per-task lambda
+#' details that are not needed by the final Shiny explorer, phase diagrams, or
+#' selected partitions.
+#'
+#' @param x A `"CEC_bound_grid"` object.
+#' @param keep_lambda_details Logical. Keep the full `lambda_diag$details`
+#'   objects. The default `FALSE` is the memory-saving mode.
+#' @return A compact `"CEC_bound_grid"` object.
+#' @export
+CECcompactGrid <- function(x, keep_lambda_details = FALSE) {
+  class_x <- class(x)
+  out <- cec_grid_compact_grid_object(
+    x,
+    keep_lambda_details = keep_lambda_details
+  )
+  class(out) <- unique(c("CEC_bound_grid", "CEC_grid", class_x))
+  out
+}
+
+
+#' Extract the selected partition from a CEClust grid.
+#'
+#' @param x A `"CEC_bound_grid"` object.
+#' @param C,lambda Selected grid cell.
+#' @return An integer vector of cluster labels.
+#' @export
+CECextractPartition <- function(x, C, lambda) {
+  cec_grid_partition_for_cell(x, C = C, lambda = lambda)
+}
+
+
 #' Plot a CEClust C by lambda grid.
 #'
 #' @param x A `"CEC_bound_grid"` object.

@@ -237,6 +237,76 @@
       NULL
     }
 
+    cec_grid_drop_dense_storage <- function(x) {
+      if (is.null(x)) {
+        return(NULL)
+      }
+
+      out <- x
+      out$phi <- NULL
+      out$phiM <- NULL
+      if (!is.null(out$params)) {
+        out$params$phi <- NULL
+      }
+      out
+    }
+
+    cec_grid_compact_result_object <- function(result_obj, keep_lambda_details = FALSE) {
+      if (is.null(result_obj)) {
+        return(NULL)
+      }
+
+      out <- result_obj
+
+      if (!isTRUE(keep_lambda_details) && !is.null(out$lambda_diag)) {
+        out$lambda_diag <- list(
+          summary = out$lambda_diag$summary,
+          lambda_grid = out$lambda_diag$lambda_grid,
+          partition_metric = out$lambda_diag$partition_metric,
+          stability_approach = out$lambda_diag$stability_approach,
+          linked = out$lambda_diag$linked,
+          smoothing = out$lambda_diag$smoothing,
+          execution = out$lambda_diag$execution
+        )
+      }
+
+      if (!is.null(out$best_parts) && !is.null(out$best_parts$best)) {
+        out$best_parts$best <- lapply(out$best_parts$best, function(obj) {
+          if (is.null(obj)) {
+            return(NULL)
+          }
+          obj$fit <- cec_grid_drop_dense_storage(obj$fit)
+          obj$projection <- cec_grid_drop_dense_storage(obj$projection)
+          obj
+        })
+      }
+
+      # Ces deux champs répètent les données pour chaque valeur de C. L'objet
+      # parent conserve `Z`, `data`, `display_data` et `density`.
+      out$Z <- NULL
+      out$data <- NULL
+      out$compact <- TRUE
+      out
+    }
+
+    cec_grid_compact_grid_object <- function(grid_obj, keep_lambda_details = FALSE) {
+      if (is.null(grid_obj)) {
+        return(NULL)
+      }
+
+      out <- grid_obj
+      if (!is.null(out$runs_by_C)) {
+        out$runs_by_C <- lapply(
+          out$runs_by_C,
+          cec_grid_compact_result_object,
+          keep_lambda_details = keep_lambda_details
+        )
+      }
+      out$compact <- TRUE
+      out$compact_keep_lambda_details <- isTRUE(keep_lambda_details)
+      out
+    }
+
 
     cec_grid_safe_col <- function(x, nm, default = NA_real_) {
       if (is.null(x) || !(nm %in% names(x))) {
@@ -1785,6 +1855,8 @@
       repair_alternate_max_iter = 20L,
       final_descent_from_best = TRUE,
       final_descent_tol = 1e-10,
+      compact_results = TRUE,
+      keep_lambda_details = FALSE,
       output_dir = cec_grid_simulation_dir(),
       save_results = FALSE,
       verbose = TRUE
@@ -1965,6 +2037,12 @@
             verbose = verbose
           )
           single$meta$ceclust_version <- as.character(ceclust_version)
+          if (isTRUE(compact_results)) {
+            single <- cec_grid_compact_result_object(
+              single,
+              keep_lambda_details = keep_lambda_details
+            )
+          }
           runs_by_C[[i]] <- single
           summary_list[[i]] <- cec_grid_summary_for_single_C(single, C_requested = C_value)
 
@@ -2065,6 +2143,17 @@
         summary_list <- refreshed$summary_list
       }
 
+      if (isTRUE(compact_results)) {
+        runs_by_C <- lapply(
+          runs_by_C,
+          cec_grid_compact_result_object,
+          keep_lambda_details = keep_lambda_details
+        )
+        summary_list <- lapply(seq_along(runs_by_C), function(i) {
+          cec_grid_summary_for_single_C(runs_by_C[[i]], C_requested = C_grid[i])
+        })
+      }
+
       grid_summary <- do.call(rbind, summary_list)
       row.names(grid_summary) <- NULL
 
@@ -2121,7 +2210,9 @@
           lambda_repair_max_iter = lambda_repair_max_iter,
           repair_alternate_max_iter = repair_alternate_max_iter,
           final_descent_from_best = final_descent_from_best,
-          final_descent_tol = final_descent_tol
+          final_descent_tol = final_descent_tol,
+          compact_results = isTRUE(compact_results),
+          keep_lambda_details = isTRUE(keep_lambda_details)
         )
       )
 
@@ -2974,7 +3065,17 @@
 
     cec_grid_result_for_C <- function(grid_obj, C) {
       idx <- which.min(abs(grid_obj$C_grid - C))
-      grid_obj$runs_by_C[[idx]]
+      out <- grid_obj$runs_by_C[[idx]]
+      if (is.null(out$Z)) {
+        out$Z <- grid_obj$Z
+      }
+      if (is.null(out$data)) {
+        out$data <- grid_obj$data
+      }
+      if (is.null(out$density) && !is.null(grid_obj$data$density)) {
+        out$density <- grid_obj$data$density
+      }
+      out
     }
 
 
@@ -4437,5 +4538,3 @@
   }
 
 }
-
-

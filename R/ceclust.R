@@ -41,7 +41,19 @@ CECget_package_root <- function() {
 
 CECcompiled_backend_fun_names <- function() {
 	c(
+		"cec_cpp_sample_int_replace",
 		"cec_cpp_choose_clusters",
+		"cec_cpp_choose_clusters_from_logdens",
+		"cec_cpp_gauss_univ_assign",
+		"cec_cpp_gauss_univ_cluster_sums",
+		"cec_cpp_gauss_univ_cluster_sums_known_counts",
+		"cec_cpp_gauss_univ_params_known_counts",
+		"cec_cpp_compress_integer_clusters_info",
+		"cec_cpp_compress_integer_clusters_info_fingerprint",
+		"cec_cpp_gauss_univ_compress_params_fingerprint",
+		"cec_cpp_gauss_univ_params_from_phiM",
+		"cec_cpp_gauss_univ_perturb_warm_phiM",
+		"cec_cpp_gauss_univ_expand_phi_random",
 		"cec_cpp_phi_from_clusters",
 		"cec_cpp_gaussian_stats",
 		"cec_cpp_logdens_gaussian",
@@ -205,6 +217,19 @@ CECprepare_discrete_block <- function(Z) {
 CECprepare_backend_data <- function(Z, familyType = "gaussAndDiscreteVector") {
 	n <- CECget_n_obs(Z)
 
+	if (familyType == "gaussUniv") {
+		Z_num <- as.numeric(Z)
+		return(list(
+			familyType = familyType,
+			n = n,
+			optimized = FALSE,
+			raw = Z,
+			Z_num = Z_num,
+			Z_stats = cbind(Z_num, Z_num * Z_num),
+			fingerprint_weights = cos(2 * pi * (seq_len(n) - 1L) / n)
+		))
+	}
+
 	if (familyType == "gaussVector") {
 		X <- if (is.matrix(Z)) Z else as.matrix(Z)
 		return(list(
@@ -262,14 +287,41 @@ CECprepare_backend_data <- function(Z, familyType = "gaussAndDiscreteVector") {
 CECclusters_to_phi <- function(clusters, r) {
 	clusters <- as.integer(clusters)
 	if (CECfast_backend_available()) {
-		return(CECget_fast_fun("cec_cpp_phi_from_clusters")(clusters, as.integer(r)))
+		phi <- CECget_fast_fun("cec_cpp_phi_from_clusters")(clusters, as.integer(r))
+		return(CECtag_phi_clusters(phi, clusters, r))
 	}
 
 	n <- length(clusters)
 	phi <- numeric(n * r)
 	idx <- which(clusters >= 1L & clusters <= r)
 	phi[idx + n * (clusters[idx] - 1L)] <- 1
+	CECtag_phi_clusters(phi, clusters, r)
+}
+
+CECtag_phi_clusters <- function(phi, clusters, r) {
+	attr(phi, "CEC_clusters") <- as.integer(clusters)
+	attr(phi, "CEC_r") <- as.integer(r)
 	phi
+}
+
+CECtag_cluster_start <- function(clusters, r) {
+	clusters <- as.integer(clusters)
+	attr(clusters, "CEC_clusters") <- clusters
+	attr(clusters, "CEC_r") <- as.integer(r)
+	attr(clusters, "CEC_cluster_start") <- TRUE
+	clusters
+}
+
+CECphi_clusters_attr <- function(phi, n, r) {
+	clusters <- attr(phi, "CEC_clusters", exact = TRUE)
+	attr_r <- attr(phi, "CEC_r", exact = TRUE)
+	if (is.null(clusters) ||
+		length(clusters) != n ||
+		is.null(attr_r) ||
+		!identical(as.integer(attr_r)[1L], as.integer(r))) {
+		return(NULL)
+	}
+	as.integer(clusters)
 }
 
 CECclusters_from_phi_if_hard <- function(phi, n = NULL, r = NULL, tol = sqrt(.Machine$double.eps)) {
@@ -307,6 +359,60 @@ CECcompress_clusters <- function(clusters) {
 	as.integer(match(clusters, sort(unique(clusters))))
 }
 
+CECcompress_integer_clusters <- function(clusters, r = NULL) {
+	if (is.null(clusters)) {
+		return(NULL)
+	}
+	clusters <- as.integer(clusters)
+	if (length(clusters) == 0L) {
+		return(clusters)
+	}
+	if (is.null(r)) {
+		r <- max(clusters, na.rm = TRUE)
+	}
+	present <- tabulate(clusters, nbins = r) > 0L
+	if (all(present)) {
+		return(clusters)
+	}
+	map <- integer(length(present))
+	map[present] <- seq_len(sum(present))
+	map[clusters]
+}
+
+CECcompress_integer_clusters_info <- function(clusters, r = NULL, compress_fun = NULL) {
+	if (is.null(clusters)) {
+		return(list(clusters = NULL, r = 0L, counts = numeric()))
+	}
+	clusters <- as.integer(clusters)
+	if (length(clusters) == 0L) {
+		return(list(clusters = clusters, r = 0L, counts = numeric()))
+	}
+	if (is.null(r)) {
+		r <- max(clusters, na.rm = TRUE)
+	}
+	if (is.null(compress_fun) && CECensure_fast_backend()) {
+		compress_fun <- CECget_fast_fun("cec_cpp_compress_integer_clusters_info")
+	}
+	if (!is.null(compress_fun)) {
+		return(compress_fun(
+			clusters,
+			as.integer(r)
+		))
+	}
+	counts <- tabulate(clusters, nbins = r)
+	present <- counts > 0L
+	if (all(present)) {
+		return(list(clusters = clusters, r = as.integer(r), counts = as.numeric(counts)))
+	}
+	map <- integer(length(present))
+	map[present] <- seq_len(sum(present))
+	list(
+		clusters = map[clusters],
+		r = as.integer(sum(present)),
+		counts = as.numeric(counts[present])
+	)
+}
+
 CECcluster_fingerprint <- function(clusters) {
 	clusters <- as.integer(clusters)
 	if (CECfast_backend_available()) {
@@ -331,6 +437,74 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 		H_class = H_class,
 		H_cond = H_cond
 	)
+}
+
+CECis_valid_classif_result <- function(resultList) {
+	!is.null(resultList) &&
+		!is.null(resultList$Hphi) &&
+		length(resultList$Hphi) == 1L &&
+		is.finite(resultList$Hphi)
+}
+
+CECbest_classif_result <- function(results) {
+	if (length(results) == 0L) {
+		return(NULL)
+	}
+	H <- vapply(
+		results,
+		function(x) if (CECis_valid_classif_result(x)) x$Hphi else Inf,
+		numeric(1)
+	)
+	if (!any(is.finite(H))) {
+		return(NULL)
+	}
+	results[[which.min(H)]]
+}
+
+CECclassif_independent_shots <- function(
+	Z,
+	lambda = 1,
+	C = 1,
+	Cquali = Inf,
+	r0 = NULL,
+	Nshots = 100,
+	Nloop = 1000,
+	familyType = "gaussAndDiscreteVector",
+	sizeMaxOutlier = 0,
+	autoRegroupOutliers = FALSE,
+	displayPlotEntropy = FALSE,
+	backend_data = NULL,
+	n_cores = 1L
+) {
+	Nshots <- max(1L, as.integer(Nshots[1]))
+	n_cores <- max(1L, as.integer(n_cores[1]))
+	seeds <- sample.int(.Machine$integer.max, Nshots)
+
+	run_shot <- function(seed_i) {
+		set.seed(seed_i)
+		CECrun_one_shot_with_regroup(
+			Z = Z,
+			lambda = lambda,
+			C = C,
+			Cquali = Cquali,
+			r0 = r0,
+			Nloop = Nloop,
+			phi0 = NULL,
+			familyType = familyType,
+			displayPlotEntropy = displayPlotEntropy,
+			sizeMaxOutlier = sizeMaxOutlier,
+			autoRegroupOutliers = autoRegroupOutliers,
+			backend_data = backend_data
+		)
+	}
+
+	results <- if (.Platform$OS.type == "unix" && n_cores > 1L && Nshots > 1L) {
+		parallel::mclapply(seeds, run_shot, mc.cores = min(n_cores, Nshots), mc.set.seed = FALSE)
+	} else {
+		lapply(seeds, run_shot)
+	}
+
+	CECfinalize_classif_result(CECbest_classif_result(results))
 }
 
 #' Fit a composite entropy clustering model for one value of lambda
@@ -365,6 +539,13 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 #'   conditioning.
 #' @param backend_data Optional preprocessed backend object returned internally
 #'   by CEClust to reuse numeric/factor encodings across repeated calls.
+#' @param n_cores Number of cores used when `shot_strategy = "independent"`.
+#'   The default `1L` keeps sequential execution. On non-Unix platforms,
+#'   parallel independent shots currently fall back to sequential execution.
+#' @param shot_strategy Shot scheduling strategy. `"current"` preserves the
+#'   historical multi-start loop, including warm starts from previous shots.
+#'   `"independent"` runs every shot with `phi0 = NULL`, which enables optional
+#'   parallel execution but does not reproduce the exact historical trajectory.
 #'
 #' @return A list describing the best solution found over all shots. The main
 #'   components are:
@@ -392,9 +573,11 @@ CECentropy_from_assignment <- function(nu, assigned_logdens, lambda) {
 #' fit$REO
 #' table(fit$clusters)
 #' @export
-CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL)
+CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL,n_cores=1L,shot_strategy=c("current","independent"))
 {
 	displayPlotEntropy = FALSE
+	shot_strategy <- match.arg(shot_strategy)
+	n_cores <- max(1L, as.integer(n_cores[1]))
 	if(!is.null(focus))
 	{
 		if(is.factor(Z[,focus]))
@@ -408,7 +591,7 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 			{
 				fac_f 			<- focus_fac[f]
 				pos_f 			<- which(Z[,focus]==fac_f)
-				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,Cquali=Cquali,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL)
+				results[[f]] 	<- CECclassif(Z[pos_f,],lambda=lambda,C=C,Cquali=Cquali,r0=r0,Nloop=Nloop,Nshots = Nshots,familyType=familyType,sizeMaxOutlier =sizeMaxOutlier,displayRemainingTime = displayRemainingTime,focus=NULL,n_cores=n_cores,shot_strategy=shot_strategy)
 				NU[f]			<- length(pos_f)
 				R[f] 			<- length(results[[f]]$params$states)
 				H[f] 			<- results[[f]]$Hphi	
@@ -524,8 +707,35 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 	if (is.null(backend_data)) {
 		backend_data <- CECprepare_backend_data(Z, familyType = familyType)
 	}
+
+	if (identical(shot_strategy, "independent")) {
+		return(CECclassif_independent_shots(
+			Z = Z,
+			lambda = lambda,
+			C = C,
+			Cquali = Cquali,
+			r0 = r0,
+			Nshots = Nshots,
+			Nloop = Nloop,
+			familyType = familyType,
+			sizeMaxOutlier = sizeMaxOutlier,
+			autoRegroupOutliers = autoRegroupOutliers,
+			displayPlotEntropy = displayPlotEntropy,
+			backend_data = backend_data,
+			n_cores = n_cores
+		))
+	}
 		
 	
+	perturb_warm_phiM_fun <- NULL
+	expand_phi_random_fun <- NULL
+	sample_int_replace_fun <- NULL
+	if (identical(familyType, "gaussUniv") && CECensure_fast_backend()) {
+		perturb_warm_phiM_fun <- CECget_fast_fun("cec_cpp_gauss_univ_perturb_warm_phiM")
+		expand_phi_random_fun <- CECget_fast_fun("cec_cpp_gauss_univ_expand_phi_random")
+		sample_int_replace_fun <- CECget_fast_fun("cec_cpp_sample_int_replace")
+	}
+
 	PHI 		<- c() 
 	H 			<- Inf
 	bestClassif <- NULL
@@ -537,18 +747,34 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 		{
 			phi0 <- NULL 
 		}else{
-			U <- runif(1)
-			if(U<0.25)
-			{
-				phi0 <- c(PHI*runif(length(PHI)) ,runif(n) )
-			}else if(U>=0.25 & U<0.5){
+				U <- runif(1)
+				if(U<0.25)
+				{
+					if (identical(familyType, "gaussUniv") && !is.null(expand_phi_random_fun)) {
+						phi0 <- expand_phi_random_fun(PHI, as.integer(n))
+					} else {
+						phi0 <- c(PHI*runif(length(PHI)) ,runif(n) )
+					}
+					if (identical(familyType, "gaussUniv") && !is.matrix(phi0)) {
+						dim(phi0) <- c(n, length(phi0) / n)
+					}
+				}else if(U>=0.25 & U<0.5){
 				if(is.null(r0) | runif(1)<0.5)
 				{
 					rr <- 1 
 				}else{
 					rr <- sample(r0,1)
 				}
-				phi0 <- runif(rr*n)
+				if (identical(familyType, "gaussUniv")) {
+					clusters0 <- if (!is.null(sample_int_replace_fun)) {
+						sample_int_replace_fun(as.integer(rr), as.integer(n))
+					} else {
+						sample.int(rr, n, replace = TRUE)
+					}
+					phi0 <- CECtag_cluster_start(clusters0, rr)
+				} else {
+					phi0 <- runif(rr*n)
+				}
 			}else{
 				phi0 <- NULL 
 			}
@@ -559,22 +785,29 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 				r 			<- length(bestClassif$params$states)
 				nu 			<- bestClassif$params$nu
 				phi 		<- bestClassif$phi 
-			
-				phiM 		<- vectToMat(phi,r)
-			
-				toKeep      <- which(nu*n>=10)
-				phiM 		<-  phiM[,toKeep,drop=FALSE]
+				if (!is.null(perturb_warm_phiM_fun)) {
+					phi0 <- perturb_warm_phiM_fun(phi, as.integer(r), nu, as.integer(n))
+				} else {
+					phiM 		<- vectToMat(phi,r)
 				
-				tryCatch({
-				  phiM 		<- 	phiM + matrix(0.1*runif(prod(dim(phiM))),dim(phiM)[1],dim(phiM)[2])
-				}, error = function(e) {
-				  message("error phi M: ", phiM)
-				})
+					toKeep      <- which(nu*n>=10)
+					if (length(toKeep) == 0) {
+						toKeep <- which.max(nu)
+					}
+					phiM 		<-  phiM[,toKeep,drop=FALSE]
+					
+					tryCatch({
+					  phiM 		<- 	phiM + 0.1 * runif(length(phiM))
+					}, error = function(e) {
+					  message("error phi M: ", phiM)
+					})
 
-				
-				sumColsPhi 	<- rowSums(phiM) 
-				phiM		<- sweep(phiM, 1, sumColsPhi, "/")
-				phi0        <- matToVect(phiM)
+					
+						sumColsPhi 	<- rowSums(phiM) 
+						sumColsPhi[sumColsPhi <= 0] <- 1
+						phiM		<- phiM / sumColsPhi
+						phi0        <- if (identical(familyType, "gaussUniv")) phiM else matToVect(phiM)
+					}
 			}
 			
 		}
@@ -596,9 +829,10 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 		
 		
 		
-		if(resultList$Hphi <H )
+		result_H <- resultList$Hphi
+		if(length(result_H) == 1L && is.finite(result_H) && result_H < H )
 		{
-			H 			<- resultList$Hphi 
+			H 			<- result_H
 			bestClassif <- resultList
 			if(displayRemainingTime)
 				print(paste("newBest shot :",k, "H = ", round(H,2)))
@@ -629,8 +863,12 @@ CECfinalize_classif_result <- function(resultList) {
 
 	REO <- length(resultList$params$states)
 	resultList$REO <- REO
-	phiM <- vectToMat(resultList$phi, REO)
-	resultList$clusters <- max.col(phiM, ties.method = "first")
+	clusters <- CECphi_clusters_attr(resultList$phi, n = length(resultList$phi) / REO, r = REO)
+	if (is.null(clusters)) {
+		phiM <- vectToMat(resultList$phi, REO)
+		clusters <- max.col(phiM, ties.method = "first")
+	}
+	resultList$clusters <- clusters
 	resultList
 }
 
@@ -838,11 +1076,11 @@ CECperturb_best_warm_phi <- function(bestClassif, n) {
 	}
 
 	phiM <- phiM[, toKeep, drop = FALSE]
-	phiM <- phiM + matrix(0.1 * runif(prod(dim(phiM))), dim(phiM)[1], dim(phiM)[2])
+	phiM <- phiM + 0.1 * runif(length(phiM))
 
 	sumColsPhi <- rowSums(phiM)
 	sumColsPhi[sumColsPhi <= 0] <- 1
-	phiM <- sweep(phiM, 1, sumColsPhi, "/")
+	phiM <- phiM / sumColsPhi
 	matToVect(phiM)
 }
 
@@ -864,7 +1102,12 @@ CECgenerate_warm_shot_phi0 <- function(phi_seed, PHI, bestClassif, shot_index, N
 
 	U <- runif(1)
 	if (U < 0.5) {
-		return(c(PHI * runif(length(PHI)), runif(n)))
+		n_phi <- length(PHI)
+		random_values <- runif(n_phi + n)
+		return(c(
+			PHI * random_values[seq_len(n_phi)],
+			random_values[n_phi + seq_len(n)]
+		))
 	}
 
 	if (!is.null(bestClassif) && !is.null(bestClassif$phi)) {
@@ -1400,6 +1643,26 @@ optPhi			<- function(Z,param,lambda=1)
 		
 	nu 				<- param$nu 
 	r 				<- length(nu)
+
+	if (identical(param$familyType, "gaussUniv")) {
+		Z_num <- as.numeric(Z)
+		if (r == 1L) {
+			loc <- rep.int(1L, n)
+			return(CECtag_phi_clusters(rep(1, n), loc, r))
+		}
+		scoreM <- numeric(n * r)
+		dim(scoreM) <- c(n, r)
+		score_const <- log(nu) - log(param$s) / lambda
+		score_quad <- -0.5 / (lambda * param$s * param$s)
+		for (i in seq_len(r)) {
+			scoreM[, i] <- score_const[i] + score_quad[i] * (Z_num - param$m[i])^2
+		}
+		loc <- max.col(scoreM, ties.method = "first")
+		phi <- rep(0, n * r)
+		phi[(1:n) + n * (loc - 1)] <- 1
+		return(CECtag_phi_clusters(phi, loc, r))
+	}
+
 	logG 			<- CECdens(Z=Z,param=param,lambda=lambda,applyLog=TRUE)
 	logG$density 	<- rep(log(nu),each=n)  + logG$density / lambda
 	densityM 		<- vectToMat(logG$density,r)
@@ -1408,6 +1671,38 @@ optPhi			<- function(Z,param,lambda=1)
 	phi[(1:n)+ n*(loc-1) ] <- 1
 	
 	return(phi)			
+}
+
+CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_fun = NULL) {
+	if (is.null(Z_num)) {
+		Z_num <- as.numeric(Z)
+	}
+	n <- length(Z_num)
+	nu <- param$nu
+	r <- length(nu)
+	if (r == 1L) {
+		return(rep.int(1L, n))
+	}
+	if (is.null(assign_fun) && CECensure_fast_backend()) {
+		assign_fun <- CECget_fast_fun("cec_cpp_gauss_univ_assign")
+	}
+	if (!is.null(assign_fun)) {
+		return(assign_fun(
+			Z_num,
+			nu,
+			param$m,
+			param$s,
+			lambda
+		))
+	}
+	scoreM <- numeric(n * r)
+	dim(scoreM) <- c(n, r)
+	score_const <- log(nu) - log(param$s) / lambda
+	score_quad <- -0.5 / (lambda * param$s * param$s)
+	for (i in seq_len(r)) {
+		scoreM[, i] <- score_const[i] + score_quad[i] * (Z_num - param$m[i])^2
+	}
+	max.col(scoreM, ties.method = "first")
 }
 
 
@@ -1486,36 +1781,307 @@ optPhi			<- function(Z,param,lambda=1)
 			
 		}
 		
-		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1)
+		optParam_gaussUniv			<- function(Z,phi,lambda=1,C=1,Z_num=NULL,Z_stats=NULL)
 		{
 			nr 		<- length(phi)
 			n 		<- length(Z)
 			r 		<- nr/n
+			if (is.null(Z_num)) {
+				Z_num <- as.numeric(Z)
+			}
+			if (is.null(Z_stats)) {
+				Z_stats <- cbind(Z_num, Z_num * Z_num)
+			}
+
+			phiM <- NULL
+			clusters_attr <- CECphi_clusters_attr(phi, n = n, r = r)
+			if (!is.null(clusters_attr)) {
+				clusters <- CECcompress_integer_clusters(clusters_attr, r = r)
+				is_hard <- TRUE
+			} else {
+				phiM <- if (is.matrix(phi) && nrow(phi) == n && ncol(phi) == r) {
+					phi
+				} else {
+					vectToMat(phi = phi, r = r)
+				}
+				row_max <- max.col(phiM, ties.method = "first")
+				is_hard <- all(rowSums(phiM) == 1) && all(phiM[cbind(seq_len(n), row_max)] == 1)
+				if (is_hard) {
+					clusters <- CECcompress_integer_clusters(row_max, r = r)
+				}
+			}
+			if (is_hard) {
+				r <- max(clusters)
+				counts <- as.numeric(tabulate(clusters, nbins = r))
+				sums <- rowsum(Z_stats, group = clusters, reorder = TRUE)
+				sum_x <- sums[, 1L]
+				sum_x2 <- sums[, 2L]
+				m <- sum_x / counts
+				varPhi <- pmax(sum_x2 / counts - m * m, 0)
+
+				nu <- counts / n
+				s <- sqrt(varPhi)
+				functionBoundReached <- which(s < 1 / (sqrt(2 * pi) * C))
+				s[functionBoundReached] <- 1 / (sqrt(2 * pi) * C)
+				phi <- numeric(n * r)
+				phi[seq_len(n) + n * (clusters - 1L)] <- 1
+				phi <- CECtag_phi_clusters(phi, clusters, r)
+
+				return(list(
+					states = seq_len(r),
+					nu = nu,
+					m = m,
+					s = s,
+					varPhi = varPhi,
+					lambda = lambda,
+					C = C,
+					familyType = "gaussUniv",
+					phi = phi,
+					functionBoundReached = functionBoundReached
+				))
+			}
 			
-			nu 		<- phiToNu(phi,lambda,C,r,isPhiAlreadyMat = FALSE)
+			if (is.null(phiM)) {
+				phiM <- if (is.matrix(phi) && nrow(phi) == n && ncol(phi) == r) {
+					phi
+				} else {
+					vectToMat(phi = phi, r = r)
+				}
+			}
+			nu <- colSums(phiM) / n
 			
 			statesToKeep 	<- which(nu>0) 
 			if(length(statesToKeep)<r)
 			{
-				
-				indToKeep <- which(rep(1:r,each=n) %in%statesToKeep)
-				phi <- phi[indToKeep]
+				phiM <- phiM[, statesToKeep, drop = FALSE]
+				phi <- as.vector(phiM)
 				r 	<- length(statesToKeep)
 				nu 	<- nu[statesToKeep]
 			}
 				
 			states 	<- 1:r
-			m 		<- phiToMean(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu)
-			s		<- sqrt(phiToVar(phi,Z,lambda,C,r,isPhiAlreadyMat = FALSE,nuPhi = nu,mPhi=m))
+			denom <- n * nu
+			sums <- crossprod(Z_stats, phiM)
+			sum_x <- as.numeric(sums[1L, ])
+			sum_x2 <- as.numeric(sums[2L, ])
+			m <- sum_x / denom
+			varPhi <- pmax(sum_x2 / denom - m * m, 0)
+			s <- sqrt(varPhi)
 			
 			# C bounds the maximum density independently of lambda:
 			# 1 / (sqrt(2*pi) * s) <= C if and only if s >= 1 / (sqrt(2*pi) * C).
 			functionBoundReached <- which(s<1/(sqrt(2*pi)*C))
 			s[functionBoundReached] =  1/(sqrt(2*pi)*C) 
 			
-			params	<- list(states=states,nu=nu,m=m,s=s,lambda=lambda,C=C,familyType ="gaussUniv",phi=phi,functionBoundReached=functionBoundReached)
+			params	<- list(states=states,nu=nu,m=m,s=s,varPhi=varPhi,lambda=lambda,C=C,familyType ="gaussUniv",phi=phi,functionBoundReached=functionBoundReached)
 			
 			return(params)
+		}
+
+		CECoptParam_gaussUniv_from_phiM <- function(
+			Z,
+			phiM,
+			lambda = 1,
+			C = 1,
+			Z_stats = NULL
+		) {
+			n <- nrow(phiM)
+			r <- ncol(phiM)
+			nu <- colSums(phiM) / n
+
+			statesToKeep <- which(nu > 0)
+			if (length(statesToKeep) < r) {
+				phiM <- phiM[, statesToKeep, drop = FALSE]
+				r <- length(statesToKeep)
+				nu <- nu[statesToKeep]
+			}
+
+			if (is.null(Z_stats)) {
+				Z_num <- as.numeric(Z)
+				Z_stats <- cbind(Z_num, Z_num * Z_num)
+			}
+
+			denom <- n * nu
+			sums <- crossprod(Z_stats, phiM)
+			sum_x <- as.numeric(sums[1L, ])
+			sum_x2 <- as.numeric(sums[2L, ])
+			m <- sum_x / denom
+			varPhi <- pmax(sum_x2 / denom - m * m, 0)
+			s <- sqrt(varPhi)
+
+			functionBoundReached <- which(s < 1 / (sqrt(2 * pi) * C))
+			s[functionBoundReached] <- 1 / (sqrt(2 * pi) * C)
+
+			list(
+				states = seq_len(r),
+				nu = nu,
+				m = m,
+				s = s,
+				varPhi = varPhi,
+				lambda = lambda,
+				C = C,
+				familyType = "gaussUniv",
+				functionBoundReached = functionBoundReached
+			)
+		}
+
+		CECoptParam_gaussUniv_from_clusters <- function(
+			Z,
+			clusters,
+			lambda = 1,
+			C = 1,
+			build_phi = TRUE,
+			compress = TRUE,
+			Z_num = NULL,
+			Z_stats = NULL,
+			r = NULL,
+			counts = NULL,
+			cluster_sums_fun = NULL,
+			cluster_sums_known_counts_fun = NULL,
+			params_known_counts_fun = NULL,
+			phi_from_clusters_fun = NULL
+		) {
+			n <- length(Z)
+			if (isTRUE(compress)) {
+				compressed <- CECcompress_integer_clusters_info(clusters, r = r)
+				clusters <- compressed$clusters
+				r <- compressed$r
+				counts <- compressed$counts
+			}
+			if (is.null(r)) {
+				r <- max(clusters)
+			}
+			use_cpp_sums <- !is.null(cluster_sums_fun) || CECensure_fast_backend()
+			if (is.null(counts) && !isTRUE(use_cpp_sums)) {
+				counts <- as.numeric(tabulate(clusters, nbins = r))
+			}
+			if (!is.null(counts) && !is.null(params_known_counts_fun)) {
+				if (is.null(Z_num)) {
+					Z_num <- if (!is.null(Z_stats)) Z_stats[, 1L] else as.numeric(Z)
+				}
+				params <- params_known_counts_fun(
+					Z_num,
+					clusters,
+					counts,
+					as.integer(r),
+					lambda,
+					C
+				)
+				if (isTRUE(build_phi)) {
+					phi <- if (!is.null(phi_from_clusters_fun)) {
+						phi_from_clusters_fun(clusters, as.integer(r))
+					} else {
+						phi <- numeric(n * r)
+						phi[seq_len(n) + n * (clusters - 1L)] <- 1
+						phi
+					}
+					params$phi <- CECtag_phi_clusters(phi, clusters, r)
+				}
+				return(params)
+			}
+			if (isTRUE(use_cpp_sums)) {
+				if (is.null(Z_num)) {
+					Z_num <- if (!is.null(Z_stats)) Z_stats[, 1L] else as.numeric(Z)
+				}
+				if (!is.null(counts)) {
+					if (is.null(cluster_sums_known_counts_fun) && CECensure_fast_backend()) {
+						cluster_sums_known_counts_fun <- CECget_fast_fun("cec_cpp_gauss_univ_cluster_sums_known_counts")
+					}
+					if (!is.null(cluster_sums_known_counts_fun)) {
+						cluster_sums <- cluster_sums_known_counts_fun(
+							Z_num,
+							clusters,
+							as.integer(r)
+						)
+						sum_x <- cluster_sums$sum_x
+						sum_x2 <- cluster_sums$sum_x2
+					} else {
+						cluster_sums <- NULL
+					}
+				} else {
+					cluster_sums <- NULL
+				}
+				if (is.null(cluster_sums)) {
+					if (is.null(cluster_sums_fun)) {
+					cluster_sums_fun <- CECget_fast_fun("cec_cpp_gauss_univ_cluster_sums")
+					}
+					cluster_sums <- cluster_sums_fun(
+						Z_num,
+						clusters,
+						as.integer(r)
+					)
+					counts <- cluster_sums$counts
+					sum_x <- cluster_sums$sum_x
+					sum_x2 <- cluster_sums$sum_x2
+				}
+			} else {
+				if (is.null(Z_stats)) {
+					if (is.null(Z_num)) {
+						Z_num <- as.numeric(Z)
+					}
+					Z_stats <- cbind(Z_num, Z_num * Z_num)
+				}
+				sums <- rowsum(Z_stats, group = clusters, reorder = FALSE)
+				sums <- sums[as.character(seq_len(r)), , drop = FALSE]
+				sum_x <- sums[, 1L]
+				sum_x2 <- sums[, 2L]
+			}
+			m <- sum_x / counts
+			varPhi <- pmax(sum_x2 / counts - m * m, 0)
+
+			nu <- counts / n
+			s <- sqrt(varPhi)
+			functionBoundReached <- which(s < 1 / (sqrt(2 * pi) * C))
+			s[functionBoundReached] <- 1 / (sqrt(2 * pi) * C)
+
+			params <- list(
+				states = seq_len(r),
+				nu = nu,
+				m = m,
+				s = s,
+				varPhi = varPhi,
+				lambda = lambda,
+				C = C,
+				familyType = "gaussUniv",
+				functionBoundReached = functionBoundReached
+			)
+
+			if (isTRUE(build_phi)) {
+				phi <- if (!is.null(phi_from_clusters_fun)) {
+					phi_from_clusters_fun(clusters, as.integer(r))
+				} else {
+					phi <- numeric(n * r)
+					phi[seq_len(n) + n * (clusters - 1L)] <- 1
+					phi
+				}
+				params$phi <- CECtag_phi_clusters(phi, clusters, r)
+			}
+
+			params
+		}
+
+		CECentropy_gaussUniv_from_params <- function(params, includeClassEntropy = TRUE) {
+			nuPhi <- params$nu
+			varPhi <- params$varPhi
+			if (is.null(varPhi)) {
+				return(NULL)
+			}
+
+			toKeep <- which(nuPhi > 0)
+			nuPhi <- nuPhi[toKeep]
+			varPhi <- varPhi[toKeep]
+			s2Min <- (1 / (sqrt(2 * pi) * params$C))^2
+			varSupS2min <- pmax(varPhi, s2Min)
+
+			H <- 0
+			if (includeClassEntropy) {
+				H <- -sum(nuPhi * log(nuPhi))
+			}
+			H + (1 / (2 * params$lambda)) * (
+				log(2 * pi) +
+					sum(nuPhi * log(varSupS2min)) +
+					sum(nuPhi * varPhi / varSupS2min)
+			)
 		}
 
 		 
@@ -2073,16 +2639,16 @@ optPhi			<- function(Z,param,lambda=1)
 			stop("Fast parameter update is not implemented for familyType = ", familyType)
 		}
 
-		CECcompute_logdens_matrix_fast <- function(backend_data, params, lambda = params$lambda) {
-			familyType <- params$familyType
-			use_cpp <- CECfast_backend_available()
+			CECcompute_logdens_matrix_fast <- function(backend_data, params, lambda = params$lambda) {
+				familyType <- params$familyType
+				use_cpp <- CECfast_backend_available()
 
-			if (familyType == "gaussVector") {
-				if (use_cpp) {
-					return(CECget_fast_fun("cec_cpp_logdens_gaussian")(
-						backend_data$X_num,
-						params$m,
-						params$Sigma,
+				if (familyType == "gaussVector") {
+					if (use_cpp) {
+						return(CECget_fast_fun("cec_cpp_logdens_gaussian")(
+							backend_data$X_num,
+							params$m,
+							params$Sigma,
 						lambda
 					))
 				}
@@ -2100,12 +2666,12 @@ optPhi			<- function(Z,param,lambda=1)
 				return(out)
 			}
 
-			if (familyType == "discreteVector") {
-				if (use_cpp) {
-					return(CECget_fast_fun("cec_cpp_logdens_discrete")(
-						backend_data$discrete$codes,
-						params$discreteProbList
-					))
+				if (familyType == "discreteVector") {
+					if (use_cpp) {
+						return(CECget_fast_fun("cec_cpp_logdens_discrete")(
+							backend_data$discrete$codes,
+							params$discreteProbList
+						))
 				}
 				codes <- backend_data$discrete$codes
 				n <- nrow(codes)
@@ -2166,22 +2732,27 @@ optPhi			<- function(Z,param,lambda=1)
 		}
 
 		CECoptPhi_backend <- function(Z, param, lambda = 1, backend_data = NULL) {
-			if (!is.null(backend_data) &&
-				isTRUE(backend_data$optimized) &&
+				if (!is.null(backend_data) &&
+					isTRUE(backend_data$optimized) &&
 				CECis_fast_family(param$familyType)) {
 				logdens_mat <- CECcompute_logdens_matrix_fast(backend_data, param, lambda = lambda)
-				score_logdens_mat <- logdens_mat / lambda
 				if (CECfast_backend_available()) {
-					choice <- CECget_fast_fun("cec_cpp_choose_clusters")(score_logdens_mat, param$nu)
+					choice <- CECget_fast_fun("cec_cpp_choose_clusters_from_logdens")(logdens_mat, param$nu, lambda)
 					clusters <- as.integer(choice$clusters)
-					assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
+					assigned_logdens <- choice$assigned_logdens
 				} else {
+					score_logdens_mat <- logdens_mat / lambda
 					score_mat <- sweep(score_logdens_mat, 2, log(param$nu), "+")
 					clusters <- max.col(score_mat, ties.method = "first")
 					assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
 				}
 				return(list(
-					phi = CECclusters_to_phi(clusters, length(param$nu)),
+					# The mixed fast path benefits from delaying public phi reconstruction.
+					phi = if (identical(param$familyType, "gaussAndDiscreteVector")) {
+						NULL
+					} else {
+						CECclusters_to_phi(clusters, length(param$nu))
+					},
 					clusters = clusters,
 					logdens_mat = logdens_mat,
 					assigned_logdens = assigned_logdens
@@ -2734,6 +3305,323 @@ evalCompositeEntropy <- function(phi ,Z,lambda,C,Cquali=Inf,familyType="gaussAnd
 	}
 	return(H)
 }
+
+CECclassifOneShot_gaussUniv_clusters <- function(
+	Z,
+	lambda = 1,
+	C = 1,
+	r0 = NULL,
+	Nloop = 1000,
+	phi0 = NULL,
+	Z_num = NULL,
+	Z_stats = NULL,
+	fingerprint_weights = NULL
+) {
+	n <- length(Z)
+	if (is.null(Z_num)) {
+		Z_num <- as.numeric(Z)
+	}
+	if (is.null(Z_stats)) {
+		Z_stats <- cbind(Z_num, Z_num * Z_num)
+	}
+	fast_backend_available <- CECensure_fast_backend()
+	sample_int_replace_fun <- NULL
+	if (fast_backend_available) {
+		sample_int_replace_fun <- CECget_fast_fun("cec_cpp_sample_int_replace")
+	}
+	initial_phiM <- NULL
+	clusters <- NULL
+	if (is.null(phi0)) {
+		r <- if (is.null(r0)) floor(log(n) + 1) else r0
+		clusters <- if (!is.null(sample_int_replace_fun)) {
+			sample_int_replace_fun(as.integer(r), as.integer(n))
+		} else {
+			sample.int(r, n, replace = TRUE)
+		}
+		phi <- NULL
+	} else if (isTRUE(attr(phi0, "CEC_cluster_start", exact = TRUE))) {
+		r <- as.integer(attr(phi0, "CEC_r", exact = TRUE))[1L]
+		clusters <- CECphi_clusters_attr(phi0, n = n, r = r)
+		phi <- NULL
+	} else {
+		r <- if (is.matrix(phi0)) ncol(phi0) else length(phi0) / n
+		phi <- phi0
+	}
+
+	if (is.null(clusters)) {
+		clusters <- if (is.null(phi)) NULL else CECphi_clusters_attr(phi, n = n, r = r)
+	}
+	if (!is.null(phi) &&
+		is.null(clusters) &&
+		is.matrix(phi) &&
+		nrow(phi) == n &&
+		ncol(phi) == r) {
+		initial_phiM <- phi
+		phi <- NULL
+	}
+	counts <- NULL
+	if (is.null(fingerprint_weights)) {
+		fingerprint_weights <- cos(2 * pi * (seq_len(n) - 1L) / n)
+	}
+	assign_fun <- NULL
+	cluster_sums_fun <- NULL
+	cluster_sums_known_counts_fun <- NULL
+	params_known_counts_fun <- NULL
+	params_from_phiM_fun <- NULL
+	compress_fun <- NULL
+	compress_fingerprint_fun <- NULL
+	compress_params_fingerprint_fun <- NULL
+	phi_from_clusters_fun <- NULL
+	if (fast_backend_available) {
+		assign_fun <- CECget_fast_fun("cec_cpp_gauss_univ_assign")
+		cluster_sums_fun <- CECget_fast_fun("cec_cpp_gauss_univ_cluster_sums")
+		cluster_sums_known_counts_fun <- CECget_fast_fun("cec_cpp_gauss_univ_cluster_sums_known_counts")
+		params_known_counts_fun <- CECget_fast_fun("cec_cpp_gauss_univ_params_known_counts")
+		params_from_phiM_fun <- CECget_fast_fun("cec_cpp_gauss_univ_params_from_phiM")
+		compress_fun <- CECget_fast_fun("cec_cpp_compress_integer_clusters_info")
+		compress_fingerprint_fun <- CECget_fast_fun("cec_cpp_compress_integer_clusters_info_fingerprint")
+		compress_params_fingerprint_fun <- CECget_fast_fun("cec_cpp_gauss_univ_compress_params_fingerprint")
+		phi_from_clusters_fun <- CECget_fast_fun("cec_cpp_phi_from_clusters")
+	}
+	cached_params <- NULL
+	fingerprints <- numeric(Nloop + 1L)
+	n_fingerprints <- 0L
+	if (!is.null(clusters)) {
+		compressed <- if (!is.null(compress_params_fingerprint_fun)) {
+			compress_params_fingerprint_fun(
+				Z_num,
+				clusters,
+				as.integer(r),
+				fingerprint_weights,
+				lambda,
+				C
+			)
+		} else if (!is.null(compress_fingerprint_fun)) {
+			compress_fingerprint_fun(clusters, as.integer(r), fingerprint_weights)
+		} else {
+			CECcompress_integer_clusters_info(clusters, r = r, compress_fun = compress_fun)
+		}
+		clusters <- compressed$clusters
+		r <- compressed$r
+		counts <- compressed$counts
+		cached_params <- compressed$params
+		n_fingerprints <- 1L
+		fingerprints[n_fingerprints] <- if (!is.null(compressed$fingerprint)) {
+			compressed$fingerprint
+		} else {
+			sum(clusters * fingerprint_weights)
+		}
+		if (r == 1L && !is.null(cached_params)) {
+			phi <- if (!is.null(phi_from_clusters_fun)) {
+				phi_from_clusters_fun(clusters, as.integer(r))
+			} else {
+				rep(1, n)
+			}
+			phi <- CECtag_phi_clusters(phi, clusters, r)
+			params <- cached_params
+			params$phi <- phi
+			H_fast <- CECentropy_gaussUniv_from_params(params)
+			if (is.null(H_fast)) {
+				H_fast <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, familyType = "gaussUniv")
+			}
+			return(list(phi = phi, params = params, Hphi = H_fast))
+		}
+	}
+	params <- NULL
+	converged_by_same_clusters <- FALSE
+	params_match_final_clusters <- FALSE
+
+	for (i in seq_len(Nloop)) {
+		if (is.null(clusters)) {
+			if (!is.null(initial_phiM)) {
+				params <- if (!is.null(params_from_phiM_fun)) {
+					params_from_phiM_fun(
+						Z_num,
+						initial_phiM,
+						lambda,
+						C
+					)
+				} else {
+					CECoptParam_gaussUniv_from_phiM(
+					Z = Z,
+					phiM = initial_phiM,
+					lambda = lambda,
+					C = C,
+					Z_stats = Z_stats
+					)
+				}
+				initial_phiM <- NULL
+			} else {
+				params <- optParam_gaussUniv(
+					Z = Z,
+					phi = phi,
+					lambda = lambda,
+					C = C,
+					Z_num = Z_num,
+					Z_stats = Z_stats
+				)
+			}
+		} else if (!is.null(cached_params)) {
+			params <- cached_params
+			cached_params <- NULL
+		} else {
+			params <- CECoptParam_gaussUniv_from_clusters(
+				Z = Z,
+				clusters = clusters,
+				lambda = lambda,
+				C = C,
+				build_phi = FALSE,
+				compress = FALSE,
+				Z_num = Z_num,
+				Z_stats = Z_stats,
+				r = r,
+				counts = counts,
+				cluster_sums_fun = cluster_sums_fun,
+				cluster_sums_known_counts_fun = cluster_sums_known_counts_fun,
+				params_known_counts_fun = params_known_counts_fun
+			)
+		}
+
+			next_clusters <- CECoptClusters_gaussUniv(
+				Z = Z,
+				param = params,
+				lambda = lambda,
+				Z_num = Z_num,
+				assign_fun = assign_fun
+			)
+			compressed <- if (!is.null(compress_params_fingerprint_fun)) {
+				compress_params_fingerprint_fun(
+					Z_num,
+					next_clusters,
+					as.integer(length(params$nu)),
+					fingerprint_weights,
+					lambda,
+					C
+				)
+				} else if (!is.null(compress_fingerprint_fun)) {
+					compress_fingerprint_fun(
+						next_clusters,
+						as.integer(length(params$nu)),
+						fingerprint_weights
+					)
+				} else {
+					CECcompress_integer_clusters_info(
+						next_clusters,
+						r = length(params$nu),
+						compress_fun = compress_fun
+					)
+			}
+			next_clusters <- compressed$clusters
+			next_counts <- compressed$counts
+			next_params <- compressed$params
+			r <- compressed$r
+
+		if (r == 1L) {
+			clusters <- next_clusters
+			counts <- next_counts
+			converged_by_same_clusters <- TRUE
+			break()
+		}
+
+			if (!is.null(clusters) &&
+				length(clusters) == length(next_clusters) &&
+				identical(clusters, next_clusters)) {
+				clusters <- next_clusters
+				counts <- next_counts
+				converged_by_same_clusters <- TRUE
+				params_match_final_clusters <- TRUE
+			break()
+		}
+
+		fp_next <- if (!is.null(compressed$fingerprint)) {
+			compressed$fingerprint
+		} else {
+			sum(next_clusters * fingerprint_weights)
+		}
+		if (n_fingerprints > 0L && any(fp_next == fingerprints[seq_len(n_fingerprints)])) {
+			clusters <- next_clusters
+			counts <- next_counts
+			break()
+		}
+
+		n_fingerprints <- n_fingerprints + 1L
+		fingerprints[n_fingerprints] <- fp_next
+		clusters <- next_clusters
+		counts <- next_counts
+		cached_params <- next_params
+		phi <- NULL
+	}
+
+	if (isTRUE(params_match_final_clusters) && !is.null(params)) {
+		phi <- if (!is.null(phi_from_clusters_fun)) {
+			phi_from_clusters_fun(clusters, as.integer(r))
+		} else {
+			phi <- numeric(n * r)
+			phi[seq_len(n) + n * (clusters - 1L)] <- 1
+			phi
+		}
+		phi <- CECtag_phi_clusters(phi, clusters, r)
+		params$phi <- phi
+	} else {
+		params <- CECoptParam_gaussUniv_from_clusters(
+			Z = Z,
+			clusters = clusters,
+			lambda = lambda,
+			C = C,
+			build_phi = TRUE,
+			compress = FALSE,
+			Z_num = Z_num,
+			Z_stats = Z_stats,
+			r = r,
+			counts = counts,
+			cluster_sums_fun = cluster_sums_fun,
+			cluster_sums_known_counts_fun = cluster_sums_known_counts_fun,
+			params_known_counts_fun = params_known_counts_fun,
+			phi_from_clusters_fun = phi_from_clusters_fun
+		)
+		phi <- params$phi
+	}
+	if (!converged_by_same_clusters) {
+		clusters <- CECoptClusters_gaussUniv(
+			Z = Z,
+			param = params,
+			lambda = lambda,
+			Z_num = Z_num,
+			assign_fun = assign_fun
+		)
+		compressed <- CECcompress_integer_clusters_info(
+			clusters,
+			r = length(params$nu),
+			compress_fun = compress_fun
+		)
+		clusters <- compressed$clusters
+		counts <- compressed$counts
+		r <- compressed$r
+		params <- CECoptParam_gaussUniv_from_clusters(
+			Z = Z,
+			clusters = clusters,
+			lambda = lambda,
+			C = C,
+			build_phi = TRUE,
+			compress = FALSE,
+			Z_num = Z_num,
+			Z_stats = Z_stats,
+			r = r,
+			counts = counts,
+			cluster_sums_fun = cluster_sums_fun,
+			cluster_sums_known_counts_fun = cluster_sums_known_counts_fun,
+			params_known_counts_fun = params_known_counts_fun,
+			phi_from_clusters_fun = phi_from_clusters_fun
+		)
+		phi <- params$phi
+	}
+
+	H_fast <- CECentropy_gaussUniv_from_params(params)
+	if (is.null(H_fast)) {
+		H_fast <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, familyType = "gaussUniv")
+	}
+	list(phi = phi, params = params, Hphi = H_fast)
+}
 	
 CECclassifOneShot_legacy <- function(
 	Z,
@@ -2744,11 +3632,31 @@ CECclassifOneShot_legacy <- function(
 	Nloop = 1000,
 	phi0 = NULL,
 	familyType = "gaussAndDiscreteVector",
-	displayPlotEntropy = FALSE
+	displayPlotEntropy = FALSE,
+	backend_data = NULL
 ) {
 	n <- length(Z)
 	if (is.matrix(Z) | is.data.frame(Z))
 		n <- dim(Z)[1]
+
+		if (identical(familyType, "gaussUniv") && !isTRUE(displayPlotEntropy)) {
+			Z_num <- if (!is.null(backend_data) && identical(backend_data$familyType, "gaussUniv")) backend_data$Z_num else NULL
+			Z_stats <- if (!is.null(backend_data) && identical(backend_data$familyType, "gaussUniv")) backend_data$Z_stats else NULL
+			fingerprint_weights <- if (!is.null(backend_data) && identical(backend_data$familyType, "gaussUniv")) backend_data$fingerprint_weights else NULL
+			return(
+			CECclassifOneShot_gaussUniv_clusters(
+				Z = Z,
+				lambda = lambda,
+				C = C,
+				r0 = r0,
+				Nloop = Nloop,
+				phi0 = phi0,
+				Z_num = Z_num,
+				Z_stats = Z_stats,
+				fingerprint_weights = fingerprint_weights
+			)
+		)
+	}
 
 	if (is.null(phi0)) {
 		if (is.null(r0)) {
@@ -2764,11 +3672,25 @@ CECclassifOneShot_legacy <- function(
 		phi <- phi0
 	}
 
-	phiFingerPrint <- sum(phi * cos(2 * pi * (0:(n * r - 1)) / n))
+	fingerprint_weights <- cos(2 * pi * (seq_len(n * r) - 1L) / n)
+	phiFingerPrint <- sum(phi * fingerprint_weights)
+	previous_clusters <- CECphi_clusters_attr(phi, n = n, r = r)
+	converged_by_same_clusters <- FALSE
 	H <- c()
 
 	for (i in 1:Nloop) {
-		params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
+		clusters_from_phi <- CECphi_clusters_attr(phi, n = n, r = r)
+		if (identical(familyType, "gaussUniv") && !is.null(clusters_from_phi)) {
+			params <- CECoptParam_gaussUniv_from_clusters(
+				Z = Z,
+				clusters = clusters_from_phi,
+				lambda = lambda,
+				C = C,
+				build_phi = FALSE
+			)
+		} else {
+			params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
+		}
 		if (displayPlotEntropy) {
 			H[i] <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
 			plot(H, main = "entropy", xlab = "nLoop", ylab = "H")
@@ -2781,16 +3703,46 @@ CECclassifOneShot_legacy <- function(
 		if (r == 1)
 			break()
 
-		phiFingerPrint_i <- sum(phi * cos(2 * pi * (0:(n * r - 1)) / n))
+		current_clusters <- CECphi_clusters_attr(phi, n = n, r = r)
+		if (!is.null(previous_clusters) &&
+			!is.null(current_clusters) &&
+			length(previous_clusters) == length(current_clusters) &&
+			identical(previous_clusters, current_clusters)) {
+			converged_by_same_clusters <- TRUE
+			break()
+		}
+		previous_clusters <- current_clusters
+
+		if (length(fingerprint_weights) != n * r) {
+			fingerprint_weights <- cos(2 * pi * (seq_len(n * r) - 1L) / n)
+		}
+		phiFingerPrint_i <- sum(phi * fingerprint_weights)
 		if (phiFingerPrint_i %in% phiFingerPrint)
 			break()
 
 		phiFingerPrint <- c(phiFingerPrint, phiFingerPrint_i)
 	}
 
-	params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
-	phi <- optPhi(Z = Z, param = params, lambda = lambda)
-	Hphi <- evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = params$familyType)
+	if (!(identical(familyType, "gaussUniv") && converged_by_same_clusters)) {
+		params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
+		phi <- optPhi(Z = Z, param = params, lambda = lambda)
+	}
+	Hphi <- if (identical(params$familyType, "gaussUniv")) {
+		if (!converged_by_same_clusters) {
+			params <- optParam(Z = Z, phi = phi, lambda = lambda, C = C, Cquali = Cquali, familyType = familyType)
+		}
+		H_fast <- CECentropy_gaussUniv_from_params(params)
+		if (is.null(H_fast)) {
+			evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = params$familyType)
+		} else {
+			H_fast
+		}
+	} else {
+		evalCompositeEntropy(phi = phi, Z = Z, lambda = lambda, C = C, Cquali = Cquali, familyType = params$familyType)
+	}
+	if (identical(params$familyType, "gaussUniv") && is.null(params$phi)) {
+		params$phi <- phi
+	}
 	list(phi = phi, params = params, Hphi = Hphi)
 }
 
@@ -2816,7 +3768,8 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nloop=1000,phi
 				Nloop = Nloop,
 				phi0 = phi0,
 				familyType = familyType,
-				displayPlotEntropy = displayPlotEntropy
+				displayPlotEntropy = displayPlotEntropy,
+				backend_data = backend_data
 			)
 		)
 	}
@@ -2866,7 +3819,9 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nloop=1000,phi
 
 		opt_step <- CECoptPhi_backend(Z = Z, param = params, lambda = lambda, backend_data = backend_data)
 		clusters_next <- CECcompress_clusters(opt_step$clusters)
-		phi_current <- opt_step$phi
+		if (!is.null(opt_step$phi)) {
+			phi_current <- opt_step$phi
+		}
 
 		if (length(unique(clusters_next)) == 1L) {
 			clusters_current <- clusters_next
@@ -2892,7 +3847,8 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nloop=1000,phi
 				Nloop = Nloop,
 				phi0 = phi_current,
 				familyType = familyType,
-				displayPlotEntropy = displayPlotEntropy
+				displayPlotEntropy = displayPlotEntropy,
+				backend_data = backend_data
 			)
 		)
 	}
@@ -3071,8 +4027,8 @@ CECrun_fixed_lambda_path_task <- function(
         H_cond = dec_i$H_cond
       )
       per_lambda[[i]] <- list(
-        fit = fit_i,
-        proj = proj_i,
+        fit = CECcompact_fit_for_storage(fit_i),
+        proj = CECcompact_projection_for_storage(proj_i),
         part = proj_i$clusters,
         H = proj_i$H,
         Hraw = fit_i$Hphi,
@@ -3093,6 +4049,30 @@ CECrun_fixed_lambda_path_task <- function(
   }
 
   list(rep = rep_idx, direction = dir_rep, per_lambda = per_lambda)
+}
+
+CECcompact_fit_for_storage <- function(fit) {
+  if (is.null(fit)) {
+    return(NULL)
+  }
+
+  out <- fit
+  out$phi <- NULL
+  if (!is.null(out$params)) {
+    out$params$phi <- NULL
+  }
+  out
+}
+
+CECcompact_projection_for_storage <- function(proj) {
+  if (is.null(proj)) {
+    return(NULL)
+  }
+
+  out <- proj
+  out$phi <- NULL
+  out$phiM <- NULL
+  out
 }
 
 CECrun_bootstrap_lambda_path_task <- function(
@@ -3145,8 +4125,8 @@ CECrun_bootstrap_lambda_path_task <- function(
         lambda = lambda_grid[i]
       )
       per_lambda[[i]] <- list(
-        fit = fit_i,
-        proj = proj_i,
+        fit = CECcompact_fit_for_storage(fit_i),
+        proj = CECcompact_projection_for_storage(proj_i),
         part = proj_i$clusters,
         H = proj_i$H,
         Hraw = fit_i$Hphi,
@@ -6498,10 +7478,14 @@ CECextractBestPartitions <- function(
         proj_j <- obj$projections0[[j]]
         
         if (!is.null(fit_j) && !is.null(proj_j)) {
-          raw_dec <- tryCatch(
-            CECdecompose_fit_on_data(fit_j, Z = Z),
-            error = function(e) NULL
-          )
+          raw_dec <- if (!is.null(fit_j$phi)) {
+            tryCatch(
+              CECdecompose_fit_on_data(fit_j, Z = Z),
+              error = function(e) NULL
+            )
+          } else {
+            NULL
+          }
           
           candidates[[length(candidates) + 1]] <- list(
             lambda = lam,
@@ -6515,7 +7499,7 @@ CECextractBestPartitions <- function(
             H_projected = .scalar_or_na(proj_j$H),
             H_class_projected = .scalar_or_na(proj_j$H_class),
             H_cond_projected = .scalar_or_na(proj_j$H_cond),
-            H_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_total else NULL),
+            H_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_total else fit_j$Hphi),
             H_class_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_class else NULL),
             H_cond_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_cond else NULL),
             REO = .scalar_or_na(fit_j$REO, default = NA_integer_)
@@ -6539,10 +7523,14 @@ CECextractBestPartitions <- function(
             ib <- obj$boot_indices[[j]]
             Zb <- if (is.matrix(Z) || is.data.frame(Z)) Z[ib, , drop = FALSE] else Z[ib]
             
-            raw_dec <- tryCatch(
-              CECdecompose_fit_on_data(fit_j, Z = Zb),
-              error = function(e) NULL
-            )
+            raw_dec <- if (!is.null(fit_j$phi)) {
+              tryCatch(
+                CECdecompose_fit_on_data(fit_j, Z = Zb),
+                error = function(e) NULL
+              )
+            } else {
+              NULL
+            }
           }
           
           candidates[[length(candidates) + 1]] <- list(
@@ -6557,7 +7545,7 @@ CECextractBestPartitions <- function(
             H_projected = .scalar_or_na(proj_j$H),
             H_class_projected = .scalar_or_na(proj_j$H_class),
             H_cond_projected = .scalar_or_na(proj_j$H_cond),
-            H_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_total else NULL),
+            H_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_total else fit_j$Hphi),
             H_class_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_class else NULL),
             H_cond_raw = .scalar_or_na(if (!is.null(raw_dec)) raw_dec$H_cond else NULL),
             REO = .scalar_or_na(fit_j$REO, default = NA_integer_)
@@ -8571,4 +9559,3 @@ compute_path_distance <- function(best_parts, partitions_other) {
   
   res
 }
-

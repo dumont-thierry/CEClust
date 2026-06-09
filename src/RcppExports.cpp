@@ -11,6 +11,18 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// cec_cpp_sample_int_replace
+IntegerVector cec_cpp_sample_int_replace(int r, int n);
+RcppExport SEXP _CEClust_cec_cpp_sample_int_replace(SEXP rSEXP, SEXP nSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_sample_int_replace(r, n));
+    return rcpp_result_gen;
+END_RCPP
+}
 // cec_cpp_choose_clusters
 Rcpp::List cec_cpp_choose_clusters(const arma::mat& logdens, const arma::vec& nu);
 RcppExport SEXP _CEClust_cec_cpp_choose_clusters(SEXP logdensSEXP, SEXP nuSEXP) {
@@ -20,6 +32,157 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type logdens(logdensSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type nu(nuSEXP);
     rcpp_result_gen = Rcpp::wrap(cec_cpp_choose_clusters(logdens, nu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_choose_clusters_from_logdens
+Rcpp::List cec_cpp_choose_clusters_from_logdens(const arma::mat& logdens, const arma::vec& nu, double lambda);
+RcppExport SEXP _CEClust_cec_cpp_choose_clusters_from_logdens(SEXP logdensSEXP, SEXP nuSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type logdens(logdensSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_choose_clusters_from_logdens(logdens, nu, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_assign
+IntegerVector cec_cpp_gauss_univ_assign(const NumericVector& z, const NumericVector& nu, const NumericVector& m, const NumericVector& s, double lambda);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_assign(SEXP zSEXP, SEXP nuSEXP, SEXP mSEXP, SEXP sSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type m(mSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type s(sSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_assign(z, nu, m, s, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_cluster_sums
+Rcpp::List cec_cpp_gauss_univ_cluster_sums(const NumericVector& z, const IntegerVector& clusters, int r);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_cluster_sums(SEXP zSEXP, SEXP clustersSEXP, SEXP rSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_cluster_sums(z, clusters, r));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_cluster_sums_known_counts
+Rcpp::List cec_cpp_gauss_univ_cluster_sums_known_counts(const NumericVector& z, const IntegerVector& clusters, int r);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_cluster_sums_known_counts(SEXP zSEXP, SEXP clustersSEXP, SEXP rSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_cluster_sums_known_counts(z, clusters, r));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_params_known_counts
+Rcpp::List cec_cpp_gauss_univ_params_known_counts(const NumericVector& z, const IntegerVector& clusters, const NumericVector& counts, int r, double lambda, double C);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_params_known_counts(SEXP zSEXP, SEXP clustersSEXP, SEXP countsSEXP, SEXP rSEXP, SEXP lambdaSEXP, SEXP CSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type counts(countsSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_params_known_counts(z, clusters, counts, r, lambda, C));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_compress_integer_clusters_info
+Rcpp::List cec_cpp_compress_integer_clusters_info(const IntegerVector& clusters, int r);
+RcppExport SEXP _CEClust_cec_cpp_compress_integer_clusters_info(SEXP clustersSEXP, SEXP rSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_compress_integer_clusters_info(clusters, r));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_compress_integer_clusters_info_fingerprint
+Rcpp::List cec_cpp_compress_integer_clusters_info_fingerprint(const IntegerVector& clusters, int r, const NumericVector& weights);
+RcppExport SEXP _CEClust_cec_cpp_compress_integer_clusters_info_fingerprint(SEXP clustersSEXP, SEXP rSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_compress_integer_clusters_info_fingerprint(clusters, r, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_compress_params_fingerprint
+Rcpp::List cec_cpp_gauss_univ_compress_params_fingerprint(const NumericVector& z, const IntegerVector& clusters, int r, const NumericVector& weights, double lambda, double C);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_compress_params_fingerprint(SEXP zSEXP, SEXP clustersSEXP, SEXP rSEXP, SEXP weightsSEXP, SEXP lambdaSEXP, SEXP CSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type clusters(clustersSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_compress_params_fingerprint(z, clusters, r, weights, lambda, C));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_params_from_phiM
+Rcpp::List cec_cpp_gauss_univ_params_from_phiM(const NumericVector& z, const NumericMatrix& phiM, double lambda, double C);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_params_from_phiM(SEXP zSEXP, SEXP phiMSEXP, SEXP lambdaSEXP, SEXP CSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type z(zSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type phiM(phiMSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_params_from_phiM(z, phiM, lambda, C));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_perturb_warm_phiM
+Rcpp::NumericMatrix cec_cpp_gauss_univ_perturb_warm_phiM(const NumericVector& phi, int r, const NumericVector& nu, int n);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_perturb_warm_phiM(SEXP phiSEXP, SEXP rSEXP, SEXP nuSEXP, SEXP nSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type phi(phiSEXP);
+    Rcpp::traits::input_parameter< int >::type r(rSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_perturb_warm_phiM(phi, r, nu, n));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_gauss_univ_expand_phi_random
+Rcpp::NumericMatrix cec_cpp_gauss_univ_expand_phi_random(const NumericVector& phi, int n);
+RcppExport SEXP _CEClust_cec_cpp_gauss_univ_expand_phi_random(SEXP phiSEXP, SEXP nSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type phi(phiSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_gauss_univ_expand_phi_random(phi, n));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -101,7 +264,19 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_CEClust_cec_cpp_sample_int_replace", (DL_FUNC) &_CEClust_cec_cpp_sample_int_replace, 2},
     {"_CEClust_cec_cpp_choose_clusters", (DL_FUNC) &_CEClust_cec_cpp_choose_clusters, 2},
+    {"_CEClust_cec_cpp_choose_clusters_from_logdens", (DL_FUNC) &_CEClust_cec_cpp_choose_clusters_from_logdens, 3},
+    {"_CEClust_cec_cpp_gauss_univ_assign", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_assign, 5},
+    {"_CEClust_cec_cpp_gauss_univ_cluster_sums", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_cluster_sums, 3},
+    {"_CEClust_cec_cpp_gauss_univ_cluster_sums_known_counts", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_cluster_sums_known_counts, 3},
+    {"_CEClust_cec_cpp_gauss_univ_params_known_counts", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_params_known_counts, 6},
+    {"_CEClust_cec_cpp_compress_integer_clusters_info", (DL_FUNC) &_CEClust_cec_cpp_compress_integer_clusters_info, 2},
+    {"_CEClust_cec_cpp_compress_integer_clusters_info_fingerprint", (DL_FUNC) &_CEClust_cec_cpp_compress_integer_clusters_info_fingerprint, 3},
+    {"_CEClust_cec_cpp_gauss_univ_compress_params_fingerprint", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_compress_params_fingerprint, 6},
+    {"_CEClust_cec_cpp_gauss_univ_params_from_phiM", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_params_from_phiM, 4},
+    {"_CEClust_cec_cpp_gauss_univ_perturb_warm_phiM", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_perturb_warm_phiM, 4},
+    {"_CEClust_cec_cpp_gauss_univ_expand_phi_random", (DL_FUNC) &_CEClust_cec_cpp_gauss_univ_expand_phi_random, 2},
     {"_CEClust_cec_cpp_phi_from_clusters", (DL_FUNC) &_CEClust_cec_cpp_phi_from_clusters, 2},
     {"_CEClust_cec_cpp_gaussian_stats", (DL_FUNC) &_CEClust_cec_cpp_gaussian_stats, 3},
     {"_CEClust_cec_cpp_logdens_gaussian", (DL_FUNC) &_CEClust_cec_cpp_logdens_gaussian, 4},

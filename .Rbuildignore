@@ -2,6 +2,8 @@
 ^\.gitignore$
 ^README\.Rmd$
 ^README_files$
+^ARCHITECTURE_COMPACTE\.txt$
+^examples$
 ^\.Rhistory$
 ^src/.*\.(o|so|dll)$
 ^\.check-lib$

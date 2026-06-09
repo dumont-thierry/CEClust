@@ -10,261 +10,69 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE
 )
 ```
 
 # Overview
 
-`CEClust` is built around two complementary tasks:
+`CEClust` explores composite entropy clustering over one value of `lambda`, a
+lambda path, or a full `(C, lambda)` grid.
 
-1. fit a composite entropy clustering model for a fixed value of `lambda`;
-2. explore how the selected partition evolves over a grid of `lambda` values.
+The usual workflow is:
 
-The second task is often the most informative in practice, because it reveals
-stable and unstable regions instead of forcing a single regularisation choice
-too early.
+1. fit a grid with `CECfitBoundGrid()`;
+2. inspect the phase diagram with `CECplotGrid()`;
+3. inspect selected partitions with `CECplotPartition()`;
+4. summarise diagnostics with `CECsummariseGrid()`;
+5. optionally open the Shiny explorer with `CECexplore()`.
 
-For complete `C x lambda` studies, the minimal high-level API is
-`CECfitBoundGrid()`, `CECfitPreset()`, `CECsummariseGrid()`, `CECplotGrid()`,
-`CECplotPartition()`, `CECplotPath()`, and `CECexplore()`. See
-`vignette("minimal-api", package = "CEClust")` for that workflow.
+# A small iris grid
 
-# Runtime configuration
-
-Before fitting a model, it is useful to choose a runtime profile.
+This example uses only the four quantitative iris variables. The species labels
+are not used in the clustering step.
 
 ```{r}
 library(CEClust)
 
-runtime_base <- CECconfigure_runtime("base")
-runtime_base
-```
+Z_iris <- iris[, 1:4]
 
-The `"base"` profile forces a conservative single-core pure-R execution.
-When available, the `"auto"` profile can activate the optional compiled backend
-and suggest a larger number of worker processes:
-
-```{r}
-runtime_auto <- CECconfigure_runtime("auto", max_cores = 4)
-runtime_auto
-```
-
-The returned `n_cores` value can be passed directly to
-`CECfitLambdaGrid()`.
-
-# Example data
-
-For a lightweight mixed-data example:
-
-```{r}
-Z <- simulate_multidim_benchmark_data(
-  n = 120,
-  p_num = 3,
-  p_fac = 2,
-  K = 3,
-  seed = 1
-)
-
-str(Z)
-```
-
-# Step 1: fit one model for one lambda
-
-`CECclassif()` is the fixed-lambda entry point.
-
-```{r}
-fit <- CECclassif(
-  Z = Z,
-  lambda = 0.8,
-  C = 10,
+iris_grid <- CECfitBoundGrid(
+  Z = Z_iris,
+  dataset_name = "iris_vignette",
+  algo_seed = 202606,
+  lambda_grid = seq(0.6, 1.4, by = 0.4),
+  C_grid = c(1.5, 2.5),
   r0 = 6,
-  Nshots = 4,
-  Nloop = 20,
-  familyType = "gaussAndDiscreteVector"
-)
-
-fit$REO
-table(fit$clusters)
-```
-
-This is useful when `lambda` is already fixed by a methodological decision or
-when you want to inspect one candidate value quickly.
-
-# Step 2: diagnose a lambda grid
-
-The main workflow follows linked paths over a grid of `lambda` values:
-
-```{r}
-lambda_diag <- CECfitLambdaGrid(
-  Z = Z,
-  lambda_grid = seq(0.1, 2.0, by = 0.2),
-  k0 = 10,
-  B = 10,
-  C = 10,
-  r0 = 10,
+  k0 = 2,
+  B = 2,
   Nshots_fresh = 1,
   Nshots_warm = 1,
-  Nloop = 15,
-  familyType = "gaussAndDiscreteVector",
-  seed = 1,
-  silent = TRUE,
-  verbose = FALSE,
-  n_cores = runtime_base$n_cores,
-  checkpoint_dir = FALSE,
-  auto_checkpoint = FALSE,
-  show_progress = FALSE
-)
-
-lambda_diag$summary
-```
-
-The `summary` table contains, for each `lambda`:
-
-- stability summaries on the original data;
-- bootstrap stability summaries;
-- criterion summaries (`H`);
-- information about the best run origin.
-
-# Step 3: smooth the summary and identify stable regions
-
-```{r}
-lambda_diag <- CECaddSmoothedDiagnostics(lambda_diag, k = 3)
-
-stable <- CECidentifyStableLambdas(
-  lambda_diag,
-  rule = "ratio",
-  ratio_threshold = 0.8, 
-  stabB_threshold = 0.8,
-  min_consecutive = 1
-)
-
-stable$lambda_min
-stable$summary
-```
-
-`stable$lambda_min` gives the first lambda entering a stable regime under the
-selected rule, but the full `stable$summary` table is usually more informative
-because it shows whether stability persists over an interval.
-
-When you also want to exclude lambdas for which too much of the sample lives
-in clusters saturating the density bound `C`, first extract one representative
-partition per lambda and then pass it back to `CECidentifyStableLambdas()`:
-
-```{r}
-best_parts <- CECextractBestPartitions(
-  lambda_diag,
-  source = "fixed",
-  criterion = "projected_H",
-  Z = Z
-)
-
-stable_sat <- CECidentifyStableLambdas(
-  lambda_diag,
-  rule = "ratio",
-  ratio_threshold = 0.8,
-  stabB_threshold = 0.8,
-  sat_threshold = 0.8,
-  best_partitions_obj = best_parts,
-  min_consecutive = 1
-)
-
-stable_sat$summary
-```
-
-# Step 4: extract one partition per lambda
-
-```{r}
-best_parts <- CECextractBestPartitions(
-  lambda_diag,
-  source = "fixed",
-  criterion = "projected_H",
-  Z = Z
-)
-
-best_parts$summary
-```
-
-The extracted object is a compact summary of the lambda trajectory. It is often
-the easiest object to pass to downstream plotting or diagnostic helpers.
-
-# Step 5: inspect coherence and change points
-
-```{r}
-coherence <- CECcheckBestPartitionCoherence(best_parts, Z)
-changes <- CECdetectPartitionChanges(best_parts)
-
-coherence$all_coherent
-changes$change_lambdas
-```
-
-If the trajectory is locally inconsistent, a repair pass can be attempted:
-
-```{r}
-best_parts_repaired <- CECrepairBestPartitionTrajectory(best_parts, Z, max_iter = 20)
-best_parts_repaired$n_repairs
-best_parts_repaired$converged
-```
-
-# Static plots
-
-The simplest overview is the lambda-grid diagnostic plot:
-
-```{r lambda-grid-plot, fig.width=9, fig.height=7}
-plotCECdiagnoseLambdaGrid(lambda_diag)
-```
-
-For multivariate numeric data, a PCA view can be built from extracted best
-partitions. The `iris` data set is a convenient example because it contains
-four numeric variables.
-
-```{r}
-Z_iris <- iris[, -5]
-
-diag_iris <- CECfitLambdaGrid(
-  Z = Z_iris,
-  lambda_grid = seq(0.01, 2, by = 0.1),
-  k0 = 10,
-  B = 10,
-  C = 10,
-  r0 = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
-  Nloop = 20,
+  Nloop = 10,
   familyType = "gaussVector",
-  seed = 1,
-  silent = TRUE,
-  verbose = FALSE,
-  n_cores = 1L,
-  checkpoint_dir = FALSE,
-  auto_checkpoint = FALSE,
-  show_progress = FALSE
+  n_cores = 1,
+  compact_results = TRUE
 )
 
-best_iris <- CECextractBestPartitions(diag_iris, source = "fixed", Z = Z_iris)
-path_df <- build_partition_path_df(Z_iris, best_iris)
-plot_partition_path_pca(path_df)
+CECplotGrid(iris_grid)
 ```
 
-# Interactive exploration
+# Inspect one partition
 
-If `shiny` and `ggplot2` are installed, you can launch the interactive explorer
-from either a `lambda_diag` object or an already extracted `best_parts` object:
-
-```{r eval = FALSE}
-plotCECdiagnoseInteractive(best_parts, Z)
+```{r}
+CECplotPartition(iris_grid)
 ```
 
-For one-dimensional numeric data, the application switches automatically to a
-histogram display. For higher-dimensional numeric data, the user can switch
-between raw variable pairs and a PCA representation.
+# Summarise diagnostics
 
-# Remarks
+```{r}
+iris_summary <- CECsummariseGrid(iris_grid)
+head(iris_summary)
+```
 
-- Use `CECclassif()` when you want one clustering solution for one `lambda`.
-- Use `CECfitLambdaGrid()` when you want to study robustness
-  across a grid.
-- Use `CECextractBestPartitions()` to obtain a compact trajectory that is easy
-  to plot or compare.
-- Use `CECidentifyStableLambdas()` as a decision aid, not as a substitute for
-  methodological judgement.
+For larger grids, use:
+
+```{r, eval = FALSE}
+CECexplore(iris_grid)
+```
