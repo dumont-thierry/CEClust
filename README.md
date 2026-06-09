@@ -265,7 +265,7 @@ mixture_1d_7 <- simulate_mixture_1d_7(n = 100, seed = 13)
 Z_1d_7 <- mixture_1d_7$z
 
 lambda_1d_7 <- seq(0.05, 1.5, length.out = 20)
-C_1d_7 <- seq(0.5, 10, by = 0.5)
+C_1d_7 <- seq(3/10, 3, length.out = 10)
 ```
 
 Fit the lambda path first. This is useful when one wants to understand
