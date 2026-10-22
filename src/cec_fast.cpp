@@ -16,16 +16,7 @@ static arma::mat cec_chol_safe(const arma::mat& sigma) {
     return L;
   }
 
-  const double base_jitter = 1e-10;
-  for (int k = 0; k < 8; ++k) {
-    double jitter = base_jitter * std::pow(10.0, k);
-    arma::mat Sigma_j = Sigma + jitter * arma::eye(Sigma.n_rows, Sigma.n_cols);
-    if (arma::chol(L, Sigma_j, "lower")) {
-      return L;
-    }
-  }
-
-  stop("Unable to compute a Cholesky factor for Sigma.");
+  stop("Covariance factorization failed; exact determinant patch does not add diagonal jitter.");
   return L;
 }
 
@@ -782,19 +773,22 @@ Rcpp::List cec_cpp_gaussian_stats(const arma::mat& X, const IntegerVector& clust
 
   arma::vec counts(r, arma::fill::zeros);
   arma::mat sums(r, p, arma::fill::zeros);
+  arma::ivec first(r);
+  first.fill(-1);
 
   for (int i = 0; i < n; ++i) {
     int cl = clusters[i] - 1;
     if (cl >= 0 && cl < r) {
+      if (first[cl] < 0) first[cl] = i;
       counts[cl] += 1.0;
-      sums.row(cl) += X.row(i);
+      sums.row(cl) += X.row(i) - X.row(first[cl]);
     }
   }
 
   arma::mat means(r, p, arma::fill::zeros);
   for (int k = 0; k < r; ++k) {
     if (counts[k] > 0.0) {
-      means.row(k) = sums.row(k) / counts[k];
+      means.row(k) = X.row(first[k]) + sums.row(k) / counts[k];
     }
   }
 
@@ -804,7 +798,7 @@ Rcpp::List cec_cpp_gaussian_stats(const arma::mat& X, const IntegerVector& clust
     if (counts[k] > 0.0) {
       for (int i = 0; i < n; ++i) {
         if (clusters[i] == (k + 1)) {
-          arma::rowvec diff = X.row(i) - means.row(k);
+          arma::rowvec diff = (X.row(i) - X.row(first[k])) - sums.row(k) / counts[k];
           cov_k += diff.t() * diff;
         }
       }
@@ -831,6 +825,24 @@ arma::mat cec_cpp_logdens_gaussian(const arma::mat& X, const arma::mat& means, c
   const double log2pi = std::log(2.0 * M_PI);
 
   for (int k = 0; k < r; ++k) {
+    Rcpp::NumericMatrix raw_sigma(sigma_list[k]);
+    if (raw_sigma.hasAttribute("CEC_singular_support")) {
+      Rcpp::List support = raw_sigma.attr("CEC_singular_support");
+      arma::mat null_basis = Rcpp::as<arma::mat>(support["null_basis"]);
+      double log_C = Rcpp::as<double>(support["log_C"]);
+      const double eps = std::numeric_limits<double>::epsilon();
+      if (std::abs(log_C) <= 32.0 * eps) log_C = 0.0;
+      const double support_tol = Rcpp::as<double>(support["support_tolerance"]);
+      const double mean_scale = arma::abs(means.row(k)).max();
+      for (int i = 0; i < n; ++i) {
+        arma::rowvec centered = X.row(i) - means.row(k);
+        double residual = arma::norm(centered * null_basis, 2);
+        double scale = std::max(arma::abs(X.row(i)).max(), mean_scale);
+        double tolerance = support_tol + 64.0 * p * eps * scale;
+        out(i, k) = residual <= tolerance ? log_C : R_NegInf;
+      }
+      continue;
+    }
     arma::mat Sigma = as<arma::mat>(sigma_list[k]);
     arma::mat L = cec_chol_safe(Sigma);
     double logdet = 2.0 * arma::sum(arma::log(L.diag()));

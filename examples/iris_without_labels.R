@@ -31,3 +31,4 @@ head(iris_summary)
 if (interactive()) {
   CECexplore(iris_grid)
 }
+

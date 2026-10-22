@@ -1,6 +1,12 @@
 CEClust compact - principes de maintenance
 =========================================
 
+Note historique : ce document decrit l'architecture compacte 0.2.0.
+Depuis 0.3.0.9001, les moteurs numeriques et la grille adaptative sont integres.
+Pour l'architecture actuelle, consulter CONTRIBUTING.md et les aides
+CECresults, CECoptimizers et CECadaptiveDiagram. Les recommandations
+sur les champs et les controles ci-dessous concernent l'ancienne interface.
+
 Objectif
 --------
 
@@ -137,4 +143,5 @@ Si la reponse est non aux trois questions, ne pas stocker.
 
 Si une information lourde est reconstructible depuis la partition et les
 donnees, ne pas la stocker durablement.
+
 

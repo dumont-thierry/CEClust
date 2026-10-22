@@ -211,3 +211,4 @@ raw <- do.call(rbind, rows)
 summary <- add_speedup(summarise_timings(raw))
 md_file <- write_outputs(raw, summary)
 cat("\nDeferred phi summary written to ", md_file, "\n", sep = "")
+

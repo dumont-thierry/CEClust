@@ -25,3 +25,7 @@ import(utils)
 importFrom(Rcpp,evalCpp)
 importFrom(mvtnorm,dmvnorm)
 useDynLib(CEClust, .registration = TRUE)
+
+
+export(CECstability)
+export(CECrescoreGrid)

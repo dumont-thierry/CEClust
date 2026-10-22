@@ -353,3 +353,4 @@ test_that("CECpredict predicts all missing numeric coordinates cluster-wise", {
 
   expect_equal(unname(as.matrix(pred)), matrix(c(10, 100, 20, 200, 10, 100), ncol = 2, byrow = TRUE))
 })
+

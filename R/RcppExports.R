@@ -77,3 +77,11 @@ cec_cpp_cluster_fingerprint <- function(clusters) {
     .Call(`_CEClust_cec_cpp_cluster_fingerprint`, clusters)
 }
 
+emmap_fit_cpp <- function(X, labels, C, max_iter = 1000L, tolerance = 1e-8, soften = .02) {
+    .Call(`_CEClust_emmap_fit_cpp`, X, labels, C, max_iter, tolerance, soften)
+}
+
+emmap_predict_cpp <- function(X, means, cov, weights) {
+    .Call(`_CEClust_emmap_predict_cpp`, X, means, cov, weights)
+}
+

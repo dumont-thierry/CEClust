@@ -1,7 +1,9 @@
 Package: CEClust
 Type: Package
 Title: Compact Composite Entropy Clustering Grid Explorer
-Version: 0.2.0.9001
+Version: 0.3.0.9002
+Config/CEClust/LocalPatch: integrated-adaptive-diagrams
+Config/CEClust/UpstreamCommit: 9a38174d6d79cb84e522f7cf6f1f4c5882c30313
 Authors@R: c(
     person(
       given = "Thierry",
@@ -12,17 +14,21 @@ Authors@R: c(
   )
 Author: Thierry Dumont [aut, cre]
 Maintainer: Thierry Dumont <tdumont@parisnanterre.fr>
-Description: Fits composite entropy clustering grids with a compact result
-    format focused on the final phase diagram, selected partitions, stability
-    diagnostics, saturation diagnostics, sensitivity summaries, and the Shiny
-    explorer. Dense per-task matrices are discarded as soon as they are no
-    longer needed, which keeps large C by lambda runs manageable.
+Description: Fits composite entropy clusterings and explores fixed or adaptive grids
+    of density ceilings and entropy weights. Numeric Gaussian analyses can use
+    hard classification EM or constrained soft EM candidate banks followed by
+    hard refitting, with or without a Gaussian order penalty. Independent
+    original and bootstrap executions provide exhaustive agreement diagnostics,
+    a relative stability index and saturation-aware filtering. Historical
+    unpenalized categorical and mixed-data CEM remains available. Results can be
+    inspected through tables, static plots and an optional Shiny explorer.
 License: file LICENSE
 Encoding: UTF-8
 Depends:
     R (>= 4.3.0)
 Imports:
     clue,
+    digest,
     graphics,
     grDevices,
     grid,
@@ -43,8 +49,6 @@ Suggests:
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 ByteCompile: true
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 URL: https://github.com/dumont-thierry/CEClust
 BugReports: https://github.com/dumont-thierry/CEClust/issues
 Config/testthat/edition: 3

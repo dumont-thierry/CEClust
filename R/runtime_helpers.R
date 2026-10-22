@@ -241,3 +241,4 @@ CECsample_diamonds <- function(n_max = 100, seed = NULL) {
 	out$clarity <- factor(out$clarity)
 	out
 }
+

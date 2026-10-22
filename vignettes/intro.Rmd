@@ -1,78 +1,202 @@
 ---
-title: "Getting Started with CEClust"
-output: rmarkdown::html_vignette
+title: "Getting started with CEClust 0.3"
+output:
+  rmarkdown::html_vignette:
+    toc: true
 vignette: >
-  %\VignetteIndexEntry{Getting Started with CEClust}
+  %\VignetteIndexEntry{Getting started with CEClust 0.3}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  eval = FALSE
-)
-```
-
-# Overview
-
-`CEClust` explores composite entropy clustering over one value of `lambda`, a
-lambda path, or a full `(C, lambda)` grid.
-
-The usual workflow is:
-
-1. fit a grid with `CECfitBoundGrid()`;
-2. inspect the phase diagram with `CECplotGrid()`;
-3. inspect selected partitions with `CECplotPartition()`;
-4. summarise diagnostics with `CECsummariseGrid()`;
-5. optionally open the Shiny explorer with `CECexplore()`.
-
-# A small iris grid
-
-This example uses only the four quantitative iris variables. The species labels
-are not used in the clustering step.
-
-```{r}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>", fig.width=8, fig.height=4.5, fig.path="fig/")
 library(CEClust)
-
-Z_iris <- iris[, 1:4]
-
-iris_grid <- CECfitBoundGrid(
-  Z = Z_iris,
-  dataset_name = "iris_vignette",
-  algo_seed = 202606,
-  lambda_grid = seq(0.6, 1.4, by = 0.4),
-  C_grid = c(1.5, 2.5),
-  r0 = 6,
-  k0 = 2,
-  B = 2,
-  Nshots_fresh = 1,
-  Nshots_warm = 1,
-  Nloop = 10,
-  familyType = "gaussVector",
-  n_cores = 1,
-  compact_results = TRUE
-)
-
-CECplotGrid(iris_grid)
 ```
 
-# Inspect one partition
+# From observations to a collection of partitions
 
-```{r}
-CECplotPartition(iris_grid)
+A CEC diagram describes the partitions obtained while varying a density
+ceiling `C` and an entropy weight `lambda`. The aim is to inspect organizations
+that remain reproducible under optimization randomness and resampling.
+The result can contain several distinct partitions, rather than one selected
+number of groups.
+
+This guide uses the numeric Gaussian EM-bank engine without BIC, then reuses
+the same banks with the BIC order penalty. The displayed data are simulated;
+the small computational budget is for learning the interface.
+
+## Prepare the observations
+
+```{r data}
+set.seed(12)
+X <- cbind(x=c(rnorm(30,-2,0.5),rnorm(30,2,0.5)),
+           y=rnorm(60,sd=0.5))
+plot(X, pch=19, col="#334E68", asp=1, main="Observed measurements")
 ```
 
-# Summarise diagnostics
+Rows are observations. Keep only the variables to be used in fitting; external
+group labels can be supplied later as display information. Numeric engines
+require complete finite data. Neither this call nor the generic fitting
+function standardizes the columns. If standardization or PCA is intended,
+perform it first and record the transformation. Changing units changes the
+meaning of a numerical density ceiling.
 
-```{r}
-iris_summary <- CECsummariseGrid(iris_grid)
-head(iris_summary)
+## Fit a single cell
+
+```{r single}
+fit <- CECclassif(X, C=1, lambda=0.8,
+  optimization="em_bank", penalty="none",
+  optimizer_control=list(Rmax=3,Ninit=2,max_iter=30,seed=4))
+table(fit$clusters)
+c(REO=fit$REO, objective=fit$objective)
 ```
 
-For larger grids, use:
+Here EM fits orders one to three, with two starts per order, under `Cmax=1`.
+MAP gives hard candidate partitions. Empty MAP groups are removed and the
+hard group parameters are re-estimated under `C=1`. The minimum hard CEC score
+among the candidates supplies `fit$clusters`. The soft likelihood is used to
+generate candidates, not to rank the final hard partitions.
 
-```{r, eval = FALSE}
-CECexplore(iris_grid)
+`optimization="cem"` selects a hard CEM search instead. Both optimizers can
+use `penalty="none"` or `penalty="bic"`. The method and penalty are independent
+choices. A finite EM bank is an approximation, and a CEM run is a local search.
+
+## Evaluate a grid and repeat the algorithm
+
+```{r grid}
+g <- CECfitBoundGrid(Z=X,
+  C_grid=c(0.2,0.5,1), lambda_grid=c(0.6,1,1.5),
+  optimization="em_bank", penalty="none",
+  k0=3, B=3, algo_seed=14, n_cores=1,
+  optimizer_control=list(Rmax=3,Ninit=2,Cmax=1,max_iter=30),
+  rsi_policy="all",
+  stab_algo_threshold=0.85, rsi_threshold=0.95, sat_threshold=0)
+s <- CECsummariseGrid(g)
+s[,c("C","lambda","REO","sat","stab_algo","stab_boot","rsi","keep")]
 ```
+
+`k0` is the number L of complete executions on the original observations;
+`B` is the number of bootstrap executions. One execution builds its own bank
+with `Rmax * Ninit` attempted EM starts, then evaluates that bank on the whole
+grid. Thus initializations and diagnostic repetitions have different roles.
+In this example there are three original and three bootstrap banks, each
+with six attempted starts.
+
+The CEM grid engine instead searches separately at each cell of each execution.
+The two routes share the scoring and diagnostic conventions. The coordinates
+supplied here remain fixed. Set `grid_strategy="adaptive"` to extend the
+window and refine its boundaries automatically; `?CECadaptiveDiagram` explains
+the integrated rules. The optimizer and penalty remain independent choices.
+
+```{r diagram}
+par(oma=c(0,0,0,4))  # room for the rejection legend
+CECplotGrid(g, main="Composite entropy: supplied grid",
+  reo_col=c("#0072B2","#D55E00","#009E73"))
+```
+
+The legend distinguishes group count and diagnostic rejection. A cell is
+retained here when algorithmic stability is above 0.85, RSI is above 0.95,
+and saturation is zero. These are user-set diagnostic requirements, not
+calibrated confidence levels.
+
+Algorithmic stability averages the three distinct pairs of original runs.
+Bootstrap stability averages all nine original-bootstrap pairs. Bootstrap
+outputs are projected onto the original observations, so all label vectors
+refer to the same rows. Each execution retains its own winner; the best pooled
+partition is not substituted into these comparisons.
+
+RSI divides bootstrap stability by algorithmic stability. It can exceed one.
+Saturation is the fraction of observations in groups whose density constraint
+is active. It reports sensitivity to a concentration ceiling, not an absence
+of structure. A high agreement dominated by one large group can also hide
+variation in a few observations; inspect sizes and allocations.
+
+## Inspect retained organizations
+
+```{r representatives}
+retained <- s[s$keep,,drop=FALSE]
+representatives <- retained[!duplicated(retained$partition_id),,drop=FALSE]
+representatives[,c("C","lambda","partition_id","REO")]
+```
+
+Many cells can represent the same partition. Present it once, together with
+the cells where it is retained. This deduplication uses `partition_id` within
+one result object. Do not compare these IDs across separate fitted objects.
+Equal REO does not imply equal partitions, and distinct partitions need not
+be nested.
+
+```{r selected-partition}
+if (nrow(representatives)>0) {
+  q <- representatives[1,]
+  CECplotPartition(g,C=q$C,lambda=q$lambda,x_var="x",y_var="y")
+  print(table(CECextractPartition(g,q$C,q$lambda)))
+} else {
+  cat("No cell met these diagnostic requirements. Inspect the summary and budgets.\n")
+}
+```
+
+The first representative is displayed only to illustrate access. The diagram
+does not rank the retained partitions by scientific relevance. If a particular
+application requires one decision, its external objective can guide the choice.
+A rejected cell can also be inspected by supplying its coordinates explicitly.
+The extraction helpers resolve to the nearest stored cell; they do not fit a
+new model at an unstored coordinate.
+
+## Change the penalty while keeping the candidates
+
+```{r rescore}
+g_bic <- CECrescoreGrid(g,penalty="bic")
+cbind(CEC=g$summary$REO,CEC_BIC=g_bic$summary$REO)
+stopifnot(identical(g$banks,g_bic$banks))
+par(oma=c(0,0,0,4))
+CECplotGrid(g_bic,main="Same banks with the BIC order penalty",
+  reo_col=c("#0072B2","#D55E00","#009E73"))
+```
+
+This reuses EM fits, but it is more than changing a column in a table. Every
+independent bank selects its winner again, and all diagnostics are recomputed.
+The pooled representatives can therefore change along with their diagnostics.
+
+The order penalty is `beta * (r-1)`, where
+`beta=(d+1)*(d+2)*log(n)/(4*n)` for full Gaussian covariances.
+It is added to the hard composite entropy, independently of `lambda`.
+This differs from ordinary mixture-likelihood BIC.
+
+## Adjust the diagnostic view
+
+```{r selection}
+keep <- CECselectStableLambdas(g,C=1,
+  stab_algo_threshold=0.85,rsi_threshold=0.95,sat_threshold=0)
+keep$stable_lambda
+CECplotPath(g,C=1,type="summary")
+```
+
+The selector returns all retained lambdas for that C; it does not change
+`g$summary$keep`. A plot can likewise use other display thresholds without
+overwriting the fitted object. For a one-dimensional allocation path, pass
+`lambda_stable_obj=keep` to `CECplotPath(type="partitions")` so its rejection
+bands use the intended filter.
+
+The RSI policy controls where both agreement averages are measured. Setting
+`rsi_policy="nontrivial_unsaturated"` skips trivial and saturated cells.
+Skipped values remain `NA`; a trivial cell is not automatically admitted.
+For an EM grid, `CECrescoreGrid(g,rsi_policy="all")` broadens measurement
+without repeating EM. It is unnecessary here because the original call
+already measured all cells.
+
+## Preserve the analysis
+
+```{r saving, eval=FALSE}
+saveRDS(g,"cec_none.rds")
+saveRDS(g_bic,"cec_bic.rds")
+writeLines(capture.output(sessionInfo()),"sessionInfo.txt")
+
+# Optional interactive exploration; stop the app to return to R.
+CECexplore(g)
+```
+
+Use persistent paths for a real study. The RDS contains the fitting data,
+controls, bootstrap indices, independent winners and candidates. Keep data
+preprocessing code alongside it. The next guide explains computational
+budgets, convergence records, checkpoints and the compatibility route.

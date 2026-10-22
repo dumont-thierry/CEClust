@@ -448,3 +448,4 @@ test_that("gaussUniv cluster params match with provided counts", {
   expect_equal(with_counts$s, without_counts$s, tolerance = 1e-12)
   expect_equal(with_counts$varPhi, without_counts$varPhi, tolerance = 1e-12)
 })
+

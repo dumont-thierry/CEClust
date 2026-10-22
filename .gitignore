@@ -2,6 +2,7 @@
 .RData
 .Ruserdata
 .Rproj.user
+README.html
 *.tar.gz
 *.Rcheck/
 src/*.dll
@@ -14,3 +15,4 @@ Thumbs.db
 *~
 *.swp
 *.swo
+

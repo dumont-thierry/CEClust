@@ -549,73 +549,13 @@
     }
 
 
+    .CEC_grid_progress <- new.env(parent = emptyenv())
+    .CEC_grid_progress$state <- NULL
+
     with_cec_grid_global_batch_progress <- function(expr, state = NULL) {
-      if (is.null(state) || !isTRUE(state$enabled)) {
-        return(eval.parent(substitute(expr)))
-      }
-
-      ns <- asNamespace("CEClust")
-      parallel_name <- "CECrun_diagnostic_tasks_parallel_batch"
-      sequential_name <- "CECrun_diagnostic_tasks_sequential"
-      mark_name <- "CECdiagnostics_mark_task_completed"
-
-      if (!exists(parallel_name, envir = ns, inherits = FALSE) ||
-          !exists(mark_name, envir = ns, inherits = FALSE)) {
-        return(eval.parent(substitute(expr)))
-      }
-
-      original_parallel <- get(parallel_name, envir = ns, inherits = FALSE)
-      original_mark <- get(mark_name, envir = ns, inherits = FALSE)
-      original_sequential <- if (exists(sequential_name, envir = ns, inherits = FALSE)) {
-        get(sequential_name, envir = ns, inherits = FALSE)
-      } else {
-        NULL
-      }
-
-      wrapped_parallel <- function(tasks, context, n_cores, progress_state, ...) {
-        cec_grid_print_global_batch_progress(state, n_tasks = length(tasks))
-        original_parallel(
-          tasks = tasks,
-          context = context,
-          n_cores = n_cores,
-          progress_state = progress_state,
-          ...
-        )
-      }
-
-      wrapped_mark <- function(progress_state, task) {
-        out <- original_mark(progress_state, task)
-        cec_grid_print_global_task_progress(state, task = task)
-        out
-      }
-
-      wrapped_sequential <- function(tasks, context, progress_state, ...) {
-        original_sequential(
-          tasks = tasks,
-          context = context,
-          progress_state = progress_state,
-          ...
-        )
-      }
-
-      unlockBinding(parallel_name, ns)
-      assign(parallel_name, wrapped_parallel, envir = ns)
-      lockBinding(parallel_name, ns)
-
-      unlockBinding(mark_name, ns)
-      assign(mark_name, wrapped_mark, envir = ns)
-      lockBinding(mark_name, ns)
-
-      on.exit({
-        unlockBinding(mark_name, ns)
-        assign(mark_name, original_mark, envir = ns)
-        lockBinding(mark_name, ns)
-
-        unlockBinding(parallel_name, ns)
-        assign(parallel_name, original_parallel, envir = ns)
-        lockBinding(parallel_name, ns)
-      }, add = TRUE)
-
+      previous <- .CEC_grid_progress$state
+      on.exit(.CEC_grid_progress$state <- previous, add = TRUE)
+      .CEC_grid_progress$state <- state
       eval.parent(substitute(expr))
     }
 
@@ -1517,7 +1457,7 @@
       familyType = "gaussUniv",
       use_cpp = TRUE,
       partition_metric = "match",
-      stability_approach = "reference_bestH",
+      stability_approach = "exhaustive",
       extract_source = "fixed",
       stab_algo_threshold = 0.8,
       rsi_threshold = 0.8,
@@ -1829,7 +1769,7 @@
       familyType = "gaussUniv",
       use_cpp = TRUE,
       partition_metric = "match",
-      stability_approach = "reference_bestH",
+      stability_approach = "exhaustive",
       extract_source = "fixed",
       use_smoothed_keep = FALSE,
       smooth_k = 3,
@@ -2394,7 +2334,7 @@
         batch_size <- n_cores
       }
 
-      out <- run_cec_grid(
+      out <- CECfitBoundGrid(
         n = nrow(iris_data),
         Z = Z,
         display_data = iris_data,
@@ -2487,7 +2427,7 @@
         batch_size <- n_cores
       }
 
-      out <- run_cec_grid(
+      out <- CECfitBoundGrid(
         n = nrow(bc$Z),
         Z = Z,
         display_data = display_data,
@@ -2547,7 +2487,6 @@
       if (!requireNamespace("mclust", quietly = TRUE)) {
         stop("Package 'mclust' is required for ICL comparisons.", call. = FALSE)
       }
-      suppressPackageStartupMessages(library(mclust))
 
       Z <- cec_grid_prepare_quantitative_input_data(Z, dataset_name = dataset_name)
       if (is.null(display_data)) {
@@ -3092,6 +3031,10 @@
 
 
     cec_grid_partition_for_cell <- function(grid_obj, C, lambda) {
+      if(inherits(grid_obj,'CEC_adaptive_grid')) {
+        at <- CECadaptive_cell(grid_obj,C,lambda)
+        return(grid_obj$parts[[grid_obj$selected[at]]]$labels)
+      }
       result_obj <- cec_grid_result_for_C(grid_obj, C)
       selected <- cec_grid_best_obj_for_lambda(result_obj, lambda)
       extract_cec_partition(selected$obj)
@@ -3137,8 +3080,13 @@
         is.finite(s$rsi) &
         s$stab_algo >= stab_algo_threshold &
         s$rsi >= rsi_threshold
+      if (inherits(grid_obj, "CEC_solver_grid")) {
+        keep_stability <- s$measured & is.finite(s$stab_algo) & is.finite(s$rsi) &
+          s$stab_algo > stab_algo_threshold & s$rsi > rsi_threshold
+      }
       exclude_saturation <- is.finite(s$sat) & s$sat > sat_threshold
       keep_all <- keep_stability & !exclude_saturation
+      if(inherits(grid_obj,'CEC_adaptive_grid'))keep_all <- keep_all & s$keep_harmonization
 
       fail_reason <- rep("ok", nrow(s))
       fail_reason[!keep_stability] <- "stability_or_rsi"
@@ -3431,6 +3379,9 @@
       draw_zones = TRUE,
       show_legend = TRUE
     ) {
+      if(inherits(grid_obj,'CEC_adaptive_grid'))return(CECplot_adaptive(grid_obj,
+        selected_C,selected_lambda,stab_algo_threshold,rsi_threshold,sat_threshold,
+        sensibility,grid_summary,main,reo_col,bad_fill,bad_hatch_col,draw_zones,show_legend))
       s <- if (is.null(grid_summary)) {
         cec_grid_apply_thresholds(
           grid_obj,
@@ -4374,11 +4325,14 @@
 
         shiny::observeEvent(input$grid_click, {
           s <- current_summary()
-          idx <- cec_grid_row_nearest(
+          idx <- if(inherits(grid_obj,'CEC_adaptive_grid'))tryCatch(
+            CECadaptive_cell(grid_obj,exp(input$grid_click$x),input$grid_click$y),
+            error=function(e)integer()) else cec_grid_row_nearest(
             s,
             C = input$grid_click$x,
             lambda = input$grid_click$y
           )
+          if(!length(idx))return(invisible(NULL))
           row <- s[idx, , drop = FALSE]
           selected(list(C = row$C[1L], lambda = row$lambda[1L]))
         })
@@ -4538,3 +4492,4 @@
   }
 
 }
+

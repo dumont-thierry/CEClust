@@ -1,0 +1,128 @@
+---
+title: "Migrating historical CEClust analyses"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Migrating historical CEClust analyses}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>", fig.width=6.5, fig.height=4.5, fig.path="fig/")
+library(CEClust)
+```
+
+# Two interfaces coexist deliberately
+
+The new numeric solvers are selected explicitly. Historical calls remain
+available because changing an old simulation's optimizer, warm starts and
+repair stages without notice would make it difficult to reproduce that study.
+
+```{r explicit}
+set.seed(8)
+X <- matrix(rnorm(80),ncol=2)
+new <- CECfitBoundGrid(Z=X,C_grid=1,lambda_grid=c(0.8,1.2),
+  optimization="em_bank",penalty="none",k0=2,B=1,
+  optimizer_control=list(Rmax=2,Ninit=1,max_iter=15),algo_seed=5)
+new$meta[c("optimization","penalty","stability_approach","rsi_policy")]
+```
+
+## Dispatch rules
+
+For `CECfitBoundGrid` and `CECfitLambdaGrid`, explicit `optimization`, explicit
+`penalty`, a nonempty `optimizer_control`, or explicit `rsi_policy` selects
+the consolidated engine. In `CECfitBoundGrid`, an explicit `grid_strategy`
+or a nonempty `adaptive_control` also selects that engine. With none of these
+choices, the historical linked-path engine is retained.
+Changing `rsi_saturation_max` alone does not select a new engine:
+state the policy and optimizer too.
+
+For the single-fit function, `optimization="cem", penalty="none"` with an
+empty control list or only a seed keeps historical CEM starts. Additional
+numeric controls select the consolidated CEM search. New engines require numeric
+Gaussian data; the historical unpenalized CEM supports factor and mixed inputs.
+
+```{r historical-mixed}
+mixed <- data.frame(measure=c(-2,-1.8,-1.5,1.5,1.8,2),
+                    kind=factor(c("a","a","b","b","c","c")))
+old <- CECclassif(mixed,C=2,lambda=1,r0=2,Nshots=1,Nloop=5,
+  familyType="gaussAndDiscreteVector",optimizer_control=list(seed=6))
+old$clusters
+```
+
+For a real categorical analysis, choose reference constraints and data encoding
+deliberately. Converting a factor to arbitrary integer codes changes the model;
+it is not a way to make the Gaussian engine handle categories.
+
+## Defaults are not interchangeable
+
+| Interface | Main behavior |
+|:--|:--|
+| Explicit `CECfitBoundGrid` solver | Independent repetitions; defaults L=B=20, thresholds 0.85/0.95/0 |
+| Historical `CECfitBoundGrid` route | Linked paths and repair stages; old budgets and defaults remain |
+| `CECfitLambdaGrid` | One-C diagnostics; explicit defaults L=B=10 and its own seed argument |
+| Iris/breast-cancer presets | Preprocessing and budgets supplied by the preset; state thresholds and budget overrides explicitly |
+
+In the full-grid interface the seed argument is `algo_seed`; in the one-C
+interface it is `seed`. A supplied `optimizer_control$seed` takes precedence
+in either route. The controls saved in the result are the reference for what
+actually ran.
+
+## Exhaustive stability is a definition change
+
+The default now averages every original-original pair and every
+original-bootstrap pair. The historical `pairwise` mode compares bootstrap
+runs with one another for its bootstrap measure. `reference_bestH` compares
+to a selected reference. They are not alternative names for the same average.
+
+Old saved diagnostic values keep their original meaning. Loading an old RDS
+does not recalculate them. If original/projected label vectors remain, evaluate
+the new convention with `CECstability()`. A single original repetition now
+gives missing algorithmic stability and RSI, rather than a spurious perfect score.
+
+## Historical helper functions
+
+`CECaddSmoothedDiagnostics` adds moving averages to old tables.
+`CECidentifyStableLambdas` applies historical selection rules: it can use
+smoothed columns, does not impose a separate algorithmic-stability threshold,
+and treats its saturation bound strictly. These functions retain their meaning
+for old workflows; use `CECselectStableLambdas` for the current diagram filter.
+
+`CECextractBestPartitions` on new lambda diagnostics exposes the pooled
+projected hard-score minimum. It requires `source="all"` and
+`criterion="projected_H"`. Historical fixed/bootstrap/raw-score selections
+are not supported on that object.
+
+`CECrepairBestPartitionTrajectory` has nothing to improve by cross-cell
+propagation on a common EM bank. It returns zero repairs there. It rejects
+penalized CEM paths because the historical repair does not evaluate that penalty.
+The fixed grid does not add a final best-fit CEM descent. Adaptive CEM can harmonize neighbouring cells; its `A_harm` control compares the initial cell winner with the resulting representative, separately from the exhaustive diagnostics.
+
+## Plot filters and compact objects
+
+Most grid views inherit the stored thresholds. The one-dimensional allocation
+view in `CECplotPath(type="partitions")` still has historical threshold defaults.
+Pass a `lambda_stable_obj` from `CECselectStableLambdas` explicitly to preserve
+the intended filter. Static plot defaults can choose a low-REO cell for display;
+they do not decide which partition should be retained scientifically.
+
+`CECcompactGrid` removes redundant display intermediates. It keeps EM banks,
+independent winner indices and original data, so rescoring remains possible.
+A compact object is not an anonymized object or a set of only final labels.
+
+## Scope and saved analyses
+
+Fixed-grid behaviour is preserved. In version 0.3.0.9001,
+`grid_strategy="adaptive"` also integrates four-sided extension, row-wise right
+stops and refinement on both sides of partition or saturation boundaries.
+Adaptive CEM adds neighbour harmonization; EM banks need none.
+See `?CECadaptiveDiagram` for the controls and stopping records. No local research script
+needs to be sourced to use the packaged EM or CEM engines.
+
+Keep the package version, the preprocessing code and `sessionInfo()` with
+the RDS. For paired scoring of one EM bank, save each result under a distinct
+filename. Neither the library version nor a filename alone documents which
+optimizer, penalty and diagnostic convention a study used; the result metadata
+records those choices.

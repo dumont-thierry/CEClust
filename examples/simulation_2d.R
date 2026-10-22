@@ -92,3 +92,4 @@ head(summary_2d)
 if (interactive()) {
   CECexplore(grid_2d)
 }
+

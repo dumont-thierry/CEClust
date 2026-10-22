@@ -1,3 +1,51 @@
+# CEClust 0.3.0.9002
+
+- Consolidated package published on `main`; historical `archive/*` branches
+  remain available. The README explains installation from GitHub and the
+  consolidation inventory maps the successive additions to their checks.
+- The initial CEM harmonization visits the whole mesh; subsequent passes begin
+  at new cells and propagate through affected neighbours until stable.
+- Refreshed installation, compatibility and partial-checkpoint documentation.
+
+# CEClust 0.3.0.9001
+
+- Integrated adaptive windows: four directions, row-wise right stop after two
+  unsaturated extensions with stable order, and two-sided boundary refinement.
+- Both CEM and EM candidate banks, with or without BIC. Adaptive CEM retains
+  neighbour harmonization and a separate agreement control. EM needs none.
+- Exhaustive diagnostics, optional targeted measurement and controlled trivial
+  quadrant exemptions; unmeasured values remain missing and are not retained.
+- Explicit EM order lists, per-start EM and per-repetition fitting checkpoints.
+- Adaptive geometry preserved in summaries, plots, extraction, compact objects
+  and the explorer. Rescoring EM banks rebuilds the adaptive diagram.
+- Limits and stopping evidence are retained in the result. Updated help and
+  executable README cover the complete workflow.
+
+# CEClust 0.3.0.9000
+
+* Rewrite the complete user documentation: 19 dedicated function pages,
+  shared optimizer/diagnostic/result references, executable guides, migration
+  notes, and an installed quick-start script. Clarify actual defaults,
+  measurement policies, complete-bank checkpoints and compatibility behavior.
+
+* Integrate determinant-only Gaussian profiling and guarded reassignment from
+  local core 0.2.0.9004, retaining categorical/mixed-data CEM.
+* Separate `optimization = "cem" | "em_bank"` from `penalty = "none" | "bic"`.
+  EM candidates are ranked after hard-parameter refitting under the target C.
+* Compile constrained soft EM through the package Rcpp toolchain, without a
+  precompiled external DLL or private Rcpp calls.
+* Integrate numeric penalized CEM and deletion proposals from v075, and independent
+  EM banks from v078. Grid, bootstrap, plots, presets, checkpoints and result
+  metadata honor explicit optimizer choices.
+* Use exhaustive original-original and original-bootstrap stability by default.
+  Legacy best-reference and bootstrap-bootstrap definitions remain explicitly named.
+  A single original repetition no longer reports perfect algorithmic stability.
+* Add configurable RSI measurement policies and `CECrescoreGrid()` for paired
+  with/without-BIC evaluation on the same banks. Skipped diagnostics stay missing.
+* Preserve the historical fixed-grid interface when no new optimizer options
+  are supplied. Adaptive experimental mesh runners remain separate; this
+  release does not claim to consolidate their control flow.
+
 # CEClust 0.2.0
 
 - Promoted the current development code to a release-ready package version with
@@ -16,3 +64,4 @@
   the recommended analysis workflow.
 - Cleaned the source package layout by excluding build artefacts and adding
   lightweight regression tests for the main public entry points.
+

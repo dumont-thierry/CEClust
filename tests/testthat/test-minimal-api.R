@@ -87,7 +87,8 @@ test_that("mixed fast params keep qualitative and gaussian bounds separate", {
     Cquali = Inf
   )
   expect_identical(params_inf$Cquali, Inf)
-  expect_equal(params_inf$functionBoundReached, integer(0))
+  # Identical numerical observations attain the Gaussian density cap exactly.
+  expect_equal(params_inf$functionBoundReached, 1L)
   expect_equal(params_inf$qualitativeBoundReached, integer(0))
   expect_equal(sort(params_inf$discreteProbList[[1]][, 1]), c(0.2, 0.8))
 
@@ -98,7 +99,7 @@ test_that("mixed fast params keep qualitative and gaussian bounds separate", {
     Cquali = 3
   )
   expect_identical(params_floor$Cquali, 3)
-  expect_equal(params_floor$functionBoundReached, integer(0))
+  expect_equal(params_floor$functionBoundReached, 1L)
   expect_equal(params_floor$qualitativeBoundReached, 1L)
   expect_equal(
     sort(params_floor$discreteProbList[[1]][, 1]),

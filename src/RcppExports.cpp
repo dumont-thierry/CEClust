@@ -262,6 +262,36 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// emmap_fit_cpp
+List emmap_fit_cpp(const arma::mat& X, const IntegerVector& labels, double C, int max_iter, double tolerance, double soften);
+RcppExport SEXP _CEClust_emmap_fit_cpp(SEXP XSEXP, SEXP labelsSEXP, SEXP CSEXP, SEXP max_iterSEXP, SEXP toleranceSEXP, SEXP softenSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type tolerance(toleranceSEXP);
+    Rcpp::traits::input_parameter< double >::type soften(softenSEXP);
+    rcpp_result_gen = Rcpp::wrap(emmap_fit_cpp(X, labels, C, max_iter, tolerance, soften));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emmap_predict_cpp
+IntegerVector emmap_predict_cpp(const arma::mat& X, const arma::mat& means, const arma::cube& cov, const arma::vec& weights);
+RcppExport SEXP _CEClust_emmap_predict_cpp(SEXP XSEXP, SEXP meansSEXP, SEXP covSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type means(meansSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type cov(covSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(emmap_predict_cpp(X, means, cov, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_CEClust_cec_cpp_sample_int_replace", (DL_FUNC) &_CEClust_cec_cpp_sample_int_replace, 2},
@@ -283,6 +313,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_CEClust_cec_cpp_discrete_counts", (DL_FUNC) &_CEClust_cec_cpp_discrete_counts, 4},
     {"_CEClust_cec_cpp_logdens_discrete", (DL_FUNC) &_CEClust_cec_cpp_logdens_discrete, 2},
     {"_CEClust_cec_cpp_cluster_fingerprint", (DL_FUNC) &_CEClust_cec_cpp_cluster_fingerprint, 1},
+    {"_CEClust_emmap_fit_cpp", (DL_FUNC) &_CEClust_emmap_fit_cpp, 6},
+    {"_CEClust_emmap_predict_cpp", (DL_FUNC) &_CEClust_emmap_predict_cpp, 4},
     {NULL, NULL, 0}
 };
 

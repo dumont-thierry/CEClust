@@ -284,3 +284,4 @@ summary <- add_speedups(summarise_timings(raw))
 md_file <- write_outputs(raw, summary)
 
 cat("\nTiming summary written to ", md_file, "\n", sep = "")
+

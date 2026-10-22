@@ -1,214 +1,223 @@
 ---
-title: "Minimal CEClust API"
-output: rmarkdown::html_vignette
+title: "Optimization, diagnostics and reproducible grids"
+output:
+  rmarkdown::html_vignette:
+    toc: true
 vignette: >
-  %\VignetteIndexEntry{Minimal CEClust API}
+  %\VignetteIndexEntry{Optimization, diagnostics and reproducible grids}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  eval = FALSE
-)
-```
-
-# Overview
-
-The minimal CEClust API is organised around a small number of verbs:
-
-- `CECclassif()` fits one model for one pair `(C, lambda)`;
-- `CECfitLambdaGrid()` scans a lambda grid for one fixed `C`;
-- `CECfitBoundGrid()` scans a full `(C, lambda)` grid;
-- `CECfitPreset()` launches named workflows such as `"gaussian_1d"`,
-  `"iris"`, and `"breast_cancer"`;
-- `CECplotGrid()`, `CECplotPath()`, and `CECplotPartition()` are the first
-  inspection tools;
-- `CECexplore()` launches the Shiny explorer;
-- `CECsummariseGrid()` and `CECselectStableLambdas()` provide diagnostic
-  tables once the plots have been inspected.
-
-By default, grid results stay in memory. The public wrappers do not write
-checkpoint or result files unless this is requested explicitly.
-
-# Visual-first workflow
-
-A CEClust analysis should usually begin with a grid and plots. The diagnostic
-numbers are useful, but they are easier to understand after seeing the
-structure of the path.
-
-```{r}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>", fig.width=6.5, fig.height=4.5, fig.path="fig/")
 library(CEClust)
-
-article_grid <- CECfitPreset(
-  "gaussian_1d",
-  n = 100,
-  data_seed = 13,
-  algo_seed = 2026035,
-  lambda_grid = seq(0.1, 1.8, by = 0.1),
-  C_grid = c(0.5, 1, 2, 3, 3.5, 4, 4.5, 5, 6, 8),
-  r0 = 10,
-  k0 = 20,
-  B = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
-  Nloop = 100,
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.8,
-  sat_threshold = 0.05
-)
 ```
 
-The first plot is the map of the `(C, lambda)` grid:
+# Budgets and the two optimization methods
 
-```{r}
-CECplotGrid(article_grid)
+This guide covers the numeric engines selected by explicit `optimization` and
+`penalty` arguments. Use `?CECoptimizers` for the full list of control fields.
+No algorithm or penalty is changed by the display helpers.
+
+## One execution versus repeated diagnostics
+
+For an EM-bank grid, one execution fits each soft order from 1 to `Rmax`
+with `Ninit` starts. It ranks its resulting hard partitions over all cells.
+Increasing the number of grid cells does not repeat these EM fits, although
+hard scoring, diagnostics and result construction still cost time and memory.
+
+`k0=L` executions on the original sample and `B` executions on independent
+bootstrap samples produce the diagnostics. Increasing `Ninit` improves each
+execution's search budget; increasing L or B changes the diagnostic replication.
+These controls cannot be substituted for one another.
+
+The CEM route runs searches at each grid cell. Its `Rmax` is an initial search
+order, not a strict final cap; `rinit_max` and `max_batches` bound later search.
+`min_child` controls subdivision starts, not minimum final cluster size.
+`saturation_stop` can stop the search and is separate from the diagram's
+`sat_threshold`. These distinctions matter when reproducing a budget.
+
+## A paired four-way example
+
+```{r data}
+set.seed(26)
+X <- cbind(c(rnorm(20,-2,0.6),rnorm(20,2,0.6)),rnorm(40,sd=0.6))
 ```
 
-For one-dimensional data, the partition path is often more informative than
-the diagnostic table:
+We use small CEM batches and a small EM bank below. This tests the interface;
+the budgets do not establish comparable optimization quality.
 
-```{r}
-CECplotPath(
-  article_grid,
-  C = 1,
-  type = "partitions",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.8,
-  sat_threshold = 0.05,
-  saturation_mark = "hatch"
-)
+```{r four-way}
+fits <- list()
+for (method in c("cem","em_bank")) {
+  for (penalty in c("none","bic")) {
+    key <- paste(method,penalty,sep="_")
+    fits[[key]] <- CECclassif(X,C=1,lambda=1,
+      optimization=method,penalty=penalty,
+      optimizer_control=list(Rmax=3,Ninit=1,max_iter=20,
+        max_batches=1,seed=6))
+  }
+}
+data.frame(method=names(fits),
+  groups=vapply(fits,function(f)f$REO,0),
+  objective=vapply(fits,function(f)f$objective,0))
 ```
 
-Then inspect a selected cell:
+Compare objective values only at the same data, C, lambda and penalty. BIC
+values and unpenalized values are different criteria. EM log likelihood and
+the hard objective are also different quantities. The stored `Hphi` is the
+objective divided by lambda; it is not the unnormalized `H_lambda` field.
 
-```{r}
-CECplotPartition(article_grid, C = 1, lambda = 1)
+## Inspect convergence and failed starts
+
+```{r convergence}
+em <- fits$em_bank_none
+data.frame(order=vapply(em$bank$starts,function(s)s$r,0),
+  valid=vapply(em$bank$starts,function(s)s$valid,TRUE),
+  reason=vapply(em$bank$starts,function(s)s$stop,""))
+fits$cem_bic$solver$status
 ```
 
-# One fixed classification
+The EM bank stores attempted starts, validity, stop reasons and likelihood
+traces, including failed starts that did not enter the bank. Duplicate
+candidates do not remove the record of their generating starts. A hard trivial
+baseline remains available even when a regular EM fit fails on singular data.
+Finding only that candidate is a reason to inspect the records and data,
+not evidence that the numerical search exhaustively established one group.
 
-The simple `CECclassif()` entry point is still useful when `C` and `lambda` are
-chosen in advance, or after a grid suggests a reasonable cell.
+Numeric CEM stores search and descent records. Accepted moves decrease the
+refitted hard objective, including the chosen penalty. Budget stops are
+distinguished from lack of further accepted moves. A stop reason is not a
+global optimality certificate.
 
-```{r}
-fit_1_1 <- CECclassif(
-  Z = article_grid$Z,
-  C = 1,
-  lambda = 1,
-  r0 = 10,
-  Nshots = 50,
-  Nloop = 100,
-  familyType = "gaussUniv"
-)
+## Cmax, target C and candidate reuse
 
-table(fit_1_1$clusters)
-fit_1_1$REO
+```{r base-grid}
+g <- CECfitBoundGrid(Z=X,C_grid=c(0.25,1),lambda_grid=c(0.6,1,1.5),
+  optimization="em_bank",penalty="none",k0=3,B=3,algo_seed=17,
+  optimizer_control=list(Rmax=3,Ninit=1,Cmax=2,max_iter=30),
+  rsi_policy="all",n_cores=1)
+fine <- CECrescoreGrid(g,C_grid=c(0.25,0.5,1,2),
+  lambda_grid=seq(0.6,1.5,length.out=7),penalty="bic")
+nrow(fine$summary)
 ```
 
-# Diagnostics
+The original soft fits obey `Cmax=2`. The later hard profiles are recomputed
+under each target C, which may be smaller. Rescoring at C greater than Cmax
+is rejected. A larger Cmax must be chosen before fitting a bank that will be
+used for such targets. Reusing a finite bank does not make its search exhaustive
+over all hard partitions.
 
-After the visual checks, summarise the grid and select stable lambdas:
+Changing the penalty does not require new EM candidates, but changes each
+bank's ranking and can change the bootstrap and original winners differently.
+This is why stability must be recomputed rather than copied from the old score.
 
-```{r}
-head(CECsummariseGrid(article_grid))
+## Measure only the requested cells
 
-stable_C1 <- CECselectStableLambdas(
-  article_grid,
-  C = 1,
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.8,
-  sat_threshold = 0.05
-)
-
-stable_C1$kept_lambdas
-stable_C1$summary
+```{r policies}
+targeted <- CECrescoreGrid(g,rsi_policy="nontrivial_unsaturated")
+targeted$summary[,c("C","lambda","REO","sat","measured","rsi","keep")]
 ```
 
-# Shiny explorer
+All four policies apply to the final representative at each cell:
 
-The Shiny interface is kept as the main interactive workflow:
+| Policy | Requirement for measurement |
+|:--|:--|
+| `all` | None |
+| `unsaturated` | `sat == 0` |
+| `nontrivial_unsaturated` | `sat == 0` and `REO > 1` |
+| `saturation_band` | `sat <= rsi_saturation_max` |
 
-```{r}
-CECexplore(article_grid)
+The band defaults to 0.10 in a fitting call. Its value is preserved by
+`CECrescoreGrid`; changing that band limit requires a fitting call with the
+desired limit, optionally reusing its complete checkpoint. The final retention
+threshold is separate. For example, measure in the band `sat <= 0.10`, then
+retain only `sat <= 0`.
+
+If L < 2 or B = 0, the required diagnostic is missing. A missing value is not
+replaced by one and does not satisfy the filter. To restore measurement on
+an excluded trivial cell, use `all` or `unsaturated` rather than assigning a
+stability value by convention.
+
+## Use the same bootstrap samples across analyses
+
+```{r shared-bootstrap}
+set.seed(19)
+indices <- replicate(3,sample.int(nrow(X),nrow(X),replace=TRUE),simplify=FALSE)
+paired <- CECfitBoundGrid(Z=X,C_grid=1,lambda_grid=1,
+  optimization="em_bank",penalty="none",k0=3,B=3,
+  bootstrap_indices=indices,algo_seed=20,
+  optimizer_control=list(Rmax=3,Ninit=1,max_iter=20))
+stopifnot(identical(paired$bootstrap_indices,indices))
 ```
 
-# Iris presets
+This controls resampling in addition to optimizer seeds. Bootstrap outputs
+are selected on their own training samples and projected using frozen learned
+parameters. They are evaluated for agreement on the original rows, not on
+the resampled row sequence with duplicates.
 
-Run iris without using `Species` in the clustering variables:
+The exposed `CECstability()` function can evaluate another clustering method
+once that method's independent outputs have been expressed as labels on those
+same reference observations. It does not itself fit or project another method.
 
-```{r}
-iris_no_species <- CECfitPreset(
-  "iris",
-  include_species_as_feature = FALSE,
-  quantitative_representation = "raw",
-  r0 = 10,
-  k0 = 20,
-  B = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
-  Nloop = 100
-)
+## Reuse a complete fitting checkpoint
 
-CECplotGrid(iris_no_species)
-CECplotPartition(iris_no_species)
-CECexplore(iris_no_species)
+```{r checkpoint}
+cache <- tempfile("cec-cache-")  # use a persistent project path for real work
+args <- list(Z=X,C_grid=1,lambda_grid=c(0.8,1.2),
+  optimization="em_bank",penalty="none",k0=2,B=2,algo_seed=23,
+  optimizer_control=list(Rmax=2,Ninit=1,max_iter=15),
+  checkpoint_dir=cache,resume=TRUE,n_cores=1)
+first <- do.call(CECfitBoundGrid,args)
+again <- do.call(CECfitBoundGrid,args)
+stopifnot(identical(first$banks,again$banks),
+          identical(first$summary,again$summary))
 ```
 
-Run iris with `Species` included as a qualitative feature:
+Each completed repetition is checkpointed, and EM additionally records each
+completed start and its random-generator state. A matching partial cache can
+resume interrupted fitting. A complete cache skips fitting but still evaluates
+scores and diagnostics. Changed seeds, data or budgets
+invalidate it. `force_recompute=TRUE` explicitly ignores it.
 
-```{r}
-iris_with_species <- CECfitPreset(
-  "iris",
-  include_species_as_feature = TRUE,
-  quantitative_representation = "raw",
-  r0 = 10,
-  k0 = 20,
-  B = 20,
-  Nshots_fresh = 10,
-  Nshots_warm = 10,
-  Nloop = 100
-)
+EM cache identity is independent of penalty and grid because these only rank
+the candidates, provided the stored Cmax covers every target. CEM cache identity
+includes the cells and penalty because CEM searches optimize those objectives.
 
-CECplotGrid(iris_with_species)
-CECplotPartition(iris_with_species, shape_var = "Species")
-CECexplore(iris_with_species)
+Automatic result names are based on fitting identity. Several EM scoring grids
+can therefore share an automatic name. Use explicit distinct `saveRDS` paths
+when preserving paired analyses. Results include the original data, so ordinary
+data-sharing restrictions still apply to the saved object.
+
+## Parallelism and full elapsed time
+
+```{r parallel, eval=FALSE}
+timed <- system.time(g_parallel <- CECfitBoundGrid(Z=X,
+  C_grid=c(0.25,1),lambda_grid=c(0.6,1,1.5),
+  optimization="em_bank",penalty="none",k0=20,B=20,algo_seed=17,
+  optimizer_control=list(Rmax=10,Ninit=5,Cmax=2),n_cores=4))
+timed[["elapsed"]]
 ```
 
-# Uniform stress test
+Workers handle independent repetitions. Fixed master seeds give the same
+randomization regardless of scheduling. A direct new-engine `CECclassif`
+call uses one core; use the grid interface to parallelize repetitions.
+`meta$fitting_elapsed` is only the fitting stage, so it is not the total
+time of the pipeline. Record outer elapsed time, budgets, cores and data
+dimensions for comparisons. A faster run is not evidence of equal search quality.
 
-For a uniform sample on `[0, 1]`, use a lambda path at `C = 10` and mark
-values that do not satisfy `RSI > 0.9`, `stab_algo > 0.8`, and `sat = 0`.
+## Common situations
 
-```{r}
-set.seed(13)
-Z_uniform <- runif(1000)
+| Observation | What to inspect |
+|:--|:--|
+| No retained cells | Measurement policy, L and B, saturation and the two separate stability thresholds |
+| Only one group | Candidate counts, failed starts, budget stops, C and lambda; one group may also be a valid outcome |
+| Same REO at several cells | Compare labels or `partition_id`, not group count alone |
+| RSI above one | The ratio is not clipped; inspect both averages |
+| Unexpected plot selection | Supply C and lambda explicitly; omitted coordinates use a display default |
+| A saved fit seems to have ignored changes | Check engine, controls, seeds and version in `meta`; old script arguments may be compatibility-only |
+| Source installation fails | Check the R version, C++ toolchain and `RcppArmadillo`; the supplied Windows binary avoids local compilation |
 
-uniform_grid <- CECfitBoundGrid(
-  Z = Z_uniform,
-  lambda_grid = seq(0.05, 2, by = 0.05),
-  C_grid = 10,
-  r0 = 50,
-  k0 = 20,
-  B = 20,
-  Nshots_fresh = 20,
-  Nshots_warm = 20,
-  Nloop = 100,
-  familyType = "gaussUniv",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
-  sat_threshold = 0
-)
-
-CECplotPath(
-  uniform_grid,
-  C = 10,
-  type = "partitions",
-  stab_algo_threshold = 0.8,
-  rsi_threshold = 0.9,
-  sat_threshold = 0,
-  saturation_mark = "hatch"
-)
-```
+The maintained reference is available through `?CECoptimizers`,
+`?CECdiagnostics`, `?CECresults`, and the function-specific help pages.

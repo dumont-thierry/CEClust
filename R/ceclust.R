@@ -504,7 +504,9 @@ CECclassif_independent_shots <- function(
 		lapply(seeds, run_shot)
 	}
 
-	CECfinalize_classif_result(CECbest_classif_result(results))
+	out <- CECfinalize_classif_result(CECbest_classif_result(results))
+	issues <- lapply(results, function(x) x$determinant_fit_issue)
+	CECattach_det_diagnostics(out, issues, length(results))
 }
 
 #' Fit a composite entropy clustering model for one value of lambda
@@ -573,7 +575,7 @@ CECclassif_independent_shots <- function(
 #' fit$REO
 #' table(fit$clusters)
 #' @export
-CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL,n_cores=1L,shot_strategy=c("current","independent"))
+CECclassif_legacy		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1000,familyType="gaussAndDiscreteVector" ,sizeMaxOutlier = 0,autoRegroupOutliers=FALSE,displayRemainingTime = FALSE,focus=NULL,backend_data=NULL,n_cores=1L,shot_strategy=c("current","independent"))
 {
 	displayPlotEntropy = FALSE
 	shot_strategy <- match.arg(shot_strategy)
@@ -740,6 +742,7 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 	H 			<- Inf
 	bestClassif <- NULL
 	
+	determinant_issues <- list()
 	T <- Sys.time()
 	for(k in 1:Nshots)
 	{
@@ -829,6 +832,9 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 		
 		
 		
+		if (!is.null(resultList$determinant_fit_issue)) {
+			determinant_issues[[length(determinant_issues) + 1L]] <- resultList$determinant_fit_issue
+		}
 		result_H <- resultList$Hphi
 		if(length(result_H) == 1L && is.finite(result_H) && result_H < H )
 		{
@@ -845,7 +851,7 @@ CECclassif				<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots = 100,Nloop=1
 		
 	}
 	
-	return(CECfinalize_classif_result(bestClassif))
+	return(CECattach_det_diagnostics(CECfinalize_classif_result(bestClassif), determinant_issues, Nshots))
 	
 }
 
@@ -872,7 +878,7 @@ CECfinalize_classif_result <- function(resultList) {
 	resultList
 }
 
-CECrun_one_shot_with_regroup <- function(
+CECrun_one_shot_with_regroup_strict <- function(
 	Z,
 	lambda = 1,
 	C = 1,
@@ -1149,6 +1155,7 @@ CECfit_warm_multi <- function(
 	PHI <- phi_seed
 	H <- Inf
 	bestClassif <- NULL
+	determinant_issues <- list()
 
 	for (k in seq_len(Nshots_warm)) {
 		phi0_k <- CECgenerate_warm_shot_phi0(
@@ -1190,6 +1197,9 @@ CECfit_warm_multi <- function(
 		if (is.null(resultList)) {
 			next
 		}
+		if (!is.null(resultList$determinant_fit_issue)) {
+			determinant_issues[[length(determinant_issues) + 1L]] <- resultList$determinant_fit_issue
+		}
 
 		if (is.finite(resultList$Hphi) && resultList$Hphi < H) {
 			H <- resultList$Hphi
@@ -1199,7 +1209,7 @@ CECfit_warm_multi <- function(
 		PHI <- resultList$phi
 	}
 
-	bestClassif <- CECfinalize_classif_result(bestClassif)
+	bestClassif <- CECattach_det_diagnostics(CECfinalize_classif_result(bestClassif), determinant_issues, Nshots_warm)
 	CECtag_fit_origin(
 		bestClassif,
 		init_origin = "warm",
@@ -1664,6 +1674,8 @@ optPhi			<- function(Z,param,lambda=1)
 	}
 
 	logG 			<- CECdens(Z=Z,param=param,lambda=lambda,applyLog=TRUE)
+	logG$density <- as.vector(CECproposal_logdens(vectToMat(logG$density, r), param))
+	CECcheck_reference_support(vectToMat(logG$density, r), nu)
 	logG$density 	<- rep(log(nu),each=n)  + logG$density / lambda
 	densityM 		<- vectToMat(logG$density,r)
 	loc				<- max.col(densityM, ties.method = "first")
@@ -2120,282 +2132,7 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 
 	# gaussVector
 	{
-		weighted_cov <- function(res, w) {
-		  # Normaliser les poids
-		  w <- w / sum(w)
-		  
-		  # Weighted mean by column.
-		  mean_w <- colSums(w * res)
-		  
-		  # Center the data.
-		  res_centered <- sweep(res, 2, mean_w, "-")
-		  
-		  # Compute the weighted covariance matrix.
-		  cov_w <- t(res_centered) %*% (res_centered * w)
-		  
-		  return(cov_w)
-		}
-
-		CECproject_eigen_product_floor <- function(lambda_vals, target_prod, kappa_max = 1e8) {
-			lambda_vals <- as.numeric(lambda_vals)
-			lambda_vals[!is.finite(lambda_vals)] <- 0
-			lambda_vals[lambda_vals < 0] <- abs(lambda_vals[lambda_vals < 0])
-
-			p <- length(lambda_vals)
-			if (p == 0L || !is.finite(target_prod) || target_prod <= 0) {
-				return(lambda_vals)
-			}
-
-			target_root <- target_prod^(1 / p)
-			positive_vals <- lambda_vals[lambda_vals > 0]
-			if (length(positive_vals) == 0L) {
-				return(rep(target_root, p))
-			}
-
-			eigen_floor <- max(lambda_vals, na.rm = TRUE) / kappa_max
-			eigen_floor <- max(eigen_floor, .Machine$double.eps)
-			eigen_floor <- min(eigen_floor, target_root)
-
-			out <- pmax(lambda_vals, .Machine$double.eps)
-			free <- rep(TRUE, p)
-
-			for (iter in seq_len(p + 1L)) {
-				fixed <- !free
-				fixed_prod <- if (any(fixed)) prod(out[fixed]) else 1
-				n_free <- sum(free)
-
-				if (n_free == 0L) {
-					out <- rep(target_root, p)
-					break
-				}
-
-				free_prod <- prod(out[free])
-				if (!is.finite(free_prod) || free_prod <= 0 ||
-						!is.finite(fixed_prod) || fixed_prod <= 0) {
-					out[free] <- target_root
-					break
-				}
-
-				scale <- (target_prod / fixed_prod / free_prod)^(1 / n_free)
-				candidate <- out
-				candidate[free] <- out[free] * scale
-				newly_fixed <- free & candidate < eigen_floor
-
-				if (!any(newly_fixed)) {
-					out <- candidate
-					break
-				}
-
-				out[newly_fixed] <- eigen_floor
-				free[newly_fixed] <- FALSE
-			}
-
-			current_prod <- prod(out)
-			if (is.finite(current_prod) && current_prod > 0) {
-				out <- out * (target_prod / current_prod)^(1 / p)
-			}
-
-			out
-		}
-										
-		adjust_covariance 				<- function(res, sigmaZmin,w=NULL,sizeMinSigmaComp=3)
-		{
-		 
-		  # Residual matrix.
-		  nRes <- dim(res)[1]
-		  # estimation empirique
-		  
-		  if(is.null(w))
-		  {
-			w =rep(1/nRes,nRes)
-		  
-		  }
-		  
-		  if(sum(w)>sizeMinSigmaComp)
-		  {
-			  
-			  Sigma_emp <- weighted_cov(res,w)# on enlÃƒÆ’Ã‚Â¨ve la correction
-			  Sigma_emp[is.na(Sigma_emp)] <- 0 
-			  # variances empiriques
-			  variances <- diag(Sigma_emp)
-			  
-			  
-			  # correction des variances
-			  variances_corrected <- pmax(variances, sigmaZmin^2)
-			  diag(Sigma_emp) <- variances_corrected
-			  
-			  
-			  detMin <- prod(sigmaZmin^2)
-			  
-			  detSigmaEmp <- det(Sigma_emp)
-			  boundReached <- FALSE
-			  if(detSigmaEmp<detMin)
-			  {
-				boundReached <- TRUE
-				cor_emp <- cov2cor(Sigma_emp)
-				D_sqrt <- sqrt(diag(diag(Sigma_emp)))
-			
-				eig_R <- eigen(cor_emp, symmetric = TRUE)
-				lambda_vals0 <- eig_R$values
-				lambda_vals  <- lambda_vals0
-				vectors 	<- eig_R$vectors
-				
-				
-				lambda_vals[lambda_vals<0] = abs(lambda_vals[lambda_vals<0])
-				
-				det_R 	<- prod(lambda_vals)
-				notNull <- which(lambda_vals>0)
-				if(det_R == 0 )
-				{
-					if(length(notNull)>0)
-					{
-						lambda_vals[lambda_vals==0] = min(lambda_vals[notNull])/2
-					}else{
-						lambda_vals[lambda_vals==0] = 1 
-					}					
-				}
-				
-				det_R 	<- prod(lambda_vals)
-				det_Rmin <- detMin/ prod(diag(Sigma_emp))
-				
-				if(det_R<det_Rmin)
-				{
-					lambda_vals <- CECproject_eigen_product_floor(lambda_vals, target_prod = det_Rmin)
-					
-					
-					cor_emp_corrected <- (vectors)%*%diag(lambda_vals,nrow=dim(Sigma_emp)[1],ncol=dim(Sigma_emp)[1])%*%t(vectors)
-				
-					Sigma_corrected <- D_sqrt %*% cor_emp_corrected %*% D_sqrt
-				
-				}else{
-				
-					Sigma_corrected <- Sigma_emp
-				}
-				
-				
- 
-				 
-			  }else{
-				Sigma_corrected = Sigma_emp
-			  }
-			  
-			# Check Sigma_corrected.
-			{
-				
-				# controle NA
-				contrNA <- length(which(is.na(Sigma_corrected)))>0
-				if(contrNA)
-				{
-					boundReached		<- TRUE
-					variances 			<- diag(Sigma_emp)
-					varNa 				<- is.na(variances)
-					variances[varNa] 	<- sigmaZmin[varNa]^2
-			  
-					# correction des variances
-					variances_corrected <- pmax(variances, sigmaZmin^2)
-					Sigma_corrected <- diag(variances,nrow=length(variances),ncol=length(variances))
-				}else{
-					Sigma_corrected = (Sigma_corrected +t(Sigma_corrected))/2
-					
-					if(det(Sigma_corrected)<=0)
-					{
-						boundReached		<- TRUE
-						variances 			<- diag(Sigma_emp)
-						varNa 				<- which(is.na(variances))
-						variances[varNa] 	<- sigmaZmin[varNa]^2
-				  
-						# correction des variances
-						variances_corrected <- pmax(variances, sigmaZmin^2)
-						Sigma_corrected <- diag(variances,nrow=length(variances),ncol=length(variances))
-					}
-				}
-			}
-			   
-		  }else{
-			boundReached		<- TRUE
-			Sigma_corrected 	<-  diag(sigmaZmin,ncol=length(sigmaZmin),nrow=length(sigmaZmin))
-		  }
-		  
-		 
-		  
-		  return(list(Sigma_corrected=Sigma_corrected,boundReached=boundReached))
-		}
-
-		CECadjust_covariance_from_matrix <- function(Sigma_emp, sigmaZmin, count, sizeMinSigmaComp = 3) {
-			if (count > sizeMinSigmaComp) {
-				Sigma_emp[is.na(Sigma_emp)] <- 0
-				variances <- diag(Sigma_emp)
-				variances_corrected <- pmax(variances, sigmaZmin^2)
-				diag(Sigma_emp) <- variances_corrected
-
-				detMin <- prod(sigmaZmin^2)
-				detSigmaEmp <- det(Sigma_emp)
-				boundReached <- FALSE
-
-				if (detSigmaEmp < detMin) {
-					boundReached <- TRUE
-					cor_emp <- cov2cor(Sigma_emp)
-					D_sqrt <- sqrt(diag(diag(Sigma_emp)))
-
-					eig_R <- eigen(cor_emp, symmetric = TRUE)
-					lambda_vals0 <- eig_R$values
-					lambda_vals <- lambda_vals0
-					vectors <- eig_R$vectors
-
-					lambda_vals[lambda_vals < 0] <- abs(lambda_vals[lambda_vals < 0])
-
-					det_R <- prod(lambda_vals)
-					notNull <- which(lambda_vals > 0)
-					if (det_R == 0) {
-						if (length(notNull) > 0) {
-							lambda_vals[lambda_vals == 0] <- min(lambda_vals[notNull]) / 2
-						} else {
-							lambda_vals[lambda_vals == 0] <- 1
-						}
-					}
-
-					det_R <- prod(lambda_vals)
-					det_Rmin <- detMin / prod(diag(Sigma_emp))
-
-					if (det_R < det_Rmin) {
-						lambda_vals <- CECproject_eigen_product_floor(lambda_vals, target_prod = det_Rmin)
-						cor_emp_corrected <- vectors %*%
-							diag(lambda_vals, nrow = dim(Sigma_emp)[1], ncol = dim(Sigma_emp)[1]) %*%
-							t(vectors)
-						Sigma_corrected <- D_sqrt %*% cor_emp_corrected %*% D_sqrt
-					} else {
-						Sigma_corrected <- Sigma_emp
-					}
-				} else {
-					Sigma_corrected <- Sigma_emp
-				}
-
-				contrNA <- any(is.na(Sigma_corrected))
-				if (contrNA) {
-					boundReached <- TRUE
-					variances <- diag(Sigma_emp)
-					varNa <- is.na(variances)
-					variances[varNa] <- sigmaZmin[varNa]^2
-					variances_corrected <- pmax(variances, sigmaZmin^2)
-					Sigma_corrected <- diag(variances, nrow = length(variances), ncol = length(variances))
-				} else {
-					Sigma_corrected <- (Sigma_corrected + t(Sigma_corrected)) / 2
-					if (det(Sigma_corrected) <= 0) {
-						boundReached <- TRUE
-						variances <- diag(Sigma_emp)
-						varNa <- which(is.na(variances))
-						variances[varNa] <- sigmaZmin[varNa]^2
-						variances_corrected <- pmax(variances, sigmaZmin^2)
-						Sigma_corrected <- diag(variances, nrow = length(variances), ncol = length(variances))
-					}
-				}
-			} else {
-				boundReached <- TRUE
-				Sigma_corrected <- diag(sigmaZmin, ncol = length(sigmaZmin), nrow = length(sigmaZmin))
-			}
-
-			list(Sigma_corrected = Sigma_corrected, boundReached = boundReached)
-		}
+        # Gaussian covariance fitting is implemented in gaussian_det_constraint.R.
 
 		CECassigned_logdens_from_matrix <- function(logdens_mat, clusters) {
 			logdens_mat[cbind(seq_along(clusters), clusters)]
@@ -2483,7 +2220,10 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 					covs <- vector("list", r)
 					for (i in seq_len(r)) {
 						Xi <- backend_data$X_num[clusters == i, , drop = FALSE]
-						centered <- sweep(Xi, 2, m[i, ], "-")
+						shifted <- sweep(Xi, 2, Xi[1L, ], "-")
+						shift_mean <- colMeans(shifted)
+						m[i, ] <- Xi[1L, ] + shift_mean
+						centered <- sweep(shifted, 2, shift_mean, "-")
 						covs[[i]] <- crossprod(centered) / nrow(Xi)
 					}
 				}
@@ -2503,7 +2243,9 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 						count = counts[i],
 						sizeMinSigmaComp = 3
 					)
-					Sigma[[i]] <- sigList$Sigma_corrected
+					Sigma[[i]] <- CECset_singular_support_data(
+						sigList$Sigma_corrected,
+						backend_data$X_num[clusters == i, , drop = FALSE], m[i, ])
 					if (isTRUE(sigList$boundReached)) {
 						functionBoundReached <- c(functionBoundReached, i)
 					}
@@ -2656,11 +2398,10 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 				n <- nrow(backend_data$X_num)
 				out <- matrix(0, n, r)
 				for (i in seq_len(r)) {
-					out[, i] <- mvtnorm::dmvnorm(
+					out[, i] <- CECgaussian_reference_logdens(
 						backend_data$X_num,
 						mean = params$m[i, ],
-						sigma = params$Sigma[[i]],
-						log = TRUE
+						Sigma = params$Sigma[[i]]
 					)
 				}
 				return(out)
@@ -2735,17 +2476,18 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 				if (!is.null(backend_data) &&
 					isTRUE(backend_data$optimized) &&
 				CECis_fast_family(param$familyType)) {
-				logdens_mat <- CECcompute_logdens_matrix_fast(backend_data, param, lambda = lambda)
+					logdens_mat <- CECcompute_logdens_matrix_fast(backend_data, param, lambda = lambda)
+					proposal_logdens <- CECproposal_logdens(logdens_mat, param)
+					CECcheck_reference_support(proposal_logdens, param$nu)
 				if (CECfast_backend_available()) {
-					choice <- CECget_fast_fun("cec_cpp_choose_clusters_from_logdens")(logdens_mat, param$nu, lambda)
+					choice <- CECget_fast_fun("cec_cpp_choose_clusters_from_logdens")(proposal_logdens, param$nu, lambda)
 					clusters <- as.integer(choice$clusters)
-					assigned_logdens <- choice$assigned_logdens
 				} else {
-					score_logdens_mat <- logdens_mat / lambda
+					score_logdens_mat <- proposal_logdens / lambda
 					score_mat <- sweep(score_logdens_mat, 2, log(param$nu), "+")
 					clusters <- max.col(score_mat, ties.method = "first")
-					assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
 				}
+				assigned_logdens <- CECassigned_logdens_from_matrix(logdens_mat, clusters)
 				return(list(
 					# The mixed fast path benefits from delaying public phi reconstruction.
 					phi = if (identical(param$familyType, "gaussAndDiscreteVector")) {
@@ -2831,9 +2573,9 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 				
 				if(applyLog)
 				{
-					density[idx_i] <- mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i ,log=TRUE)
+					density[idx_i] <- CECgaussian_reference_logdens(Z, mean=m_i, Sigma=Sigma_i)
 				}else{
-					density[idx_i] <- mvtnorm::dmvnorm(Z,mean=m_i, sigma = Sigma_i)
+					density[idx_i] <- exp(CECgaussian_reference_logdens(Z, mean=m_i, Sigma=Sigma_i))
 				}
 				
 			}
@@ -2931,7 +2673,9 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 			for(i in toKeep)
 			{
 				idx_i <- 1:n + (i - 1) * n
-				H  <- H - (1/lambda)*nuPhi[i]* sum( phiM[,i] *logg$density[idx_i])/sum(phiM[,i])
+				positive <- phiM[, i] > 0
+				H <- H - (1/lambda)*nuPhi[i] *
+					sum(phiM[positive, i] * logg$density[idx_i][positive]) / sum(phiM[, i])
 			}
 			
 			return(H)
@@ -3133,7 +2877,9 @@ CECoptClusters_gaussUniv <- function(Z, param, lambda = 1, Z_num = NULL, assign_
 			for(i in toKeep)
 			{
 				idx_i <- 1:n + (i - 1) * n
-				H  <- H - (1/lambda)*nuPhi[i]* sum( phiM[,i] *logg$density[idx_i])/sum(phiM[,i])
+				positive <- phiM[, i] > 0
+				H <- H - (1/lambda)*nuPhi[i] *
+					sum(phiM[positive, i] * logg$density[idx_i][positive]) / sum(phiM[, i])
 			}
 			
 			return(H)
@@ -3753,6 +3499,11 @@ CECclassifOneShot 		<- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nloop=1000,phi
 	if (is.null(backend_data)) {
 		backend_data <- CECprepare_backend_data(Z, familyType = familyType)
 	}
+	if (familyType %in% c("gaussVector", "gaussAndDiscreteVector")) {
+		return(CECclassifOneShot_affine_guarded(
+			Z, lambda, C, Cquali, r0, Nloop, phi0, familyType,
+			displayPlotEntropy, backend_data))
+	}
 
 	use_fast <- isTRUE(backend_data$optimized) &&
 		CECis_fast_family(familyType)
@@ -4120,10 +3871,7 @@ CECrun_bootstrap_lambda_path_task <- function(
     fit_i <- path_b$fits[[i]]
     if (!is.null(fit_i)) {
       proj_i <- CECproject_fit_on_reference(
-        fit = fit_i,
-        Zref = Z,
-        lambda = lambda_grid[i]
-      )
+        fit = fit_i, Zref = Z, lambda = lambda_grid[i])
       per_lambda[[i]] <- list(
         fit = CECcompact_fit_for_storage(fit_i),
         proj = CECcompact_projection_for_storage(proj_i),
@@ -4319,13 +4067,9 @@ CECtemp_checkpoint_dir <- function(prefix = "CECfitLambdaGrid", signature = NULL
 
 CECwrite_rds_atomic <- function(object, path, compress = FALSE) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  tmp_path <- paste0(
-    path,
-    ".tmp_",
-    Sys.getpid(),
-    "_",
-    as.integer(stats::runif(1, min = 1, max = 1e9))
-  )
+  # Checkpoint bookkeeping must not consume the optimizer's random stream.
+  tmp_path <- tempfile(paste0(basename(path), ".tmp_", Sys.getpid(), "_"),
+                       tmpdir = dirname(path))
   saveRDS(object, file = tmp_path, compress = compress)
   if (file.exists(path)) {
     file.remove(path)
@@ -4616,6 +4360,7 @@ CECdiagnostics_mark_task_completed <- function(progress_state, task) {
     progress_state$done_boot <- progress_state$done_boot + 1L
   }
   CECdiagnostics_print_progress(progress_state, task = task)
+  cec_grid_print_global_task_progress(.CEC_grid_progress$state, task = task)
   invisible(progress_state)
 }
 
@@ -4748,6 +4493,7 @@ CECrun_diagnostic_tasks_parallel_batch <- function(
   n_cores,
   progress_state
 ) {
+  cec_grid_print_global_batch_progress(.CEC_grid_progress$state, n_tasks = length(tasks))
   if (length(tasks) == 0L) {
     return(list(results = list(), completed_keys = character(0), failed = character(0)))
   }
@@ -5261,18 +5007,7 @@ CECmovingAverage <- function(x, k = 3) {
 # ------------------------------------------------------------
 # Enrich lambda-grid summary with smoothed columns
 # ------------------------------------------------------------
-#' Add smoothed summary curves to a linked-lambda diagnostic object.
-#'
-#' @rdname CECfitLambdaGrid
-#' @param lambda_diag Object returned by [CECfitLambdaGrid()].
-#' @param k Width of the moving-average smoother applied to the selected summary
-#'   columns.
-#' @param ratio_col,stab0_col,stabB_col,H_col Column names in
-#'   `lambda_diag$summary` used for smoothing.
-#' @return `CECaddSmoothedDiagnostics()` returns the input `lambda_diag` object
-#'   with additional `*_smooth` columns in `summary` and a `smoothing`
-#'   component describing the chosen settings.
-#' @export
+# Public help: man/CECaddSmoothedDiagnostics.Rd (maintained by hand).
 CECaddSmoothedDiagnostics <- function(
   lambda_diag,
   k = 3,
@@ -5430,32 +5165,7 @@ CECboundSaturationTable <- function(best_partitions_obj) {
   out
 }
 
-#' Identify stable lambda regions from a diagnostic summary.
-#'
-#' @rdname CECfitLambdaGrid
-#' @param rule Stability rule. `"ratio"` uses the bootstrap-to-fixed stability
-#'   ratio, `"stabB"` uses bootstrap stability alone, and `"both"` requires the
-#'   two conditions simultaneously. When saturation information is available,
-#'   the selected stable region is further restricted to lambda values whose
-#'   saturation share stays below `sat_threshold`.
-#' @param ratio_threshold,stabB_threshold,sat_threshold Thresholds used by the
-#'   selected stability rule and optional saturation filter.
-#' @param use_smoothed Logical. If `TRUE`, the smoothed columns generated by
-#'   [CECaddSmoothedDiagnostics()] are used when available.
-#' @param min_consecutive Minimum run length required for a lambda value to be
-#'   declared part of a stable region.
-#' @param best_partitions_obj Optional object returned by
-#'   [CECextractBestPartitions()]. When supplied, the function derives the
-#'   saturation share `sat`, defined as the proportion of the sample living in
-#'   clusters whose fitted density reaches the upper bound `C`.
-#' @param ratio_col,stabB_col,sat_col Column names searched in
-#'   `lambda_diag$summary`.
-#' @return `CECidentifyStableLambdas()` returns a list with the first stable
-#'   lambda (`lambda_min`), the complete stable mask, detected stable runs, and
-#'   a compact summary data frame. If saturation information is available, the
-#'   summary also reports whether a lambda is excluded specifically because of
-#'   bound saturation.
-#' @export
+# Public help: man/CECidentifyStableLambdas.Rd (maintained by hand).
 CECidentifyStableLambdas <- function(
   lambda_diag,
   rule = c("ratio", "stabB", "both"),
@@ -5781,31 +5491,7 @@ CECrelabelToReference <- function(ref, target) {
 # method = "regime_reference", each lambda is compared to the first partition
 # of the current regime; a new regime starts whenever a change is detected.
 # ------------------------------------------------------------
-#' Detect change points along a best-partition trajectory.
-#'
-#' @rdname CECextractBestPartitions
-#' @param best_partitions_obj Object returned by [CECextractBestPartitions()].
-#' @param partition_metric Similarity measure used to compare consecutive
-#'   partitions.
-#' @param sim_threshold Threshold below which a similarity-based change is
-#'   detected.
-#' @param criterion Rule used to declare a change. In
-#'   `CECextractBestPartitions()` this argument selects the criterion used to
-#'   choose the representative partition at each lambda. In
-#'   `CECdetectPartitionChanges()` it selects the rule combining REO changes and
-#'   partition similarity.
-#' @param include_first Logical. If `TRUE`, the first lambda value is always
-#'   reported as the start of a new regime.
-#' @param method Change-detection method. `"consecutive"` compares each
-#'   partition to the previous lambda. `"regime_reference"` compares each
-#'   partition to the reference partition at the beginning of the current
-#'   regime and updates the reference when a change is detected.
-#' @param lambda_subset Optional subset of lambda values on which changes are
-#'   detected. This is useful for detecting regimes only on stable lambdas.
-#' @return `CECdetectPartitionChanges()` returns a list with a summary data
-#'   frame, the lambda values flagged as change points, and the settings used to
-#'   detect them.
-#' @export
+# Public help: man/CECdetectPartitionChanges.Rd (maintained by hand).
 CECdetectPartitionChanges <- function(
   best_partitions_obj,
   partition_metric = c("match", "ARI"),
@@ -6974,21 +6660,22 @@ CECbuildBestPartitionObjectAtLambda <- function(
   )
 }
 
-#' Repair an incoherent best-partition trajectory.
-#'
-#' @rdname CECextractBestPartitions
-#' @param max_iter Maximum number of forward/backward propagation rounds used by
-#'   the repair heuristic.
-#' @return `CECrepairBestPartitionTrajectory()` returns an updated
-#'   `best_partitions_obj` enriched with `repair_log`, coherence summaries
-#'   before/after repair, and convergence information.
-#' @export
+# Public help: man/CECrepairBestPartitionTrajectory.Rd (maintained by hand).
 CECrepairBestPartitionTrajectory <- function(
   best_partitions_obj,
   Z,
   tol = 1e-10,
   max_iter = 100
 ) {
+  if (identical(best_partitions_obj$optimization, "em_bank")) {
+    best_partitions_obj$n_repairs <- 0L
+    best_partitions_obj$converged <- TRUE
+    best_partitions_obj$repair_reason <- "Already minimized over the common candidate bank"
+    return(best_partitions_obj)
+  }
+  if (identical(best_partitions_obj$penalty, "bic"))
+    stop("Legacy trajectory repair does not evaluate the penalized criterion; recompute through the selected solver.")
+
   best_full <- best_partitions_obj$best
   ok <- vapply(best_full, function(x) !is.null(x), logical(1))
   valid_positions <- which(ok)
@@ -7393,63 +7080,7 @@ CECdecompose_fit_on_data <- function(fit, Z) {
   )
 }
 
-#' Extract one representative partition for each lambda in a diagnostic object.
-#'
-#' `CECextractBestPartitions()` condenses the output of
-#' [CECfitLambdaGrid()] into one representative partition per
-#' lambda value. Downstream helpers can then assess coherence, repair
-#' trajectories, and identify change points along the selected lambda path.
-#'
-#' @rdname CECextractBestPartitions
-#' @param lambda_diag Object returned by [CECfitLambdaGrid()].
-#' @param source Candidate pool used when selecting the representative partition:
-#'   `"fixed"` uses runs on the original data, `"bootstrap"` uses projected
-#'   bootstrap fits, and `"all"` combines both.
-#' @param Z Original data set. It is required for coherence checks and repair
-#'   operations, and recommended when extracting partitions so that raw criterion
-#'   decompositions can be recovered when available.
-#' @return `CECextractBestPartitions()` returns a list with:
-#' - `best`: a list of per-lambda representative partitions;
-#' - `summary`: a compact data frame with criterion values, REO, and origin
-#'   labels;
-#' - `source` and `criterion`: the selection settings used.
-#'
-#' @examples
-#' CECconfigure_runtime("base")
-#' Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 2)
-#' lambda_diag <- CECfitLambdaGrid(
-#'   Z = Z,
-#'   lambda_grid = seq(0.2, 0.8, by = 0.2),
-#'   k0 = 2,
-#'   B = 2,
-#'   C = 10,
-#'   r0 = 6,
-#'   Nshots_fresh = 1,
-#'   Nshots_warm = 1,
-#'   Nloop = 12,
-#'   familyType = "gaussAndDiscreteVector",
-#'   seed = 2,
-#'   silent = TRUE,
-#'   verbose = FALSE,
-#'   n_cores = 1L,
-#'   checkpoint_dir = FALSE,
-#'   auto_checkpoint = FALSE,
-#'   show_progress = FALSE
-#' )
-#'
-#' best_parts <- CECextractBestPartitions(
-#'   lambda_diag,
-#'   source = "fixed",
-#'   criterion = "projected_H",
-#'   Z = Z
-#' )
-#' coherence <- CECcheckBestPartitionCoherence(best_parts, Z)
-#' changes <- CECdetectPartitionChanges(best_parts)
-#'
-#' head(best_parts$summary)
-#' coherence$all_coherent
-#' changes$change_lambdas
-#' @export
+# Public help: man/CECextractBestPartitions.Rd (maintained by hand).
 CECextractBestPartitions <- function(
   lambda_diag,
   source = c("all", "fixed", "bootstrap"),
@@ -7458,6 +7089,11 @@ CECextractBestPartitions <- function(
 ) {
   source <- match.arg(source)
   criterion <- match.arg(criterion)
+  if (inherits(lambda_diag, "CEC_solver_lambda")) {
+    if (source != "all" || criterion != "projected_H")
+      stop("Solver grids expose the pooled, projected hard-criterion minimum; use source='all', criterion='projected_H'.")
+    return(lambda_diag$best_parts)
+  }
   
   details <- lambda_diag$details
   out_best <- vector("list", length(details))
@@ -7843,100 +7479,7 @@ CECfollowLambdaPath <- function(
 # ------------------------------------------------------------
 # Main entry point for lambda diagnostics based on linked paths
 # ------------------------------------------------------------
-#' Diagnose a grid of lambda values with linked forward and backward paths.
-#'
-#' `CECfitLambdaGrid()` is the main workflow for studying how the
-#' fitted partition evolves across a sequence of regularisation values. For each
-#' `lambda`, the function combines repeated runs on the original data with
-#' bootstrap trajectories projected back on the reference data set. The result
-#' can be checkpointed and resumed, which is helpful for long multi-core runs.
-#'
-#' @param Z Input data used for all fits and projections.
-#' @param lambda_grid Numeric vector of candidate `lambda` values. Duplicates are
-#'   removed and the grid is sorted increasingly.
-#' @param k0 Number of linked paths fitted on the original data.
-#' @param B Number of linked bootstrap paths.
-#' @param C Positive upper bound for fitted component densities; independent
-#'   of `lambda`.
-#' @param Cquali Minimum-frequency control for qualitative variables. The
-#'   default `Inf` applies no qualitative frequency floor. Qualitative floors
-#'   are tracked separately from density-bound saturation.
-#' @param r0 Optional upper bound for the initial number of clusters.
-#' @param Nshots_fresh Number of fresh random starts used at the first lambda of
-#'   each path.
-#' @param Nshots_warm Number of warm starts used for neighbouring lambda values
-#'   along a path.
-#' @param Nshots_init Deprecated compatibility alias that can still initialise
-#'   `Nshots_fresh` and `Nshots_warm`.
-#' @param Nloop Maximum number of optimisation iterations per fit.
-#' @param familyType Model family passed to [CECclassif()].
-#' @param sizeMaxOutlier,autoRegroupOutliers,focus Additional controls forwarded
-#'   to [CECclassif()].
-#' @param replace Logical. If `TRUE`, bootstrap samples are drawn with
-#'   replacement.
-#' @param seed Optional random seed used for reproducibility.
-#' @param silent,verbose Logical controls for fit-level and workflow-level
-#'   messaging.
-#' @param n_cores Number of worker processes used for independent path tasks.
-#' @param checkpoint_dir Directory used to store per-task `.rds` checkpoints.
-#'   Use `TRUE` to request an automatically generated temporary folder and
-#'   `FALSE` to disable checkpointing explicitly.
-#' @param auto_checkpoint Logical. If `NULL`, checkpointing is enabled
-#'   automatically when `n_cores > 1`.
-#' @param resume Logical. If `TRUE`, completed tasks already present in
-#'   `checkpoint_dir` are reused.
-#' @param batch_size Number of tasks launched together in each parallel batch.
-#'   Use `Inf` or `"all"` to run all pending tasks through one dynamic worker
-#'   queue.
-#' @param show_progress Logical. If `TRUE`, progress lines are printed while
-#'   tasks complete.
-#' @param rerun_failed_serial Logical. If `TRUE`, unfinished tasks are retried
-#'   sequentially after a parallel batch failure.
-#' @param checkpoint_compress Logical passed to `saveRDS()` for checkpoint
-#'   files.
-#' @param partition_metric Similarity measure used for partition comparisons.
-#'   `"match"` relies on an optimal label matching; `"ARI"` uses the adjusted
-#'   Rand index.
-#' @param stability_approach Strategy used to summarise bootstrap stability.
-#'
-#' @return `CECfitLambdaGrid()` returns a list with:
-#' - `summary`: one row per lambda with stability and criterion summaries;
-#' - `details`: the full per-lambda objects used to build downstream summaries;
-#' - `lambda_grid`: the analysed lambda grid;
-#' - `partition_metric` and `stability_approach`: the comparison settings used;
-#' - `linked`: a compact description of the linked fixed and bootstrap paths;
-#' - `execution`: runtime metadata, including checkpoint information.
-#'
-#' @examples
-#' Z <- simulate_multidim_benchmark_data(n = 80, p_num = 3, p_fac = 2, seed = 1)
-#' runtime <- CECconfigure_runtime("base")
-#'
-#' lambda_diag <- CECfitLambdaGrid(
-#'   Z = Z,
-#'   lambda_grid = seq(0.2, 0.8, by = 0.2),
-#'   k0 = 2,
-#'   B = 2,
-#'   C = 10,
-#'   r0 = 6,
-#'   Nshots_fresh = 1,
-#'   Nshots_warm = 1,
-#'   Nloop = 12,
-#'   familyType = "gaussAndDiscreteVector",
-#'   seed = 1,
-#'   silent = TRUE,
-#'   verbose = FALSE,
-#'   n_cores = runtime$n_cores,
-#'   checkpoint_dir = FALSE,
-#'   auto_checkpoint = FALSE,
-#'   show_progress = FALSE
-#' )
-#'
-#' lambda_diag <- CECaddSmoothedDiagnostics(lambda_diag, k = 3)
-#' stable <- CECidentifyStableLambdas(lambda_diag, rule = "ratio")
-#'
-#' head(lambda_diag$summary)
-#' stable$lambda_min
-#' @export
+# Public help: man/CECfitLambdaGrid.Rd (maintained by hand).
 CECfitLambdaGrid <- function(
   Z,
   lambda_grid = seq(0.1, 2, by = 0.1),
@@ -7966,8 +7509,33 @@ CECfitLambdaGrid <- function(
   rerun_failed_serial = TRUE,
   checkpoint_compress = FALSE,
   partition_metric = c("match", "ARI"),
-  stability_approach = c("pairwise", "reference_bestH")
+  stability_approach = c("exhaustive", "pairwise", "reference_bestH"),
+  optimization = c("cem", "em_bank"), penalty = c("none", "bic"),
+  optimizer_control = list(),
+  rsi_policy = c("all", "unsaturated", "nontrivial_unsaturated", "saturation_band"),
+  rsi_saturation_max = .10
 ) {
+  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control)>0 || !missing(rsi_policy)
+  optimization <- match.arg(optimization); penalty <- match.arg(penalty); rsi_policy <- match.arg(rsi_policy)
+  if (selected) {
+    if (!is.null(Nshots_init) && missing(Nshots_fresh)) Nshots_fresh <- Nshots_init
+    if (isTRUE(checkpoint_dir) || (isTRUE(auto_checkpoint) && (is.null(checkpoint_dir) || isFALSE(checkpoint_dir))))
+      checkpoint_dir <- file.path(tempdir(),"CEClust_solver_checkpoints")
+    if (!is.null(focus) || sizeMaxOutlier != 0 || autoRegroupOutliers || Cquali != Inf || !replace)
+      stop("Unsupported focus, regrouping, qualitative floor or subsampling option for the selected grid engine.")
+    if (!familyType %in% c("gaussVector","gaussUniv","gaussAndDiscreteVector"))
+      stop("The selected grid engine requires Gaussian numeric data.")
+    if (!missing(stability_approach) && match.arg(stability_approach) != "exhaustive")
+      stop("The selected grid engine uses exhaustive diagnostics.")
+    out <- CECfit_solver_grid(Z,C,lambda_grid,k0,B,r0=if(is.null(r0))min(20L,CECget_n_obs(Z)) else r0,
+      Nshots_fresh=Nshots_fresh,Nloop=Nloop,algo_seed=if(is.null(seed))sample.int(.Machine$integer.max,1L) else seed,
+      n_cores=n_cores,optimization=optimization,penalty=penalty,optimizer_control=optimizer_control,
+      rsi_policy=rsi_policy,rsi_saturation_max=rsi_saturation_max,partition_metric=match.arg(partition_metric),
+      checkpoint_dir=checkpoint_dir,resume=resume,verbose=verbose)
+    value <- out$runs_by_C[[1L]]$lambda_diag
+    value$grid <- out
+    return(value)
+  }
   partition_metric <- match.arg(partition_metric)
   stability_approach <- match.arg(stability_approach)
   n_cores <- max(1L, as.integer(n_cores[1]))
@@ -8319,7 +7887,11 @@ CECfitLambdaGrid <- function(
   rows <- vector("list", L)
 
   for (i in seq_along(lambda_grid)) {
-    if (stability_approach == "pairwise") {
+    if (stability_approach == "exhaustive") {
+      st <- CECexhaustive_summaries(parts0_by_lambda[[i]], partsB_by_lambda[[i]], partition_metric)
+      stab0 <- st$stab0; stabB <- st$stabB
+      stab_ratio_mean <- st$ratio; stab_ratio_medoid <- NA_real_
+    } else if (stability_approach == "pairwise") {
       stab0 <- partition_stability_summary(
         parts0_by_lambda[[i]],
         partition_metric = partition_metric

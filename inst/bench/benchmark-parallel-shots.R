@@ -255,3 +255,4 @@ raw <- do.call(rbind, rows)
 summary <- summarise_timings(raw)
 md_file <- write_outputs(raw, summary)
 cat("\nParallel shots summary written to ", md_file, "\n", sep = "")
+

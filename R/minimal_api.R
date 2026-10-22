@@ -1,23 +1,4 @@
-#' Fit CEClust on a C by lambda grid.
-#'
-#' `CECfitBoundGrid()` is the high-level entry point for the extended CEClust
-#' workflow. It evaluates CEClust across a grid of density bounds `C` and
-#' regularisation values `lambda`, keeps the existing stability, saturation,
-#' repair, and change-detection logic, and returns a compact object suitable for
-#' diagnostics, plotting, or interactive exploration.
-#'
-#' @param ... Arguments forwarded to the internal grid engine. Common arguments
-#'   include `Z`, `lambda_grid`, `C_grid`, `Cquali`, `familyType`, `k0`, `B`,
-#'   `Nshots_fresh`, `Nshots_warm`, `Nloop`, `n_cores`, and
-#'   `final_descent_from_best`.
-#' @param save_results Logical. If `TRUE`, save the returned object as an `.rds`
-#'   file. Defaults to `FALSE` in the public wrapper.
-#' @param output_dir Directory used when `save_results = TRUE`.
-#' @param checkpoint_dir,auto_checkpoint,resume,force_recompute Checkpoint
-#'   controls. The public defaults do not write checkpoint files.
-#' @return An object of class `"CEC_bound_grid"` containing the original data,
-#'   per-`C` lambda-grid fits, a combined `summary` table, and metadata.
-#' @export
+# Public help: man/CECfitBoundGrid.Rd (maintained by hand).
 CECfitBoundGrid <- function(
   ...,
   save_results = FALSE,
@@ -25,8 +6,26 @@ CECfitBoundGrid <- function(
   checkpoint_dir = FALSE,
   auto_checkpoint = FALSE,
   resume = FALSE,
-  force_recompute = FALSE
+  force_recompute = FALSE,
+  optimization = c("cem", "em_bank"),
+  penalty = c("none", "bic"),
+  optimizer_control = list(),
+  rsi_policy = c("all", "unsaturated", "nontrivial_unsaturated", "saturation_band"),
+  rsi_saturation_max = .10,
+  grid_strategy = c("fixed", "adaptive"),
+  adaptive_control = list()
 ) {
+  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control) > 0 || !missing(rsi_policy) || !missing(grid_strategy) || length(adaptive_control)>0
+  optimization <- match.arg(optimization); penalty <- match.arg(penalty); rsi_policy <- match.arg(rsi_policy)
+  grid_strategy <- match.arg(grid_strategy)
+  if(grid_strategy=='fixed' && length(adaptive_control))stop('Use grid_strategy="adaptive" with adaptive_control.')
+  if (selected) {
+    if (isTRUE(checkpoint_dir) || (isTRUE(auto_checkpoint) && (is.null(checkpoint_dir) || isFALSE(checkpoint_dir))))
+      checkpoint_dir <- file.path(output_dir,"solver_checkpoints")
+    return(CECsolver_bound_dispatch(list(...),optimization,penalty,optimizer_control,
+      rsi_policy,rsi_saturation_max,save_results,output_dir,checkpoint_dir,resume,force_recompute,
+      grid_strategy,adaptive_control))
+  }
   out <- run_cec_grid(
     ...,
     save_results = save_results,
@@ -41,22 +40,7 @@ CECfitBoundGrid <- function(
 }
 
 
-#' Fit one of the built-in CEClust demonstration workflows.
-#'
-#' `CECfitPreset()` provides a small set of named entry points for common
-#' examples used in documentation and article workflows.
-#'
-#' @param preset Preset data workflow. One of `"gaussian_1d"`, `"iris"`, or
-#'   `"breast_cancer"`.
-#' @param ... Additional arguments forwarded to the corresponding grid workflow.
-#' @return A `"CEC_bound_grid"` object.
-#' @examples
-#' \dontrun{
-#' iris_grid <- CECfitPreset("iris", k0 = 2, B = 2, Nshots_fresh = 1)
-#' CECplotGrid(iris_grid)
-#' CECexplore(iris_grid)
-#' }
-#' @export
+# Public help: man/CECfitPreset.Rd (maintained by hand).
 CECfitPreset <- function(
   preset = c("gaussian_1d", "iris", "breast_cancer"),
   ...,
@@ -88,19 +72,10 @@ CECfitPreset <- function(
 }
 
 
-#' Select stable lambda values from a CEClust grid result.
-#'
-#' @param x A `"CEC_bound_grid"` object, a single-`C` grid result, or a
-#'   `lambda_diag` object returned by [CECfitLambdaGrid()].
-#' @param best_parts Optional best-partitions object when `x` is a `lambda_diag`
-#'   object.
-#' @param C Optional bound value used when `x` contains several `C` values.
-#' @param ... Threshold and smoothing arguments forwarded to the stability
-#'   selector, such as `stab_algo_threshold`, `rsi_threshold`, `sat_threshold`,
-#'   `use_smoothed`, and `min_consecutive`.
-#' @return A list describing kept and rejected lambdas plus a diagnostic summary.
-#' @export
+# Public help: man/CECselectStableLambdas.Rd (maintained by hand).
 CECselectStableLambdas <- function(x, best_parts = NULL, C = NULL, ...) {
+  if (inherits(x, "CEC_solver_grid") || inherits(x, "CEC_solver_lambda"))
+    return(CECsolver_select_stable(x, C = C, ...))
   dots <- list(...)
   requested_sat_threshold <- NULL
   if (!is.null(dots$sat_threshold) &&
@@ -143,28 +118,13 @@ CECselectStableLambdas <- function(x, best_parts = NULL, C = NULL, ...) {
 }
 
 
-#' Summarise a CEClust C by lambda grid.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param ... Reserved for future extensions.
-#' @return A data frame with one row per `C` and `lambda` pair.
-#' @export
+# Public help: man/CECsummariseGrid.Rd (maintained by hand).
 CECsummariseGrid <- function(x, ...) {
   cec_grid_summary_data(x)
 }
 
 
-#' Compact a CEClust grid object.
-#'
-#' `CECcompactGrid()` removes dense intermediate matrices and per-task lambda
-#' details that are not needed by the final Shiny explorer, phase diagrams, or
-#' selected partitions.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param keep_lambda_details Logical. Keep the full `lambda_diag$details`
-#'   objects. The default `FALSE` is the memory-saving mode.
-#' @return A compact `"CEC_bound_grid"` object.
-#' @export
+# Public help: man/CECcompactGrid.Rd (maintained by hand).
 CECcompactGrid <- function(x, keep_lambda_details = FALSE) {
   class_x <- class(x)
   out <- cec_grid_compact_grid_object(
@@ -176,40 +136,19 @@ CECcompactGrid <- function(x, keep_lambda_details = FALSE) {
 }
 
 
-#' Extract the selected partition from a CEClust grid.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param C,lambda Selected grid cell.
-#' @return An integer vector of cluster labels.
-#' @export
+# Public help: man/CECextractPartition.Rd (maintained by hand).
 CECextractPartition <- function(x, C, lambda) {
   cec_grid_partition_for_cell(x, C = C, lambda = lambda)
 }
 
 
-#' Plot a CEClust C by lambda grid.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param ... Arguments forwarded to the grid plot engine. Use
-#'   `show_legend = FALSE` to hide the default REO and rejection legend.
-#' @return Invisibly returns the plotted summary data.
-#' @export
+# Public help: man/CECplotGrid.Rd (maintained by hand).
 CECplotGrid <- function(x, ...) {
   plot_cec_grid_reo_map(x, ...)
 }
 
 
-#' Plot a selected partition from a CEClust grid.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param C,lambda Optional selected cell. If omitted, the first retained cell
-#'   in the summary is used.
-#' @param x_var,y_var Optional variables for multivariate scatter plots. When
-#'   omitted, PCA axes are used when available.
-#' @param shape_var Optional qualitative variable used for point shapes.
-#' @param ... Additional plotting arguments.
-#' @return Invisibly returns the selected partition object.
-#' @export
+# Public help: man/CECplotPartition.Rd (maintained by hand).
 CECplotPartition <- function(
   x,
   C = NULL,
@@ -219,6 +158,9 @@ CECplotPartition <- function(
   shape_var = "None",
   ...
 ) {
+  if(inherits(x,'CEC_adaptive_grid') && !is.null(C) && !is.null(lambda)) {
+    at <- CECadaptive_cell(x,C,lambda);C <- x$summary$C[at];lambda <- x$summary$lambda[at]
+  }
   if (is.null(C) || is.null(lambda)) {
     row <- cec_grid_best_row(x)
     C <- if (is.null(C)) row$C[1L] else C
@@ -246,24 +188,7 @@ CECplotPartition <- function(
 }
 
 
-#' Plot a lambda path from a CEClust grid.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param C Optional bound value. If omitted, the first retained cell is used.
-#' @param lambda Optional lambda highlighted on the diagnostic summary path.
-#' @param type Plot type. `"summary"` displays the REO path for one `C`;
-#'   `"partitions"` displays the one-dimensional partition evolution over
-#'   lambda and shades rejected regions.
-#' @param lambda_stable_obj Optional output of [CECselectStableLambdas()]. When
-#'   omitted and `type = "partitions"`, it is computed from the grid.
-#' @param stab_algo_threshold,rsi_threshold,sat_threshold Thresholds used when
-#'   computing rejected lambda regions for `type = "partitions"`.
-#' @param use_smoothed,min_consecutive Stability-selection options forwarded to
-#'   [CECselectStableLambdas()] for `type = "partitions"`.
-#' @param ... Additional plotting arguments.
-#' @return Invisibly returns the plotted summary table for `type = "summary"`
-#'   or the partition-path plotting data for `type = "partitions"`.
-#' @export
+# Public help: man/CECplotPath.Rd (maintained by hand).
 CECplotPath <- function(
   x,
   C = NULL,
@@ -340,15 +265,8 @@ CECplotPath <- function(
 }
 
 
-#' Launch the interactive CEClust explorer.
-#'
-#' `CECexplore()` keeps the Shiny workflow as the main interactive interface for
-#' inspecting C by lambda grid results.
-#'
-#' @param x A `"CEC_bound_grid"` object.
-#' @param ... Arguments forwarded to the Shiny explorer.
-#' @return The value returned by `shiny::runApp()`.
-#' @export
+# Public help: man/CECexplore.Rd (maintained by hand).
 CECexplore <- function(x, ...) {
   launch_cec_grid_shiny(x, ...)
 }
+

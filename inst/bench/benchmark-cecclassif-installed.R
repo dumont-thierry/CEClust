@@ -218,3 +218,4 @@ lines <- c(
 writeLines(lines, md_file)
 writeLines(runner_out)
 cat("\nInstalled timing summary written to ", md_file, "\n", sep = "")
+
