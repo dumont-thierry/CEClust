@@ -98,7 +98,7 @@ are not supported on that object.
 `CECrepairBestPartitionTrajectory` has nothing to improve by cross-cell
 propagation on a common EM bank. It returns zero repairs there. It rejects
 penalized CEM paths because the historical repair does not evaluate that penalty.
-The fixed grid does not add a final best-fit CEM descent. Adaptive CEM can harmonize neighbouring cells; its `A_harm` control compares the initial cell winner with the resulting representative, separately from the exhaustive diagnostics.
+The fixed grid does not add a final best-fit CEM descent. Adaptive CEM can harmonize neighbouring cells; its `A_harm` control compares the best independent campaign partition with the final representative, separately from the exhaustive diagnostics.
 
 ## Plot filters and compact objects
 
@@ -111,6 +111,22 @@ they do not decide which partition should be retained scientifically.
 `CECcompactGrid` removes redundant display intermediates. It keeps EM banks,
 independent winner indices and original data, so rescoring remains possible.
 A compact object is not an anonymized object or a set of only final labels.
+
+## Adaptive CEM from version 0.3.0.9003
+
+The adaptive CEM driver now separates pilot construction from independent
+measurement. Versions 0.3.0.9001 and 0.3.0.9002 ran the repeated fits during
+pilot construction, even where the final measurement policy excluded a cell.
+The corrected driver runs one multistart pilot per new cell, with parent
+starts for its children. It calibrates and refines the grid before launching
+L+B independent fits only at eligible active cells. Those fits have no warm
+starts. Their diagnostics remain frozen after improvements to the diagram.
+
+Adaptive CEM now defaults to `rsi_policy="saturation_band"` with limit 0.10.
+Use an explicit policy to change this. EM-bank and fixed-grid defaults remain
+`"all"`. Adaptive CEM exposes the pilot, campaigns and an execution register;
+`?CECresults` describes the fields. Old adaptive CEM checkpoints are a different
+protocol and cannot be reused as staged campaigns.
 
 ## Scope and saved analyses
 

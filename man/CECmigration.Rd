@@ -3,7 +3,7 @@
 \alias{CECmigration}
 \title{Use explicit solvers while retaining historical workflows}
 \description{
-Compatibility differences between historical linked-path calculations and the consolidated numeric engines in CEClust 0.3.0.9002.
+Compatibility differences between historical linked-path calculations and the consolidated numeric engines in CEClust 0.3.0.9003.
 }
 \section{Choosing the route}{
 For new numeric analyses, explicitly pass optimization="cem" or
@@ -40,6 +40,17 @@ EM-bank path and rejects penalized CEM paths.
 The plot-path function still has historical default thresholds for its optional
 one-dimensional allocation view: pass an explicit lambda_stable_obj obtained
 from CECselectStableLambdas to use the grid's current filter.
+}
+\section{Adaptive CEM correction in 0.3.0.9003}{
+Versions 0.3.0.9001 and 0.3.0.9002 fitted L+B repetitions at every evaluated
+adaptive CEM cell, including pilot parents and cells outside the measurement
+policy. Version 0.3.0.9003 replaces that orchestration with a separate pilot
+and deferred selective campaigns. It restores parent starts in the pilot,
+post-measurement improvements, local harmonization and coverage checks.
+The default adaptive CEM policy is now saturation_band. Fixed-grid and EM-bank
+protocols retain their defaults. Old adaptive CEM checkpoints are not accepted
+as staged campaigns and old saved results are not silently recomputed.
+See \link{CECadaptiveDiagram} for the stages and stored records.
 }
 \section{Scope of this version}{
 New solvers are numeric Gaussian implementations. The package's historical

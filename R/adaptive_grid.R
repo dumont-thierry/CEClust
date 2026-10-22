@@ -46,6 +46,15 @@ CECadaptive_initial <- function(X,C_grid,lambda_grid) {
   list(C=C_grid,lambda=lambda_grid)
 }
 
+CECadaptive_refinable <- function(mesh,indices,Cmax) {
+  g <- mesh$leaves[indices,,drop=FALSE]
+  # Both child centres along C must be evaluable. Leave a blocked parent
+  # intact, while still refining other selected parents inside the ceiling.
+  upper <- exp((g$u0+3*g$u1)/4)
+  okay <- upper<=Cmax*(1+1e-12)
+  list(indices=indices[okay],blocked=indices[!okay])
+}
+
 CECadaptive_scorer <- function(pool,banks,maps,X,control,penalty) {
   profile <- CECsolver_environment(penalty)$ca_profile
   cache <- new.env(parent=emptyenv());d <- ncol(X)
@@ -82,7 +91,14 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
   if(o$trivial_quadrants && rsi_policy=='nontrivial_unsaturated')
     stop('Trivial quadrants require a policy which measures trivial anchors.',call.=FALSE)
   if(optimization=='cem' && !is.null(optimizer_control$orders))stop('Explicit orders are for em_bank only; CEM uses Rmax and subdivision controls.')
-  if(is.null(optimizer_control$Cmax))optimizer_control$Cmax <- if(optimization=='em_bank')64*max(initial$C) else max(initial$C)
+  if(optimization=='cem') {
+    if(!is.null(banks))stop('Adaptive CEM does not accept EM candidate banks.')
+    return(CECfit_adaptive_cem(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed,n_cores,
+      penalty,optimizer_control,rsi_policy,rsi_saturation_max,stab_algo_threshold,rsi_threshold,
+      sat_threshold,partition_metric,bootstrap_indices,checkpoint_dir,resume,force_recompute,
+      save_results,output_dir,verbose))
+  }
+  if(is.null(optimizer_control$Cmax))optimizer_control$Cmax <- 64*max(initial$C)
   mesh <- ceca_mesh(initial$C,initial$lambda)
   args <- list(Z=X,C_grid=initial$C,lambda_grid=initial$lambda,k0=k0,B=B,r0=r0,
     Nshots_fresh=Nshots_fresh,Nloop=Nloop,algo_seed=algo_seed,n_cores=n_cores,
@@ -93,73 +109,22 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
     banks=banks,diagnostics=FALSE,cells=mesh$leaves[,c('C','lambda')])
   base <- do.call(CECfit_solver_grid,args)
   control <- base$meta$control;algo_seed <- base$meta$algo_seed;k0 <- base$meta$k0;B <- base$meta$B
-  args$bootstrap_indices <- base$bootstrap_indices;args$banks <- NULL
   settings <- list(sat_max=sat_threshold,sat_max2=o$frontier_saturation,
     max_cells=o$max_cells,refinement=o[c('max_rounds','max_depth','patience','position_tolerance','distinguish_partitions')])
-  pool <- base$parts;keys <- new.env(parent=emptyenv())
-  for(i in seq_along(pool))assign(digest::digest(pool[[i]]$labels),i,keys)
-  register <- function(p) {
-    key <- digest::digest(p$labels)
-    if(exists(key,keys,inherits=FALSE)) {
-      id <- get(key,keys);if(!identical(pool[[id]]$labels,p$labels))stop('Partition hash collision.')
-    } else {
-      id <- length(pool)+1L;pool[[id]] <<- list(labels=p$labels,stats=p$stats);assign(key,id,keys)
-    }
-    id
-  }
+  pool <- base$parts
   state <- list(mesh=mesh,parts=list());independent <- list();before_harmony <- list()
   history <- list();restrictions <- list();harmonies <- list();refinelog <- list()
   right <- NULL;counts <- setNames(integer(4),c('left','right','lower','upper'));round <- 1L
   blocked <- setNames(rep(FALSE,4),names(counts))
   all_banks <- base$banks;fit_time <- base$meta$fitting_elapsed
-  if(optimization=='em_bank') {
-    collect <- CECgrid_collect(base$banks)
-    score <- CECadaptive_scorer(pool,base$banks,collect$maps,X,control,penalty)
-  }
+  collect <- CECgrid_collect(base$banks)
+  score <- CECadaptive_scorer(pool,base$banks,collect$maps,X,control,penalty)
   profile <- CECsolver_environment(penalty)$ca_profile
-  accept <- function(f,ids) {
-    map <- vapply(f$parts,register,0L)
-    for(j in seq_along(ids)) {
-      key <- as.character(ids[j]);id <- map[f$selected[j]];p <- pool[[id]]
-      g <- state$mesh$leaves[match(ids[j],state$mesh$leaves$id),]
-      state$parts[[key]] <<- c(profile(p$stats,g$C,g$lambda,ncol(X)),p,list(id=id))
-      before_harmony[[key]] <<- id
-      independent[[key]] <<- map[f$winners[j,]]
-    }
-  }
-  harmonize <- function(seed_ids=NULL) {
-    if(optimization!='cem' || !o$harmonize)return(invisible(NULL))
-    q <- q_settings();q$rinit <- control$Rmax;q$shots <- control$Ninit;q$Nloop <- control$max_iter
-    q$tolerance <- control$tolerance
-    cfg <- list(X=X,seed=algo_seed,settings=q)
-    fun <- ceca_harmonize;environment(fun) <- CECsolver_environment(penalty)
-    h <- CECwith_seed(ca_seed(algo_seed,'adaptive_harmony',round),
-      fun(state,cfg,seed_ids=seed_ids,tag=as.character(round)))
-    h$evaluated_cells <- nrow(state$mesh$leaves)
-    h$initial_cells <- seed_ids
-    state <<- h$state
-    for(id in names(state$parts))state$parts[[id]]$id <<- register(state$parts[[id]])
-    harmonies[[length(harmonies)+1L]] <<- h[names(h)!='state']
-  }
   evaluate <- function(first=FALSE) {
     g <- state$mesh$leaves;new <- which(!as.character(g$id)%in%names(state$parts))
-    if(!length(new))return(invisible(NULL))
-    if(optimization=='em_bank')for(i in new) {
+    for(i in new) {
       key <- as.character(g$id[i]);p <- score(g$C[i],g$lambda[i]);state$parts[[key]] <<- p
       independent[[key]] <<- p$winners;before_harmony[[key]] <<- p$id
-    } else {
-      if(first)f <- base else {
-        args$cells <- g[new,c('C','lambda')]
-        args$optimizer_control$Cmax <- max(control$Cmax,max(args$cells$C))
-        f <- do.call(CECfit_solver_grid,args);fit_time <<- fit_time+f$meta$fitting_elapsed
-        for(k in seq_along(all_banks)) {
-          all_banks[[k]]$candidates <<- c(all_banks[[k]]$candidates,f$banks[[k]]$candidates)
-          all_banks[[k]]$fits <<- c(all_banks[[k]]$fits,f$banks[[k]]$fits)
-          all_banks[[k]]$evaluated_cells <<- rbind(all_banks[[k]]$evaluated_cells,f$banks[[k]]$evaluated_cells)
-          all_banks[[k]]$cell_winners <<- seq_along(all_banks[[k]]$candidates)
-        }
-      }
-      accept(f,g$id[new]);harmonize(if(first)NULL else g$id[new])
     }
   }
   borders <- function(append=FALSE) {
@@ -200,9 +165,12 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
     if(pick$status!='refine'){stop_reason <- pick$status;break}
     if(round>=o$max_rounds){stop_reason <- 'round_budget';break}
     before <- state;ids <- state$mesh$leaves$id[pick$indices];plan <- ceca_refine(state$mesh,pick$indices)
-    if(optimization=='em_bank' && any(plan$mesh$leaves$C>control$Cmax*(1+1e-12))) {
-      stop_reason <- 'EM_Cmax_refinement';break
-    }
+    feasible <- CECadaptive_refinable(state$mesh,pick$indices,control$Cmax)
+    if(length(feasible$blocked))restrictions[[length(restrictions)+1L]] <-
+      list(reason='EM_Cmax_refinement',cells=state$mesh$leaves$id[feasible$blocked],round=round)
+    if(!length(feasible$indices)){stop_reason <- 'EM_Cmax_refinement';break}
+    ids <- state$mesh$leaves$id[feasible$indices]
+    plan <- ceca_refine(state$mesh,feasible$indices)
     state$mesh <- plan$mesh;round <- round+1L;evaluate()
     update <- ceca_refinement_update(before,state,memory,ids,settings,scale)
     memory <- update$memory;refinelog[[length(refinelog)+1L]] <- cbind(round=round,update$diagnostics)
@@ -244,7 +212,7 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
     mesh=state$mesh,history=do.call(rbind,history),margins=m,restrictions=restrictions,
     extensions=counts,stop_reason=stop_reason,refinement=refinelog,harmonization=harmonies,
     screening=diagnostic$screening,
-    completed=all(m$observed) && stop_reason%in%c('no_frontiers','adaptive_stable'))
+    completed=all(m$observed) && stop_reason%in%c('no_frontiers','adaptive_stable') && !length(restrictions))
   out$meta$elapsed <- unname(proc.time()[3]-started)
   class(out) <- c('CEC_adaptive_grid',class(out))
   if(isTRUE(save_results)) {

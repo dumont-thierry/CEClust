@@ -108,6 +108,7 @@ test_that('quadrant coverage never manufactures diagnostic values', {
 
 test_that('adaptive CEM supports both penalties and preserves repetitions through harmony', {
   args <- adaptive_args();args$optimization <- 'cem';args$k0 <- 2;args$B <- 1
+  args$rsi_policy <- 'all'
   args$optimizer_control <- list(Rmax=2,Ninit=1,Cmax=20,max_iter=8,max_batches=1)
   args$adaptive_control <- list(max_cells=60,max_rounds=2,max_extensions=0)
   for(penalty in c('none','bic')) {

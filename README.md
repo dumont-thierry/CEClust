@@ -13,9 +13,13 @@ groupings to examine.
 This guide follows one small dataset from its first plot to the
 interpretation of that set. It then shows how to add a BIC-type penalty
 and change the optimization method. The code, printed results and
-figures below are produced with **CEClust 0.3.0.9002**.
+figures below are produced with **CEClust 0.3.0.9003**.
 
 ## Installation
+
+This local repair is version 0.3.0.9003 and has not yet been pushed to
+GitHub. Install its supplied ZIP or source archive to use this revision.
+The GitHub command below installs the currently published version.
 
 The `main` branch contains the current consolidated development version.
 Install it from GitHub with R \>= 4.3 and a C++ toolchain (Rtools on
@@ -40,7 +44,7 @@ path with your file:
 
 ``` r
 install.packages(c("clue", "digest", "mvtnorm", "Rcpp"))
-install.packages("path/to/CEClust_0.3.0.9002.zip",
+install.packages("path/to/CEClust_0.3.0.9003.zip",
                  repos = NULL, type = "win.binary")
 ```
 
@@ -52,7 +56,7 @@ before continuing:
 ``` r
 library(CEClust)
 packageVersion("CEClust")
-#> [1] '0.3.0.9002'
+#> [1] '0.3.0.9003'
 ```
 
 ## 1. Start with the observations
@@ -360,11 +364,30 @@ completed adaptation. Inspect `g_adaptive$adaptive$history` and
 `$margins`; the default budgets and all stopping rules are explained in
 `?CECadaptiveDiagram`.
 
-Use `optimization="cem"` for adaptive hard searches instead. For EM
-banks, `CECrescoreGrid(g_adaptive, penalty="bic")` reuses every fit,
-recomputes each independent winner and builds the penalized diagram’s
-own adaptive mesh. All evaluated C values remain below the original
-`Cmax`.
+For adaptive hard searches, use `optimization="cem"`. This follows two
+stages:
+
+1.  Construct and refine the pilot grid on the original data, with one
+    complete multistart search at each new cell. No bootstrap fitting is
+    done here.
+2.  Run the independent original and bootstrap campaigns at eligible
+    active cells. By default, their saturation must be at most 0.10,
+    including trivial cells. Specify `rsi_policy="unsaturated"` to
+    require zero saturation.
+
+A child pilot receives its parent’s partition as an additional start.
+Independent campaigns receive no such starts. Better campaign results
+can improve the displayed diagram and trigger local propagation and
+another coverage check; their diagnostic outputs remain frozen. Cells
+without a campaign retain missing diagnostics and are excluded. Inspect
+`$adaptive$final_refinement_pending` if measurement updates reactivate a
+boundary. Per-execution checkpoints allow interrupted campaigns to
+resume.
+
+For EM banks, `CECrescoreGrid(g_adaptive, penalty="bic")` reuses every
+fit, recomputes each independent winner and builds the penalized
+diagram’s own adaptive mesh. All evaluated C values remain below the
+original `Cmax`.
 
 For a sparse search through large soft orders, supply, for example,
 `optimizer_control=list(orders=c(1:20, 25, 40, 64, 100), Ninit=5, Cmax=10)`

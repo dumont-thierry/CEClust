@@ -120,7 +120,9 @@ targeted <- CECrescoreGrid(g,rsi_policy="nontrivial_unsaturated")
 targeted$summary[,c("C","lambda","REO","sat","measured","rsi","keep")]
 ```
 
-All four policies apply to the final representative at each cell:
+For fixed grids and EM banks, policies apply to the final representative.
+Adaptive CEM applies them after its pilot and rechecks coverage after
+measurement improvements, while retaining completed campaigns unchanged:
 
 | Policy | Requirement for measurement |
 |:--|:--|
@@ -139,6 +141,13 @@ If L < 2 or B = 0, the required diagnostic is missing. A missing value is not
 replaced by one and does not satisfy the filter. To restore measurement on
 an excluded trivial cell, use `all` or `unsaturated` rather than assigning a
 stability value by convention.
+
+Adaptive CEM defaults to the saturation band. Its pilot calibrates and refines
+without any L+B campaigns; only eligible active cells then receive the repeated
+fits. Pilot children receive parent starts, while independent campaigns do not.
+Better measurement results can improve the diagram and reactivate boundaries;
+check `$adaptive$final_refinement_pending`. EM banks are fitted once across
+the grid, so their measurement policy skips comparisons, not EM generation.
 
 ## Use the same bootstrap samples across analyses
 
@@ -175,11 +184,18 @@ stopifnot(identical(first$banks,again$banks),
           identical(first$summary,again$summary))
 ```
 
-Each completed repetition is checkpointed, and EM additionally records each
+For fixed grids and EM banks, each completed repetition is checkpointed,
+and EM additionally records each
 completed start and its random-generator state. A matching partial cache can
 resume interrupted fitting. A complete cache skips fitting but still evaluates
 scores and diagnostics. Changed seeds, data or budgets
 invalidate it. `force_recompute=TRUE` explicitly ignores it.
+
+Adaptive CEM separately checkpoints each pilot fit, each execution within a
+cell's independent campaign, and each completed harmonization. On resume,
+mesh decisions are replayed from these saved numerical outputs. Its
+`$executions` table identifies the reused records; `$measurements` preserves
+independent outputs, projections and diagnostics by cell ID.
 
 EM cache identity is independent of penalty and grid because these only rank
 the candidates, provided the stored Cmax covers every target. CEM cache identity

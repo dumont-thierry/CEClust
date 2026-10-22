@@ -1,11 +1,16 @@
-# Consolidated development version 0.3.0.9002
+# Consolidated development version 0.3.0.9003
 
-The `main` branch is the current package. The four `archive/*` branches retain
+This local source is the repaired development version; publication to `main`
+is a separate step. The four `archive/*` branches retain
 earlier implementations; they are not dependencies of this version. Numerical
 engines, adaptive geometry and compiled EM are included in the package source.
 
-This inventory was checked against the successive research implementations and
-the development discussion on 22 October 2026. The maintained user references
+This inventory was reviewed against the research implementations and the
+archived development discussion on 22 October 2026. The earlier inventory
+missed an orchestration defect: versions 0.3.0.9001/9002 performed repeated
+CEM fitting during adaptive pilot construction. Version 0.3.0.9003 replaces
+that path with the staged driver described below. Score agreement alone was
+insufficient to verify this requirement. The maintained user references
 are the function help pages and the three installed vignettes.
 
 | Requirement | Current implementation | Verification |
@@ -20,7 +25,11 @@ are the function help pages and the three installed vignettes.
 | Reuse with another penalty or grid | `CECrescoreGrid` reuses the fitted banks, reranks each execution and recomputes diagnostics | Paired fixed/adaptive tests; archived banknote regression |
 | Independent algorithmic and bootstrap outputs | Each execution selects on its own training sample; bootstrap outputs use frozen learned parameters on the original rows | Winner-by-winner and diagnostic checks |
 | Exhaustive stability | L(L-1)/2 original-original pairs and L B original-bootstrap pairs; standalone `CECstability` also accepts another method's labels | Independent agreement checks and `test-optimization-methods` |
-| Targeted diagnostic measurement | `all`, `unsaturated`, `nontrivial_unsaturated`, `saturation_band`; skipped diagnostics remain missing and cannot pass the filter | Policy and missing-value tests |
+| Deferred CEM campaigns | One multistart original-data pilot per new cell; no L+B campaign before pilot calibration/refinement ends | Fitting-call phase/count tests in `test-staged-cem` |
+| Parent starts in the CEM pilot | A new child receives the parent partition; independent campaigns always use fresh randomizations | Warm-start isolation and archived-parent tests |
+| Measurement improvements and coverage | Inject better campaign partitions, harmonize locally, recheck borders and eligibility; keep completed campaigns frozen | Controlled improvement/coverage test, no duplicate campaign executions |
+| Post-measurement refinement | Reactivated frontiers or exhausted budgets prevent completed adaptation and have explicit final status | Pending-frontier test |
+| Targeted diagnostic measurement | `all`, `unsaturated`, `nontrivial_unsaturated`, `saturation_band`; adaptive CEM gates whole campaigns (default saturation band .10), while EM/fixed routes gate comparisons; skipped diagnostics remain missing and excluded | Policy and missing-value tests |
 | Three separate saturation controls | Final `sat_threshold`, frontier `adaptive_control$frontier_saturation`, and measurement `rsi_saturation_max` | Documented in `CECdiagnostics` and `CECadaptiveDiagram` |
 | Initial window and four extensions | `grid_strategy="adaptive"`; supplied initial centres or a window scaled from the data | Exact geometry import and regression against the research runner |
 | Row-wise right stopping | Each row is trivial/saturated, or remains unsaturated at unchanged REO over two extensions; changed comparison intervals reset its history | Dedicated mixed-row test |
@@ -28,10 +37,27 @@ are the function help pages and the three installed vignettes.
 | CEM neighbour harmonization | First pass on the whole mesh, then new cells and their neighbours with propagation until stable; separate `A_harm` control; independent diagnostic outputs remain frozen | Monotonicity, local propagation, final full-mesh audit and independent-winner tests |
 | No extra EM-bank harmonization | All candidates are already available throughout the diagram | Bank rescoring and candidate-minimum checks |
 | Optional trivial quadrants | Trivial anchors, stability checks and a persistent shared audit budget across overlapping quadrants; exempt cells remain unmeasured and excluded | Quadrant coverage and audit-budget tests |
-| Parallel execution and interrupted fitting | Independent repetitions; per-repetition and per-EM-start checkpoints, with seed and input validation | Serial/parallel and partial-resume regressions |
+| Parallel execution and interrupted fitting | Independent repetitions; per-repetition/per-EM-start caches, and staged-CEM per-pilot, per-campaign-execution and harmonization caches, with seed and input validation | Serial/parallel and partial-resume regressions |
 | Correct irregular-cell displays | Actual adaptive rectangles, extraction inside a cell and ordered lambda paths | Plot/extraction tests and visual inspection |
 | Compact saved results | Banks, independent winners, labels, data and adaptive geometry remain available for inspection and rescoring | Compact-object and data-fingerprint tests |
 | Pedagogical documentation | Executed README, 26 help topics, three executable vignettes and an installed quick-start script | Fresh source build, help examples, vignette checks and README assertions |
+
+## Staged adaptive CEM
+
+`adaptive_cem.R` owns the CEM pilot, deferred campaigns and final coverage
+loop. `adaptive_grid.R` dispatches to it and retains the EM-bank mesh driver.
+Shared geometry is in `adaptive_geometry.R`; propagation is in
+`adaptive_harmonization.R`. The fixed-grid and historical compatibility
+routes remain separate. The maintained numerical kernels are unchanged by
+this orchestration correction.
+
+Adaptive CEM now defaults to `saturation_band` (0.10). Explicit policies remain
+available. EM-bank and fixed-grid defaults stay `all`. The three saturation
+controls, optimization choices and penalty choices remain independent.
+
+Old adaptive CEM caches belong to a different protocol. They are preserved
+but are not loaded as staged campaigns. Returned execution records identify
+pilot versus measurement, seed, parent-start use and checkpoint reuse.
 
 ## Successive designs
 

@@ -1,3 +1,23 @@
+# CEClust 0.3.0.9003
+
+- Replaced adaptive CEM orchestration with a separate original-data pilot,
+  followed by selective independent original/bootstrap campaigns. Versions
+  0.3.0.9001/9002 fitted those campaigns during pilot construction.
+- Restored parent starts for pilot children, local propagation after campaign
+  improvements, border/coverage rechecks and explicit pending-frontier status.
+  Independent campaign outputs and their diagnostics remain frozen.
+- Adaptive CEM now defaults to the saturation band (0.10); explicit policies,
+  fixed-grid defaults and EM-bank defaults retain their documented meaning.
+- Added per-pilot, per-campaign-execution and harmonization checkpoints, a
+  phase/seed execution register, and compact selective measurement records.
+  Old adaptive CEM caches are not treated as the corrected protocol.
+- Fixed floating-point rejection of valid mesh ceilings and allowed interior
+  EM refinements when other proposed children would exceed Cmax. Ceiling and
+  budget restrictions remain explicit search limits.
+- Added behavior tests for execution staging, whole-campaign gating, independent
+  seeds/projection, parent starts, frozen campaigns, quadrant exemptions and
+  numerical resume. Updated reference help and migration guidance.
+
 # CEClust 0.3.0.9002
 
 - Consolidated package published on `main`; historical `archive/*` branches

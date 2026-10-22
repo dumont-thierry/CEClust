@@ -23,10 +23,10 @@ CECfitBoundGrid(..., save_results = FALSE, output_dir = file.path(tempdir(), "CE
 \item{optimization}{\code{"cem"} or \code{"em_bank"}. Explicitly supplying this argument selects the consolidated numeric Gaussian engine.}
 \item{penalty}{\code{"none"} or \code{"bic"}. Explicitly supplying it also selects the consolidated engine.}
 \item{optimizer_control}{Named controls described in \link{CECoptimizers}. A nonempty list selects the consolidated engine.}
-\item{rsi_policy}{\code{"all"}, \code{"unsaturated"}, \code{"nontrivial_unsaturated"}, or \code{"saturation_band"}. Controls where both stability measures and RSI are computed; see \link{CECdiagnostics}. Explicitly supplying it selects the consolidated engine.}
+\item{rsi_policy}{\code{"all"}, \code{"unsaturated"}, \code{"nontrivial_unsaturated"}, or \code{"saturation_band"}. Controls where both stability measures and RSI are computed. Adaptive CEM defaults to \code{"saturation_band"} when omitted and applies the policy before launching cell campaigns; other routes default to \code{"all"}. See \link{CECdiagnostics}. Explicitly supplying it selects the consolidated engine.}
 \item{grid_strategy}{\code{"fixed"} (default) or \code{"adaptive"}. Adaptive mode integrates four-sided extension and frontier refinement; see \link{CECadaptiveDiagram}.}
 \item{adaptive_control}{Named adaptive-window, refinement, harmonization and optional quadrant controls; see \link{CECadaptiveDiagram}.}
-\item{rsi_saturation_max}{Maximum saturation for the measurement policy \code{"saturation_band"}; default 0.10. It is separate from the final \code{sat_threshold}. Set \code{rsi_policy} explicitly when using this argument.}
+\item{rsi_saturation_max}{Maximum saturation for the measurement policy \code{"saturation_band"}; default 0.10. It is separate from the final \code{sat_threshold}. Used by adaptive CEM's default policy; elsewhere set \code{rsi_policy="saturation_band"} explicitly.}
 }
 \value{
 A \code{CEC_solver_grid} inheriting from \code{CEC_bound_grid} and
@@ -62,13 +62,19 @@ their training sample and projected onto the original observations with frozen
 learned parameters. Exhaustive diagnostics compare these independent outputs.
 The final displayed partition is selected separately: for EM banks, from all
 projected candidates pooled across banks; for CEM, from the independent winners
-at that cell. Pooled winners are never substituted into the diagnostic repetitions.
+at that cell on fixed grids. Adaptive CEM keeps the best pilot, campaign or
+harmonized representative. Pooled or harmonized winners are never substituted
+into the diagnostic repetitions.
 
 EM fits are shared across all cells within one execution; hard profiles are
 reevaluated under each C. CEM searches run separately at each cell. On fixed grids neither route applies a final cross-cell repair. Adaptive CEM additionally propagates improving neighbour partitions and descends from them, without altering the independent diagnostic winners. EM needs no such harmonization.
 }
 \section{Checkpoints and saved results}{
-Checkpoints record each completed independent repetition and, for EM, each completed start with its random-generator state. Interrupted fitting can reuse these partial records. A complete bank cache is also written after all repetitions finish. A matching complete checkpoint avoids repeating the fitting stage. Adaptive CEM checkpoints are separated by batches of evaluated cells; mesh decisions are replayed deterministically on resume.
+Checkpoints record each completed independent repetition and, for EM, each completed start with its random-generator state. Interrupted fitting can reuse these partial records. A complete bank cache is also written after all repetitions finish. A matching complete checkpoint avoids repeating the fitting stage. Adaptive CEM first constructs its pilot without L+B campaigns. It checkpoints
+each pilot fit, each original or bootstrap campaign execution, and each
+completed harmonization separately. Mesh decisions are replayed on resume;
+completed numerical fits and propagation are reused. Independent campaign
+seeds depend on cell ID, kind and repetition, not worker count.
 Its identity includes the package version, data, bootstrap indices, budgets
 and seeds. For EM banks, it does not depend on the scoring grid or penalty;
 for CEM it does. Diagnostics and final scores are computed again on reuse.

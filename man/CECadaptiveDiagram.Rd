@@ -57,7 +57,7 @@ Pass a named \code{adaptive_control} list. Its fields are:
 \item{\code{patience=2, position_tolerance=0.125}}{Local stopping controls; displacement is measured in initial-grid units.}
 \item{\code{distinguish_partitions=TRUE}}{Refine partition changes even when REO is unchanged.}
 \item{\code{frontier_saturation}}{Saturation threshold for relevant frontiers; defaults to sat_threshold and cannot be smaller.}
-\item{\code{harmonize=TRUE, harmonization_min=0.95}}{For CEM, propagate improving neighbour partitions and run a descent from them. The initial pass visits the whole mesh. Later passes start from the newly evaluated cells and their neighbours; an improvement reactivates affected neighbours until propagation stops. Keep requires agreement at least harmonization_min between the pre-harmonization cell winner and its final representative. Independent repetitions remain unchanged. EM uses its common bank, has no additional harmonization, and has A_harm=1.}
+\item{\code{harmonize=TRUE, harmonization_min=0.95}}{For CEM, propagate improving neighbour partitions and run a descent from them. The initial pass visits the whole mesh. Later passes start from the newly evaluated cells and their neighbours; an improvement reactivates affected neighbours until propagation stops. Keep requires agreement at least harmonization_min between the best independent campaign partition and the final harmonized representative. It is missing for cells without a campaign. Independent repetitions remain unchanged. EM uses its common bank, has no additional harmonization, and has A_harm=1.}
 \item{\code{trivial_quadrants=FALSE}}{Optional heuristic exemption from diagnostic measurement in validated upper-left trivial quadrants.}
 \item{\code{audit_fraction=0.10, anchor_stability=0.95}}{Quadrant controls described below.}
 }
@@ -67,13 +67,33 @@ reported as completed adaptation. Even completed adaptation only means that
 the specified numerical stopping rules were met within the explored window.
 }
 \section{Diagnostics and optional quadrants}{
-Measurement policies and exhaustive comparisons are unchanged. EM fits are
-shared across cells within each independent execution, but winners remain
-independent between executions. With CEM, each evaluated cell has its own
-independent repetitions. Neighbour harmonization never substitutes its output
-into those repetitions. Final diagnostics use the final representative's
-saturation to determine the measurement policy.
-Identical winner patterns and partition comparisons are cached exactly.
+Adaptive CEM has two stages. The pilot runs one complete multistart search
+on the original observations at each new cell, followed by neighbour
+harmonization. A child cell additionally starts from its parent's partition.
+No original-data repetition campaign or bootstrap fit is run during this
+calibration and refinement stage.
+
+After the pilot stops, independent L original and B bootstrap executions are
+run only at active cells satisfying the measurement policy. The default for
+adaptive CEM is \code{"saturation_band"}, with a maximum of 0.10; explicit
+\code{"all"} requests campaigns even in saturated cells. Campaigns have
+separate seeds and receive no pilot, parent or neighbour starts. Bootstrap
+models are projected onto the original observations with frozen parameters.
+The two exhaustive agreement averages use these frozen independent outputs.
+
+A better campaign partition can improve the representative diagram. Such
+improvements are harmonized locally; borders and measurement coverage are
+checked again. Newly eligible cells receive campaigns, while already measured
+cells are never refitted or substituted by a common winner. Post-measurement
+changes can reactivate a refinement boundary: inspect
+\code{final_refinement_status} and \code{final_refinement_pending}.
+A pending boundary or a budget stop prevents \code{completed=TRUE}.
+
+EM uses a different arrangement: L+B independent banks are fitted once and
+shared across cells. Their winners are recomputed as the grid changes; the
+measurement policy gates agreement calculations, not bank generation. No
+extra CEM harmonization is applied. Identical winner patterns and partition
+comparisons are cached exactly.
 
 Optional trivial quadrants use a measured, trivial anchor passing RSI and
 algorithmic-stability thresholds. Every explored cell with C no greater and
@@ -81,7 +101,8 @@ lambda no smaller must be trivial. Controls use one deterministic, persistent
 budget for the union of candidate quadrants; overlapping quadrants do not
 duplicate that budget. A failing control invalidates its quadrant. An exempted
 cell retains missing diagnostics and is marked \code{quadrant_unmeasured}; it
-is not included in \code{keep}. The default measures without this heuristic.
+is not included in \code{keep}. For staged CEM the exemption avoids the entire
+L+B campaign; for EM the already fitted banks remain available. The default measures without this heuristic.
 The nontrivial-only measurement policy cannot supply trivial anchors and is
 therefore incompatible with this option.
 }
@@ -91,6 +112,12 @@ The result is a \code{CEC_adaptive_grid} with the usual grid components.
 edges, with id, parent and depth. \code{adaptive$mesh$archive} retains parent
 geometry. \code{A_harm}, \code{keep_harmonization}, \code{measurement_status}
 and \code{quadrant_witness} record additional controls.
+For CEM, \code{adaptive$pilot} and \code{adaptive$pilot_fits} preserve the pilot,
+\code{measurements} stores campaigns by cell ID, and \code{executions} records
+phase, kind, cell, seed, parent-start use and checkpoint reuse. Unmeasured
+rows in \code{winners} contain NA. Checkpoints store each pilot fit, each
+independent campaign execution and each completed harmonization. Resume
+replays the mesh decisions and reuses those numerical results.
 Plots draw these actual rectangles, rather than inventing a Cartesian grid.
 Extraction at an interior point returns the representative of its containing
 cell; points outside the window are rejected. One-C paths describe evaluated

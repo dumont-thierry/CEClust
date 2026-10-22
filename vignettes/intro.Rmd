@@ -180,6 +180,10 @@ bands use the intended filter.
 
 The RSI policy controls where both agreement averages are measured. Setting
 `rsi_policy="nontrivial_unsaturated"` skips trivial and saturated cells.
+For adaptive CEM, the pilot is constructed first, without L+B campaigns;
+the policy then gates whole cell campaigns. Its default saturation band also
+measures eligible trivial cells. With EM banks, as in this example, the banks
+already exist and the policy gates agreement calculations.
 Skipped values remain `NA`; a trivial cell is not automatically admitted.
 For an EM grid, `CECrescoreGrid(g,rsi_policy="all")` broadens measurement
 without repeating EM. It is unnecessary here because the original call

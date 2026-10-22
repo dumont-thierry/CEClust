@@ -55,7 +55,10 @@ CECoptimization_control <- function(control, n, C, Nshots, Nloop, r0 = NULL) {
     x <- defaults[[nm]]
     if (!is.numeric(x) || length(x)!=1L || !is.finite(x)) stop(nm, ' must be finite.', call. = FALSE)
   }
-  if (defaults$Cmax < C || defaults$Cmax <= 0) stop('Cmax must be positive and at least C.', call. = FALSE)
+  if (defaults$Cmax < C*(1-16*.Machine$double.eps) || defaults$Cmax <= 0)
+    stop('Cmax must be positive and at least C.', call. = FALSE)
+  # Mesh centres can differ from supplied values by a few rounding bits.
+  defaults$Cmax <- max(defaults$Cmax,C)
   if (defaults$tolerance < 0 || defaults$soften <= 0 || defaults$soften >= 1 ||
       defaults$saturation_stop < 0 || defaults$saturation_stop > 1)
     stop('Invalid tolerance, soften or saturation_stop.', call. = FALSE)

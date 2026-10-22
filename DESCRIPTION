@@ -1,7 +1,7 @@
 Package: CEClust
 Type: Package
 Title: Compact Composite Entropy Clustering Grid Explorer
-Version: 0.3.0.9002
+Version: 0.3.0.9003
 Config/CEClust/LocalPatch: integrated-adaptive-diagrams
 Config/CEClust/UpstreamCommit: 9a38174d6d79cb84e522f7cf6f1f4c5882c30313
 Authors@R: c(

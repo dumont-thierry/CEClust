@@ -15,9 +15,12 @@ CECfitBoundGrid <- function(
   grid_strategy = c("fixed", "adaptive"),
   adaptive_control = list()
 ) {
+  rsi_policy_missing <- missing(rsi_policy)
   selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control) > 0 || !missing(rsi_policy) || !missing(grid_strategy) || length(adaptive_control)>0
   optimization <- match.arg(optimization); penalty <- match.arg(penalty); rsi_policy <- match.arg(rsi_policy)
   grid_strategy <- match.arg(grid_strategy)
+  if(rsi_policy_missing && grid_strategy=='adaptive' && optimization=='cem')
+    rsi_policy <- 'saturation_band'
   if(grid_strategy=='fixed' && length(adaptive_control))stop('Use grid_strategy="adaptive" with adaptive_control.')
   if (selected) {
     if (isTRUE(checkpoint_dir) || (isTRUE(auto_checkpoint) && (is.null(checkpoint_dir) || isFALSE(checkpoint_dir))))
