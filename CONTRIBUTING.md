@@ -27,7 +27,7 @@ testthat, knitr, rmarkdown and Pandoc available:
 
 ```sh
 R CMD build CEClust
-R CMD check --no-manual CEClust_0.3.0.9004.tar.gz
+R CMD check --no-manual CEClust_0.3.0.9005.tar.gz
 ```
 
 Do not disable vignette building for a distribution. The introductory and
@@ -92,3 +92,18 @@ areas, raw axis distances, saturation gating, early stop, both trigger
 conditions (including boundaries), penalized scores, one descent/no random
 starts, frozen projection, and serial/parallel/partial resume equivalence.
 Keep the cell strategy and independent-only option as regression baselines.
+
+
+## Numeric CEM kernel
+
+`src/cem_fused.cpp` shares moments, covariance fitting and raw density evaluation.
+`q_descent` dispatches to it; `q_descent_R` is the retained reference. Both are
+cloned into the penalty-specific environment. Keep score acceptance, proposal
+flooring and singular-support conventions separate. A failed or numerically
+ambiguous compiled fit must fall back without discarding its start or consuming
+randomness. Preserve engine/fallback records and timings.
+
+`test-compiled-cem` compares profiles, raw densities, starts, accepted moves,
+labels and exhaustive pair vectors. Performance validation must keep initial
+orders, internal starts, L/B, seeds and workers unchanged. Report whole-operation
+times alongside isolated search timings; archive the tested source and package.

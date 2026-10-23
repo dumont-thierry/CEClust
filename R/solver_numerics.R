@@ -10,17 +10,40 @@ ca_sim <- function(a,b) {
   assignment<-as.integer(clue::solve_LSAP(m,maximum=TRUE))
   sum(m[cbind(seq_len(k),assignment)])/length(a)
 }
+
+# Inputs have already been canonicalized. Avoid repeated factor/table creation
+# while retaining exactly the public agreement formulas and rounding convention.
+CECcanonical_similarity <- function(a,b,method='match') {
+  n <- length(a)
+  if(n<=1L || identical(a,b))return(1)
+  r <- max(a);s <- max(b)
+  tab <- matrix(tabulate(a+(b-1L)*r,nbins=r*s),nrow=r,ncol=s)
+  if(method=='match') {
+    K <- max(r,s);square <- matrix(0,K,K);square[seq_len(r),seq_len(s)] <- tab
+    assignment <- as.integer(clue::solve_LSAP(square,maximum=TRUE))
+    matched <- sum(square[cbind(seq_len(K),assignment)])
+    return(1-(1-matched/n))
+  }
+  choose2 <- function(z) {z<-as.numeric(z);z*(z-1)/2}
+  nij <- sum(choose2(tab));ai <- sum(choose2(rowSums(tab)));bj <- sum(choose2(colSums(tab)))
+  expected <- ai*bj/choose2(n);maximum <- .5*(ai+bj);denominator <- maximum-expected
+  if(denominator==0)return(1)
+  1-(1-(nij-expected)/denominator)
+}
 ca_stats <- function(X,labels) {
-  groups<-split(seq_len(nrow(X)),labels);d<-ncol(X)
-  do.call(rbind,lapply(seq_along(groups),function(k){
+  groups<-split(seq_len(nrow(X)),labels);d<-ncol(X);K<-length(groups)
+  count<-ranks<-integer(K);mass<-ldet<-emin<-emax<-numeric(K)
+  for(k in seq_len(K)) {
     a<-X[groups[[k]],,drop=FALSE]
     shifted<-sweep(a,2,a[1,],'-');centered<-sweep(shifted,2,colMeans(shifted),'-')
     S<-crossprod(centered)/nrow(a);ev<-eigen(S,symmetric=TRUE,only.values=TRUE)$values
     rank<-sum(ev>8*d*.Machine$double.eps*max(abs(ev)))
     ld<-if(rank==d)2*sum(log(diag(chol((S+t(S))/2)))) else -Inf
-    data.frame(cluster=k,n=nrow(a),mass=nrow(a)/nrow(X),rank=rank,logdet=ld,
-      eigmin=min(ev),eigmax=max(ev))
-  }))
+    count[k]<-nrow(a);mass[k]<-nrow(a)/nrow(X);ranks[k]<-rank;ldet[k]<-ld
+    emin[k]<-min(ev);emax[k]<-max(ev)
+  }
+  structure(list(cluster=seq_len(K),n=count,mass=mass,rank=ranks,logdet=ldet,
+    eigmin=emin,eigmax=emax),class='data.frame',row.names=.set_row_names(K))
 }
 ca_profile <- function(stats,C,lambda,d) {
   logdelta<- -d*log(2*pi)-2*log(C)
@@ -81,9 +104,26 @@ q_part <- function(X,labels,C,lambda,stats=NULL) {
   c(list(labels=labels,stats=stats),ca_profile(stats,C,lambda,ncol(X)))
 }
 q_settings <- function()list(rinit=10L,rinit_max=320L,shots=5L,Nloop=100L,
-  min_child=3L,tau=.05,confirmations=2L,max_batches=8L,tolerance=1e-8)
+  min_child=3L,tau=.05,confirmations=2L,max_batches=8L,tolerance=1e-8,cem_engine='compiled')
 
 q_descent <- function(X,C,lambda,labels,settings,backend) {
+  engine <- if(is.null(settings$cem_engine))'compiled' else settings$cem_engine
+  if(engine=='reference' || !CECfast_backend_available())return(q_descent_R(X,C,lambda,labels,settings,backend))
+  tm <- q_time()
+  ans <- tryCatch(cec_cpp_cem_descent(X,C,lambda,ca_labels(labels),settings$Nloop,
+    settings$tolerance,q_bic_beta(nrow(X),ncol(X)),ca_profile),error=identity)
+  if(inherits(ans,'error')) {
+    # A failed fast evaluation must not reject a start accepted by the
+    # reference solver. Neither descent consumes random numbers.
+    fallback <- q_descent_R(X,C,lambda,labels,settings,backend)
+    fallback$compiled_fallback <- conditionMessage(ans);fallback$engine <- 'reference_fallback'
+    fallback$time <- q_duration(tm);return(fallback)
+  }
+  ans$time <- q_duration(tm);ans$warnings <- '';ans$engine <- 'compiled'
+  ans
+}
+
+q_descent_R <- function(X,C,lambda,labels,settings,backend) {
   tm <- q_time();warnings <- character()
   out <- tryCatch(withCallingHandlers({
     traces<-list();deletions<-list();fit_elapsed<-0;proposal_elapsed<-0;deletion_elapsed<-0
@@ -137,11 +177,11 @@ q_descent <- function(X,C,lambda,labels,settings,backend) {
     list(part=current$part,valid=TRUE,error='',initial_J=initial$J,
       steps=nrow(trace)-1L,stop=reason,descent_trace=trace,deletion_plans=deletions,
       deletion_count=sum(trace$move=='delete_component'),
-      stage_timings=c(refit=fit_elapsed,CEM_proposal=proposal_elapsed,deletion=deletion_elapsed),
+      stage_timings=c(refit=unname(fit_elapsed),CEM_proposal=unname(proposal_elapsed),deletion=unname(deletion_elapsed)),
       max_increase=if(nrow(trace)>1L)max(diff(trace$J)) else 0)
   },warning=function(w){warnings<<-c(warnings,conditionMessage(w));invokeRestart('muffleWarning')}),
   error=function(e)list(valid=FALSE,error=conditionMessage(e)))
-  out$time <- q_duration(tm);out$warnings <- paste(unique(warnings),collapse=' | ');out
+  out$time <- q_duration(tm);out$warnings <- paste(unique(warnings),collapse=' | ');out$engine <- 'reference';out
 }
 
 # One complete algorithm run. Warm starts are allowed only in the pilot.
@@ -166,6 +206,8 @@ q_fit <- function(X,C,lambda,seed,settings=q_settings(),warm=NULL,backend=NULL) 
       refit_elapsed=if(ans$valid)unname(ans$stage_timings['refit']) else NA_real_,
       CEM_proposal_elapsed=if(ans$valid)unname(ans$stage_timings['CEM_proposal']) else NA_real_,
       deletion_elapsed=if(ans$valid)unname(ans$stage_timings['deletion']) else NA_real_,
+      engine=if(is.null(ans$engine))'reference' else ans$engine,
+      compiled_fallback=if(is.null(ans$compiled_fallback))'' else ans$compiled_fallback,
       user=ans$time['user'],system=ans$time['system'],elapsed=ans$time['elapsed'],
       error=ans$error,warnings=ans$warnings,row.names=NULL)
     if(ans$valid) {
@@ -310,7 +352,7 @@ predict_frozen<-function(X,params,method,seed) {
 CECsolver_environment <- function(penalty) {
   ns <- environment(CECsolver_environment)
   env <- new.env(parent = ns)
-  for (nm in c("q_part", "q_descent", "q_fit")) {
+  for (nm in c("q_part", "q_descent", "q_descent_R", "q_fit")) {
     f <- get(nm, envir = ns)
     environment(f) <- env
     assign(nm, f, envir = env)

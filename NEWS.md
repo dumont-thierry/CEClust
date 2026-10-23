@@ -1,3 +1,21 @@
+# CEClust 0.3.0.9005
+
+- Added a compiled numeric CEM descent sharing Gaussian moments between the
+  hard score, determinant-constrained parameters and raw densities. It retains
+  singular affine-support scores, the proposal-only floor and frozen deletion
+  checks. Search orders, starts, randomizations and stopping budgets are unchanged.
+- Precompute component log-weights and visit density columns contiguously.
+  Preallocate reference statistics instead of creating a data frame per group.
+- Cache exact repeated partition agreements and build contingency counts directly
+  from canonical labels. All original/cross pair values and their ordering remain
+  available; no repetitions or comparisons are removed from the definition.
+- optimizer_control$cem_engine defaults to "compiled"; "reference" retains the
+  previous R descent. Numerically ambiguous ranks or compiled errors fall back
+  to the reference descent without rejecting that start. Engine, fallback reason
+  and stage timings are recorded per start.
+- Added native/reference profile, trajectory, singularity and stability parity
+  tests, plus matched full-campaign and full-pilot performance measurements.
+
 # CEClust 0.3.0.9004
 
 - Adaptive diagrams now default to connected-component traversal after freezing

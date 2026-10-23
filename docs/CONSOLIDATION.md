@@ -1,9 +1,29 @@
-# Consolidated development version 0.3.0.9004
+# Consolidated development version 0.3.0.9005
 
 This local source is the repaired development version; publication to `main`
 is a separate step. The four `archive/*` branches retain
 earlier implementations; they are not dependencies of this version. Numerical
 engines, adaptive geometry and compiled EM are included in the package source.
+
+## Compiled numeric CEM (23 October 2026)
+
+`src/cem_fused.cpp` now shares Gaussian moments across the hard score, covariance
+fitting and raw density calculation. Reassignment and frozen deletion use the
+same accepted moves and stopping budgets as the retained `q_descent_R` path.
+The default `optimizer_control$cem_engine="compiled"` can be switched to
+`"reference"`. Ambiguous ranks and compiled errors fall back per start, with
+their reasons recorded. The R statistics path is preallocated; exhaustive
+agreements use exact memoization and direct contingency counting.
+
+Matched 20-worker campaigns, with the same 40 independent searches and all 590
+agreements, measured gains of x14.6 and x11.2 including saving. The complete
+fresh pilot reproduces all 4796 cell partitions and 6373 searches in 94.69 s
+(maximum score difference 4.44e-16). The barycentric diagnostic phase then uses
+14 points in 11.10 s, including output preparation. The 105.79 s equivalent
+total sums separately timed fresh pilot and diagnostic phases; replay reading
+is excluded. Early stopping under the new reference rule is a separate gain
+from the matched numerical-kernel improvement. Validation is archived in
+`Validation/speed_20261023`; no scientific budget was reduced.
 
 ## Component traversal and reference bootstrap (23 October 2026)
 

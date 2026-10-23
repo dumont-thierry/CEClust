@@ -262,6 +262,38 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cec_cpp_cem_evaluate
+Rcpp::List cec_cpp_cem_evaluate(const arma::mat& X, const Rcpp::IntegerVector& labels, double C, double lambda);
+RcppExport SEXP _CEClust_cec_cpp_cem_evaluate(SEXP XSEXP, SEXP labelsSEXP, SEXP CSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_cem_evaluate(X, labels, C, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cec_cpp_cem_descent
+Rcpp::List cec_cpp_cem_descent(const arma::mat& X, double C, double lambda, Rcpp::IntegerVector labels, int max_iter, double tolerance, double beta, Rcpp::Function profile);
+RcppExport SEXP _CEClust_cec_cpp_cem_descent(SEXP XSEXP, SEXP CSEXP, SEXP lambdaSEXP, SEXP labelsSEXP, SEXP max_iterSEXP, SEXP toleranceSEXP, SEXP betaSEXP, SEXP profileSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< double >::type C(CSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type labels(labelsSEXP);
+    Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type tolerance(toleranceSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Function >::type profile(profileSEXP);
+    rcpp_result_gen = Rcpp::wrap(cec_cpp_cem_descent(X, C, lambda, labels, max_iter, tolerance, beta, profile));
+    return rcpp_result_gen;
+END_RCPP
+}
 // emmap_fit_cpp
 List emmap_fit_cpp(const arma::mat& X, const IntegerVector& labels, double C, int max_iter, double tolerance, double soften);
 RcppExport SEXP _CEClust_emmap_fit_cpp(SEXP XSEXP, SEXP labelsSEXP, SEXP CSEXP, SEXP max_iterSEXP, SEXP toleranceSEXP, SEXP softenSEXP) {
@@ -313,6 +345,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_CEClust_cec_cpp_discrete_counts", (DL_FUNC) &_CEClust_cec_cpp_discrete_counts, 4},
     {"_CEClust_cec_cpp_logdens_discrete", (DL_FUNC) &_CEClust_cec_cpp_logdens_discrete, 2},
     {"_CEClust_cec_cpp_cluster_fingerprint", (DL_FUNC) &_CEClust_cec_cpp_cluster_fingerprint, 1},
+    {"_CEClust_cec_cpp_cem_evaluate", (DL_FUNC) &_CEClust_cec_cpp_cem_evaluate, 4},
+    {"_CEClust_cec_cpp_cem_descent", (DL_FUNC) &_CEClust_cec_cpp_cem_descent, 8},
     {"_CEClust_emmap_fit_cpp", (DL_FUNC) &_CEClust_emmap_fit_cpp, 6},
     {"_CEClust_emmap_predict_cpp", (DL_FUNC) &_CEClust_emmap_predict_cpp, 4},
     {NULL, NULL, 0}

@@ -21,11 +21,11 @@ and removing duplicates, the output is a set of distinct groupings to examine.
 This guide follows one small dataset from its first plot to the interpretation
 of that set. It then shows how to add a BIC-type penalty and change the
 optimization method. The code, printed results and figures below are produced
-with **CEClust 0.3.0.9004**.
+with **CEClust 0.3.0.9005**.
 
 ## Installation
 
-This local repair is version 0.3.0.9004 and has not yet been pushed to GitHub.
+This local repair is version 0.3.0.9005 and has not yet been pushed to GitHub.
 Install its supplied ZIP or source archive to use this revision. The GitHub
 command below installs the currently published version.
 
@@ -49,7 +49,7 @@ requires neither a compiler nor Pandoc. Replace the example path with your file:
 
 ```{r install, eval=FALSE}
 install.packages(c("clue", "digest", "mvtnorm", "Rcpp"))
-install.packages("path/to/CEClust_0.3.0.9004.zip",
+install.packages("path/to/CEClust_0.3.0.9005.zip",
                  repos = NULL, type = "win.binary")
 ```
 
@@ -427,3 +427,23 @@ values remain missing. `g$adaptive$components` records the barycentres, ordered
 candidates and stopping decisions. Use `diagnostic_strategy = "cells"` for
 the previous cell-by-cell coverage. Recompute diagnostics when a different
 threshold requires points skipped by the original traversal.
+
+## Compiled CEM and performance records
+
+Numeric CEM now uses a compiled descent by default. Gaussian moments are shared
+between scoring, parameter fitting and raw density calculation. This accelerates
+both grid construction and the independent diagnostic campaigns. The orders,
+starts, bootstrap samples, tolerances and stopping budgets are unchanged.
+
+Set `optimizer_control=list(cem_engine="reference")` to compare with the R
+descent. For the compiled path, a numerical failure or ambiguous covariance rank
+automatically uses that reference descent for the affected start. Its engine
+and fallback reason are recorded in `fit$solver$starts` for a direct fit, or in
+the stored campaign fit. The compiled implementation retains singular supports
+and the determinant bound; it adds no covariance jitter or eigenvalue floor.
+
+Search timing records distinguish refitting, reassignment proposals, deletion
+checks and initialization subdivisions. Measure the whole operation with
+`system.time()` when comparing wall time, and keep the same workers and budgets.
+The exhaustive stability helper reuses identical agreement calculations while
+retaining every pair value and its original position.

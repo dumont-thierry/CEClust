@@ -163,3 +163,13 @@ Use `reference_bootstrap = FALSE` to reproduce independent-only diagnostics;
 combine it with `diagnostic_strategy = "cells"` for the former adaptive route.
 Existing saved objects are never silently recalculated. `CECstability()`
 still computes the raw pairwise formula from supplied labels.
+
+## Compiled numeric CEM (0.3.0.9005)
+
+The default CEM descent is compiled, sharing Gaussian moments across scoring
+and fitting. Its criterion, starting partitions, subdivision schedule and
+stopping budgets are unchanged. `cem_engine="reference"` in optimizer_control
+selects the previous R descent. Native numerical failures fall back to it for
+the affected start, with an explicit engine and reason in the start record.
+Existing objects are not recomputed. Exhaustive agreements are memoized exactly;
+their definitions, pair counts, value vectors and ordering remain unchanged.

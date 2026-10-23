@@ -35,6 +35,7 @@ These are different objectives, and neither certifies a global hard optimum.
 }
 \section{Control fields}{
 \describe{
+\item{\code{cem_engine="compiled"}}{Implementation of the numeric hard CEM descent. The compiled default shares moments, parameter fitting and raw density calculation. Use "reference" for the R implementation of the same search. This does not change starts, order growth, budgets, the objective or diagnostic definitions. A compiled numerical failure or ambiguous rank uses the reference descent and records its reason. No effect on EM candidate generation.}
 \item{\code{orders=NULL}}{Optional distinct integer soft orders, between 1 and n, for EM. By default all integers 1,...,Rmax are tried. When supplied, only these orders are fitted; an explicit Rmax must cover them. A trivial hard baseline is retained even when order 1 is omitted. Adaptive CEM uses Rmax and subdivision instead.}
 \item{\code{Rmax}}{For EM, largest soft mixture order, capped at n; MAP can leave fewer groups. For numeric CEM, initial search order, not a final cap. Default r0, or min(20,n) in direct classification when r0 is NULL.}
 \item{\code{Ninit}}{EM starts per order; numeric CEM starts per search batch. Default Nshots in direct classification, Nshots_fresh on a grid.}
@@ -51,6 +52,20 @@ These are different objectives, and neither certifies a global hard optimum.
 }
 Unknown fields are rejected. Method-specific controls have no effect on the
 other optimizer. Inspect saved controls and convergence records when comparing budgets.
+}
+\section{Compiled CEM and timing}{
+The compiled path retains the determinant bound without an eigenvalue floor,
+singular affine-support scoring, the proposal-only density floor, and acceptance
+by the refitted hard criterion. Neither L, B nor internal multistart budgets are
+reduced. Exact repeated agreement calculations are memoized while preserving all
+pair values in their original order. Floating-point scores can differ by rounding;
+validation compares partitions and accepted trajectories as well as scores.
+
+Each CEM start records \code{engine}, \code{compiled_fallback}, and refit,
+proposal and deletion timings. Full search timings also separate subdivision,
+backend preparation and final parameters. Use outer elapsed time for a diagram
+or campaign; summing parallel worker times is not wall-clock duration.
+The historical categorical/mixed path retains its own implementation.
 }
 \section{Input and bounds}{
 New engines accept finite numeric data and full-covariance Gaussian

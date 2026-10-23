@@ -90,9 +90,21 @@ CECstability <- function(original,bootstrap,partition_metric=c('match','ARI')) {
      any(lengths(pp)==0L) || length(unique(lengths(pp)))!=1L || any(vapply(pp,anyNA,TRUE)))
     stop('Partitions must be nonempty lists of complete label vectors of equal length.',call.=FALSE)
   L <- length(original);B <- length(bootstrap)
-  similarity <- function(a,b)partition_similarity(a,b,method=partition_metric)
-  a <- if(L>=2L)utils::combn(seq_len(L),2,function(ij)similarity(original[[ij[1]]],original[[ij[2]]])) else numeric()
-  b <- if(L && B)unlist(lapply(original,function(x)vapply(bootstrap,function(y)similarity(x,y),0)),use.names=FALSE) else numeric()
+  canonical <- lapply(pp,ca_labels)
+  key <- vapply(canonical,digest::digest,'',algo='xxhash64')
+  ids <- match(key,unique(key));representatives <- match(unique(key),key)
+  for(i in seq_along(ids))if(!identical(canonical[[i]],canonical[[representatives[ids[i]]]]))
+    stop('Partition hash collision in stability calculation.')
+  cache <- new.env(parent=emptyenv())
+  similarity <- function(i,j) {
+    if(ids[i]==ids[j])return(1)
+    pair <- paste(sort(c(ids[i],ids[j])),collapse=':')
+    if(!exists(pair,cache,inherits=FALSE))assign(pair,
+      CECcanonical_similarity(canonical[[i]],canonical[[j]],method=partition_metric),cache)
+    get(pair,cache,inherits=FALSE)
+  }
+  a <- if(L>=2L)utils::combn(seq_len(L),2,function(ij)similarity(ij[1],ij[2])) else numeric()
+  b <- if(L && B)unlist(lapply(seq_len(L),function(i)vapply(L+seq_len(B),function(j)similarity(i,j),0)),use.names=FALSE) else numeric()
   SA <- if(length(a))mean(a) else NA_real_;SB <- if(length(b))mean(b) else NA_real_
   list(Stab_algo=SA,Stab_boot=SB,RSI=if(is.finite(SA)&&SA>0)SB/SA else NA_real_,
     original_pairs=length(a),cross_pairs=length(b),definition='exhaustive_original_bootstrap',
@@ -111,7 +123,7 @@ CECgrid_diagnostics <- function(winners,parts,eligible,L,B,partition_metric='mat
     if(i==j)return(1)
     key <- paste(sort(c(i,j)),collapse=':')
     if(!exists(key,pairs,inherits=FALSE))assign(key,
-      partition_similarity(parts[[i]]$labels,parts[[j]]$labels,method=partition_metric),pairs)
+      CECcanonical_similarity(parts[[i]]$labels,parts[[j]]$labels,method=partition_metric),pairs)
     get(key,pairs)
   }
   for(i in which(eligible)) {

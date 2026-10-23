@@ -7,6 +7,7 @@ CECadaptive_cem_settings <- function(control) {
   s$min_child <- control$min_child; s$confirmations <- control$confirmations
   s$max_batches <- control$max_batches; s$tau <- control$saturation_stop
   s$tolerance <- control$tolerance
+  s$cem_engine <- control$cem_engine
   s
 }
 

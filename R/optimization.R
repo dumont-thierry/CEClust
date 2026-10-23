@@ -31,13 +31,14 @@ CECoptimization_control <- function(control, n, C, Nshots, Nloop, r0 = NULL) {
   defaults <- list(Rmax = if (is.null(r0)) min(20L, n) else r0,
     Ninit = Nshots, Cmax = C, max_iter = Nloop, tolerance = 1e-8, soften = .02,
     seed = NULL, rinit_max = 320L, min_child = 3L, confirmations = 2L,
-    max_batches = 8L, saturation_stop = .05, orders = NULL)
+    max_batches = 8L, saturation_stop = .05, orders = NULL,cem_engine='compiled')
   if (!is.list(control) || (length(control) && (is.null(names(control)) ||
       any(!nzchar(names(control))) || anyDuplicated(names(control)))))
     stop("optimizer_control must be a named list without duplicates.", call. = FALSE)
   unknown <- setdiff(names(control), names(defaults))
   if (length(unknown)) stop("Unknown optimizer_control: ", paste(unknown, collapse=', '), call. = FALSE)
   for (nm in names(control)) defaults[nm] <- control[nm]
+  defaults$cem_engine <- match.arg(defaults$cem_engine,c('compiled','reference'))
   for (nm in c('Rmax','Ninit','max_iter','rinit_max','min_child','confirmations','max_batches'))
     defaults[[nm]] <- CECinteger(defaults[[nm]], nm)
   defaults$Rmax <- min(n, defaults$Rmax)
@@ -220,6 +221,7 @@ CECclassif <- function(Z,lambda=1,C=1,Cquali=Inf,r0=NULL,Nshots=100,Nloop=1000,
   settings$min_child <- control$min_child;settings$confirmations <- control$confirmations
   settings$max_batches <- control$max_batches;settings$tau <- control$saturation_stop
   settings$tolerance <- control$tolerance
+  settings$cem_engine <- control$cem_engine
   seed <- if(is.null(control$seed))sample.int(.Machine$integer.max,1L) else control$seed
   fit <- CECwith_seed(seed,CECsolver_environment(penalty)$q_fit(X,C,lambda,seed,settings))
   if (fit$status=='fit_failure') stop('All CEM starts failed; inspect the input and constraints.',call.=FALSE)

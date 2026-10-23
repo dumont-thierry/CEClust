@@ -77,6 +77,14 @@ cec_cpp_cluster_fingerprint <- function(clusters) {
     .Call(`_CEClust_cec_cpp_cluster_fingerprint`, clusters)
 }
 
+cec_cpp_cem_evaluate <- function(X, labels, C, lambda) {
+    .Call(`_CEClust_cec_cpp_cem_evaluate`, X, labels, C, lambda)
+}
+
+cec_cpp_cem_descent <- function(X, C, lambda, labels, max_iter, tolerance, beta, profile) {
+    .Call(`_CEClust_cec_cpp_cem_descent`, X, C, lambda, labels, max_iter, tolerance, beta, profile)
+}
+
 emmap_fit_cpp <- function(X, labels, C, max_iter = 1000L, tolerance = 1e-8, soften = .02) {
     .Call(`_CEClust_emmap_fit_cpp`, X, labels, C, max_iter, tolerance, soften)
 }
