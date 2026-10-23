@@ -76,9 +76,12 @@ CECbank_initial <- function(X, r, shot) {
   for (j in 2:r) {
     D <- sweep(X, 2, X[tail(centers, 1L), ], '-')
     dist2 <- pmin(dist2, rowSums(D*D)); dist2[centers] <- 0
-    remaining <- setdiff(seq_len(n),centers)
-    next_id <- if (is.finite(sum(dist2)) && sum(dist2) > 0)
-      sample.int(n, 1L, prob = dist2) else remaining[sample.int(length(remaining),1L)]
+    total <- sum(dist2)
+    next_id <- if (is.finite(total) && total > 0)
+      sample.int(n, 1L, prob = dist2) else {
+        remaining <- setdiff(seq_len(n),centers)
+        remaining[sample.int(length(remaining),1L)]
+      }
     centers <- c(centers, next_id)
   }
   z <- tryCatch(suppressWarnings(stats::kmeans(X, centers = X[centers,,drop=FALSE],
@@ -89,12 +92,14 @@ CECbank_initial <- function(X, r, shot) {
 
 CECfit_em_bank <- function(X, control, Xref = X, checkpoint_dir=NULL, resume=FALSE) {
   CECwith_seed(control$seed, {
+    same_data <- identical(X,Xref)
     signature <- digest::digest(list(X,Xref,control,as.character(utils::packageVersion('CEClust'))))
     if(!is.null(checkpoint_dir))dir.create(checkpoint_dir,recursive=TRUE,showWarnings=FALSE)
     candidates <- list(); starts <- list(); keys <- new.env(parent=emptyenv())
     # A hard one-group candidate remains defined for singular datasets.
+    one_stats <- ca_stats(X,rep(1L,nrow(X)))
     one <- list(local_labels=rep(1L,nrow(X)), labels=rep(1L,nrow(Xref)),
-      local_stats=ca_stats(X,rep(1L,nrow(X))), stats=ca_stats(Xref,rep(1L,nrow(Xref))),
+      local_stats=one_stats, stats=if(same_data)one_stats else ca_stats(Xref,rep(1L,nrow(Xref))),
       params=NULL, loglik_trace=numeric(), stop='hard_trivial_baseline', converged=NA)
     candidates[[1L]] <- one
     assign(digest::digest(list(one$local_labels,one$labels)),1L,keys)
@@ -120,8 +125,10 @@ CECfit_em_bank <- function(X, control, Xref = X, checkpoint_dir=NULL, resume=FAL
         local <- ca_labels(e$labels)
         if (!identical(local,as.integer(emmap_predict_cpp(X,params$means,params$cov,params$weights))))
           stop('MAP pruning changed the training allocation.')
-        labels <- ca_labels(emmap_predict_cpp(Xref,params$means,params$cov,params$weights))
-        list(local_labels=local,labels=labels,local_stats=ca_stats(X,local),stats=ca_stats(Xref,labels),
+        # The retained prediction check above already verified this allocation.
+        labels <- if(same_data)local else ca_labels(emmap_predict_cpp(Xref,params$means,params$cov,params$weights))
+        local_stats <- ca_stats(X,local)
+        list(local_labels=local,labels=labels,local_stats=local_stats,stats=if(same_data)local_stats else ca_stats(Xref,labels),
           params=params,loglik_trace=e$loglik_mean_trace,stop=e$stop,converged=e$converged,
           minimum_constraint_margin=e$minimum_logdet_constraint_margin,soft_K=e$soft_K)
       }, error=function(e)e)

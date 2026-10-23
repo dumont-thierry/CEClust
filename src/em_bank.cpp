@@ -1,18 +1,18 @@
 #include <RcppArmadillo.h>
+#include <utility>
 // [[Rcpp::depends(RcppArmadillo)]]
 using namespace Rcpp;
 using namespace arma;
 
-struct EMState { mat means; cube cov; vec weights; mat prob; double ll; double det_margin; };
+struct EMState { mat means; cube cov; cube lower; vec half_logdet; vec weights; mat prob; double ll; double det_margin; };
 
-EMState em_mstep(const mat& X, const mat& R, double logdelta) {
+EMState em_mstep(const mat& X, const mat& shifted, const mat& R, double logdelta) {
   const int n=X.n_rows,d=X.n_cols,k=R.n_cols;
-  EMState s; s.means.set_size(k,d); s.cov.set_size(d,d,k);s.det_margin=arma::datum::inf;
+  EMState s; s.means.set_size(k,d); s.cov.set_size(d,d,k);s.lower.set_size(d,d,k);s.half_logdet.set_size(k);s.det_margin=arma::datum::inf;
   s.weights=sum(R,0).t()/n;
   for(int j=0;j<k;j++) {
     double mass=accu(R.col(j));
     if(!(mass>0)) stop("Zero numerical component mass");
-    mat shifted=X.each_row()-X.row(0);
     rowvec offset=(R.col(j).t()*shifted)/mass;
     rowvec mu=X.row(0)+offset; s.means.row(j)=mu;
     mat D=shifted.each_row()-offset; mat WD=D.each_col()%R.col(j);
@@ -21,9 +21,11 @@ EMState em_mstep(const mat& X, const mat& R, double logdelta) {
     double ld=2*accu(log(L.diag()));
     V*=std::exp(std::max(0.0,(logdelta-ld)/d));
     if(!chol(L,V,"lower"))stop("Numerical singularity after covariance scaling");
-    double margin=2*accu(log(L.diag()))-logdelta;
+    double half_logdet=accu(log(L.diag()));
+    double margin=2*half_logdet-logdelta;
     if(margin < -1e-8)stop("Numerical determinant constraint violation");
     s.det_margin=std::min(s.det_margin,margin);s.cov.slice(j)=V;
+    s.lower.slice(j)=L;s.half_logdet(j)=half_logdet;
   }
   return s;
 }
@@ -37,10 +39,20 @@ mat em_logjoint(const mat& X, const mat& means, const cube& cov, const vec& weig
   }
   return scores;
 }
+// The M-step already factorized these exact covariances. Reuse its factors.
+mat em_logjoint_cached(const mat& X, const EMState& s) {
+  int n=X.n_rows,d=X.n_cols,k=s.weights.n_elem; mat scores(n,k);
+  for(int j=0;j<k;j++) {
+    const mat& L=s.lower.slice(j);
+    mat D=X.each_row()-s.means.row(j); mat z=solve(trimatl(L),D.t());
+    scores.col(j)=std::log(s.weights(j))-.5*d*std::log(2*M_PI)-s.half_logdet(j)-.5*sum(square(z),0).t();
+  }
+  return scores;
+}
 void em_estep(const mat& X, EMState& s) {
-  mat scores=em_logjoint(X,s.means,s.cov,s.weights); vec mx=max(scores,1);
-  mat e=exp(scores.each_col()-mx); vec den=sum(e,1);
-  s.ll=mean(mx+log(den)); s.prob=e.each_col()/den;
+  s.prob=em_logjoint_cached(X,s); vec mx=max(s.prob,1);
+  s.prob=exp(s.prob.each_col()-mx); vec den=sum(s.prob,1);
+  s.ll=mean(mx+log(den)); s.prob.each_col()/=den;
   if(!std::isfinite(s.ll))stop("Nonfinite EM likelihood");
 }
 // [[Rcpp::export]]
@@ -54,17 +66,19 @@ List emmap_fit_cpp(const arma::mat& X, const IntegerVector& labels, double C,
   int k=max(labels); mat R(n,k,fill::value(soften/k));
   for(int i=0;i<n;i++)R(i,labels[i]-1)+=1-soften;
   double logdelta=-d*std::log(2*M_PI)-2*std::log(C);
-  EMState s=em_mstep(X,R,logdelta);em_estep(X,s);
+  // X is immutable throughout this descent; preserve the original centering.
+  const mat shifted=X.each_row()-X.row(0);
+  EMState s=em_mstep(X,shifted,R,logdelta);em_estep(X,s);
   std::vector<double> trace;trace.push_back(s.ll);std::string reason="EM_iteration_budget";
   int quiet=0;double min_margin=s.det_margin;
   for(int it=0;it<max_iter;it++) {
     EMState next;
-    try { next=em_mstep(X,s.prob,logdelta);em_estep(X,next); }
+    try { next=em_mstep(X,shifted,s.prob,logdelta);em_estep(X,next); }
     catch(std::exception &ex) { reason="EM_singular_or_numerical_limit";break; }
     double gain=next.ll-s.ll,scale=std::max(1.0,std::abs(s.ll));
     if(gain < -1e-9*scale){reason="EM_numerical_decrease_rejected";break;}
     if(gain<0){reason="EM_numerical_plateau";break;}
-    s=next; trace.push_back(s.ll);min_margin=std::min(min_margin,s.det_margin);
+    s=std::move(next); trace.push_back(s.ll);min_margin=std::min(min_margin,s.det_margin);
     quiet=gain<=tolerance*scale ? quiet+1 : 0;
     if(quiet>=3){reason="EM_likelihood_stable";break;}
     if(it%50==0)checkUserInterrupt();

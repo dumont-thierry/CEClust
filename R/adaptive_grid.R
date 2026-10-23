@@ -65,13 +65,25 @@ CECadaptive_scorer <- function(pool,banks,maps,X,control,penalty) {
   entropy <- function(s)-sum(s$mass*log(s$mass))
   h <- vapply(pool,function(p)entropy(p$stats),0)
   bh <- lapply(banks,function(b)vapply(b$candidates,function(p)entropy(p$local_stats),0))
+  # A pooled profile can serve a bank only when all its local statistics match.
+  # Bootstrap statistics are otherwise profiled independently, as before.
+  shared <- lapply(seq_along(banks),function(k)vapply(seq_along(banks[[k]]$candidates),
+    function(j)identical(banks[[k]]$candidates[[j]]$local_stats,pool[[maps[[k]][j]]]$stats),TRUE))
   function(C,lambda) {
     if(C>control$Cmax*(1+1e-12))stop('An adaptive cell exceeds the bank Cmax.')
     key <- sprintf('%.17g',C)
     if(!exists(key,cache,inherits=FALSE)) {
       p <- lapply(pool,function(p)profile(p$stats,C,0,d))
-      intercept <- lapply(banks,function(b)vapply(b$candidates,function(p)profile(p$local_stats,C,0,d)$J,0))
-      assign(key,list(a=vapply(p,`[[`,0,'J'),p=p,intercept=intercept),cache)
+      a <- vapply(p,`[[`,0,'J')
+      intercept <- lapply(seq_along(banks),function(k) {
+        value <- a[maps[[k]]]
+        names(value) <- names(banks[[k]]$candidates)
+        separate <- which(!shared[[k]])
+        if(length(separate))value[separate] <- vapply(banks[[k]]$candidates[separate],
+          function(candidate)profile(candidate$local_stats,C,0,d)$J,0)
+        value
+      })
+      assign(key,list(a=a,p=p,intercept=intercept),cache)
     }
     s <- get(key,cache);id <- which.min(s$a+lambda*h)
     winners <- vapply(seq_along(banks),function(k)maps[[k]][which.min(s$intercept[[k]]+lambda*bh[[k]])],0L)

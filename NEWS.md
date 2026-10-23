@@ -1,3 +1,19 @@
+# CEClust 0.3.0.9008
+
+- Reuse the immutable centered data and the exact covariance Cholesky factors
+  within each soft EM descent. Reuse probability buffers and move accepted
+  states instead of copying their matrices. Covariance constraints, likelihood
+  arithmetic, monotonicity checks and stopping rules are unchanged.
+- Reuse the verified MAP allocation and hard statistics when the fitting and
+  reference data are identical. Bootstrap projections remain separate. Avoid
+  constructing unused initialization fallback sets, with unchanged random draws.
+- Adaptive EM scoring reuses a pooled Gaussian profile for a bank candidate
+  only when its local statistics are exactly identical. All other bank profiles
+  remain independent; candidate ranking and tie handling are unchanged.
+- Add regression checks against frozen 0.3.0.9007 EM outputs, including
+  initialization RNG, complete banks, fixed/adaptive diagrams and both penalties.
+  Search budgets, independent repetitions and diagnostic definitions are unchanged.
+
 # CEClust 0.3.0.9007
 
 - Conditional reference bootstraps now require both raw independent Stab_algo
