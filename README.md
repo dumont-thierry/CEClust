@@ -56,7 +56,7 @@ before continuing:
 ``` r
 library(CEClust)
 packageVersion("CEClust")
-#> [1] '0.3.0.9005'
+#> [1] '0.3.0.9006'
 ```
 
 ## 1. Start with the observations
@@ -210,20 +210,24 @@ resolutions.
 ### Conditional bootstrap around a better grid partition
 
 Before a point is filtered, the numeric grid engines compare their best
-original execution with the grid representative. If their agreement is
-below the requested algorithmic threshold and the execution does not
-improve the representative’s score, the representative is fixed as the
-reference. `stab_algo` is then one by construction. Each bootstrap
-receives **one CEM descent**, starting from that reference’s labels on
-the sampled rows; there are no additional starts. The RSI is the mean
-agreement of its projections with the fixed reference.
+original execution with the grid representative. The conditional rule
+requires all three conditions: the independent `stab_algo` is strictly
+above the requested algorithmic threshold, agreement with the
+representative is strictly below that threshold, and the execution does
+not improve the representative’s score. The representative is then fixed
+as the reference. `stab_algo` is then one by construction. Each
+bootstrap receives **one CEM descent**, starting from that reference’s
+labels on the sampled rows; there are no additional starts. The RSI is
+the mean agreement of its projections with the fixed reference.
 
 This measures resampling sensitivity conditional on that reference. It
 does not turn a failed optimization experiment into an empirical
 stability of one. `reference_bootstrap_applied` and
 `diagnostic_definition` identify the branch; `stab_algo_raw`,
 `stab_boot_raw` and `rsi_raw` retain the independent diagnostics. The
-complete reference check and bootstrap fits are in `g$measurements`. Use
+complete reference check and bootstrap fits are in `g$measurements`. If
+independent `stab_algo` is equal to or below the threshold, the raw
+diagnostics are kept and no conditional bootstrap is run. Use
 `reference_bootstrap = FALSE` to obtain independent-only diagnostics.
 
 ## 5. Inspect each retained partition once

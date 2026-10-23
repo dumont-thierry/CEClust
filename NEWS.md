@@ -1,3 +1,15 @@
+# CEClust 0.3.0.9006
+
+- The conditional reference bootstrap now also requires the raw independent
+  Stab_algo to be strictly greater than stab_algo_threshold. All three trigger
+  conditions must hold before setting stability to one by construction.
+  A value equal to or below the threshold, or an unavailable value, leaves
+  the independent diagnostics unchanged and launches no reference bootstrap.
+- Record the raw stability and its threshold decision in reference_check.
+  The same gate applies to every measured point in numeric fixed/adaptive
+  CEM, EM-bank and rescored grids, before filtering or regional acceptance.
+  Search, geometry, seeds and optimization budgets are unchanged.
+
 # CEClust 0.3.0.9005
 
 - Added a compiled numeric CEM descent sharing Gaussian moments between the

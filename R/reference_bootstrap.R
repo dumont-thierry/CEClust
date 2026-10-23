@@ -48,10 +48,12 @@ CECreference_stability <- function(z,reference,cfg,cell,metric,algo_min,enabled=
   target <- score(reference)
   agreement <- if(is.null(best))NA_real_ else partition_similarity(best$labels,target$labels,method=metric)
   worse_or_equal <- !is.null(best) && !ca_better(best$J,target$J,cfg$settings$tolerance)
-  applied <- enabled && length(cfg$boots)>0L && is.finite(raw$Stab_algo) && is.finite(raw$Stab_boot) &&
+  independent_stability_passed <- is.finite(raw$Stab_algo) && raw$Stab_algo>algo_min
+  applied <- enabled && length(cfg$boots)>0L && independent_stability_passed && is.finite(raw$Stab_boot) &&
     is.finite(agreement) && agreement<algo_min && worse_or_equal
   z$diagnostics_raw <- raw
   z$reference_check <- list(applied=applied,enabled=enabled,agreement=agreement,threshold=algo_min,
+    independent_stability=raw$Stab_algo,independent_stability_passed=independent_stability_passed,
     best_original_score=if(is.null(best))NA_real_ else best$J,reference_score=target$J,
     original_not_better=worse_or_equal,tolerance=cfg$settings$tolerance,
     best_original_index=if(is.null(best))NA_integer_ else which.min(vapply(scored,`[[`,0,'J')),

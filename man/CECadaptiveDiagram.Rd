@@ -82,7 +82,7 @@ by increasing Euclidean distance to this barycentre, without rescaling the axes;
 cell ID breaks ties. The measurement policy then restricts the candidates.
 Thus the default CEM saturation band still excludes test points above 0.10.
 
-Each candidate receives the ordinary exhaustive diagnostics and, when its two
+Each candidate receives the ordinary exhaustive diagnostics and, when all three
 conditions hold, the conditional reference-bootstrap recalculation. This is done
 before comparing Stab_algo and RSI to their strict thresholds. A component stops
 at its first passing point, or after exhausting its eligible candidates.

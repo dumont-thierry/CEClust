@@ -9,7 +9,7 @@ reference_fixture <- function() {
   list(cfg=cfg,z=z,reference=list(labels=labels),cell=data.frame(id=7L,C=10,lambda=1))
 }
 
-test_that('both trigger conditions are checked before any final filtering', {
+test_that('all three trigger conditions are checked before any final filtering', {
   f <- reference_fixture();calls <- 0L
   runner <- function(jobs,worker) {
     calls <<- calls+length(jobs)
@@ -17,6 +17,8 @@ test_that('both trigger conditions are checked before any final filtering', {
   }
   a <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)
   expect_true(a$reference_check$applied);expect_equal(calls,2L)
+  expect_equal(a$reference_check$independent_stability,1)
+  expect_true(a$reference_check$independent_stability_passed)
   expect_equal(a$diagnostics$Stab_algo,1);expect_equal(a$diagnostics$RSI,1)
   expect_identical(a$diagnostics_raw,f$z$diagnostics)
   expect_equal(a$diagnostics$original_pairs,0L);expect_equal(a$diagnostics$cross_pairs,2L)
@@ -38,6 +40,31 @@ test_that('both trigger conditions are checked before any final filtering', {
   # Lack of repetitions never establishes algorithmic stability.
   z <- f$z;z$diagnostics$Stab_algo <- NA_real_
   expect_false(CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)$reference_check$applied)
+})
+
+test_that('independent algorithmic stability must strictly exceed its threshold', {
+  f <- reference_fixture()
+  runner <- function(...)stop('An unstable independent campaign must not launch reference bootstraps')
+  for(value in c(.714342105263158,.471236842105263,.8,.85,NA_real_,NaN,Inf)) {
+    z <- f$z;z$diagnostics$Stab_algo <- value
+    a <- CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)
+    expect_false(a$reference_check$applied)
+    expect_false(a$reference_check$independent_stability_passed)
+    expect_identical(a$diagnostics,z$diagnostics)
+    expect_null(a$reference_bootstrap)
+  }
+  z <- f$z;z$diagnostics$Stab_algo <- .8500001
+  a <- CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,
+    function(jobs,worker)lapply(jobs,function(j)list(part=list(labels=f$reference$labels))))
+  expect_true(a$reference_check$applied)
+  expect_true(a$reference_check$independent_stability_passed)
+  # A previous fixed value of one cannot replace the raw stability in the gate.
+  a$diagnostics_raw$Stab_algo <- .8
+  b <- CECreference_stability(a,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)
+  expect_false(b$reference_check$applied)
+  expect_equal(b$reference_check$independent_stability,.8)
+  expect_identical(b$diagnostics,a$diagnostics_raw)
+  expect_null(b$reference_bootstrap)
 })
 
 test_that('one reference descent uses indexed labels and frozen projection without multistart', {
@@ -75,13 +102,28 @@ test_that('a failed ordinary RSI may be corrected before regional traversal adva
   calls <- integer()
   measure <- function(i) {
     calls <<- c(calls,i)
-    z <- f$z;z$diagnostics$Stab_algo <- .8;z$diagnostics$RSI <- .2
+    z <- f$z;z$diagnostics$Stab_algo <- .9;z$diagnostics$RSI <- .2
     CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,
       function(jobs,worker)lapply(jobs,function(j)list(part=list(labels=f$reference$labels))))
   }
   a <- CECadaptive_component_diagnostics(s,rep(TRUE,6),measure,.85,.95)
   expect_length(calls,1L);expect_equal(a$plan$table$status,'accepted')
   expect_true(all(a$values$RSI==1))
+})
+
+test_that('regional traversal continues after an independently unstable point', {
+  f <- reference_fixture();s <- list(mesh=ceca_mesh(exp(0:2),c(1,2)))
+  s$parts <- setNames(rep(list(list(labels=f$reference$labels,K=2L,saturation=0)),6),1:6)
+  calls <- integer()
+  measure <- function(i) {
+    calls <<- c(calls,i)
+    z <- f$z;z$diagnostics$Stab_algo <- .8;z$diagnostics$RSI <- 1
+    CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,
+      function(...)stop('Reference bootstrap must not run'))
+  }
+  a <- CECadaptive_component_diagnostics(s,rep(TRUE,6),measure,.85,.95)
+  expect_length(calls,6L)
+  expect_false(any(a$plan$table$status=='accepted'))
 })
 
 test_that('fixed grids check the rule even when no cell can pass the final RSI filter', {

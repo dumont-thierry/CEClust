@@ -78,7 +78,7 @@ phase and input data of actual fitting calls, as well as their outputs.
 ## Regional and reference-bootstrap branches
 
 `component_diagnostics.R` owns geometry, barycentric ordering and first-success
-stopping. `reference_bootstrap.R` owns the two-condition check and exactly one
+stopping. `reference_bootstrap.R` owns the three-condition check and exactly one
 CEM descent per projected reference bootstrap. The check runs before filtering
 at every measured point, not only at retained witnesses. These are explicit
 changes to the diagnostics; preserve raw independent outputs and comparisons.
@@ -88,7 +88,7 @@ measurement and masks final display. Pointwise and regional provenance must
 survive selection, extraction, compaction and plotting.
 
 Test equal-order distinct partitions, disconnected regions, unequal cell
-areas, raw axis distances, saturation gating, early stop, both trigger
+areas, raw axis distances, saturation gating, early stop, all three trigger
 conditions (including boundaries), penalized scores, one descent/no random
 starts, frozen projection, and serial/parallel/partial resume equivalence.
 Keep the cell strategy and independent-only option as regression baselines.

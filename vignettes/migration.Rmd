@@ -153,16 +153,22 @@ region's display diagnostics. `measured`, `diagnostic_origin` and
 Use `adaptive_control = list(diagnostic_strategy = "cells")` for the previous
 pointwise coverage. Optional trivial quadrants require that cell strategy.
 
-All measured points in the numeric grid engines check the new reference rule
-before filtering. If the best independent original execution disagrees with
-the representative below the algorithmic threshold and does not improve its
-criterion, fix the reference and run one projected-label CEM descent per
+All measured points in the numeric grid engines check the reference rule
+before filtering. Since 0.3.0.9006 it requires the raw independent Stab_algo
+to be strictly above its threshold. In addition, the best independent original
+execution must disagree with the representative below that threshold and must
+not improve its criterion. Only then fix the reference and run one projected-label CEM descent per
 bootstrap. SA is then one by construction and RSI is the mean agreement with
 the reference. Raw independent diagnostics and outputs remain archived.
 Use `reference_bootstrap = FALSE` to reproduce independent-only diagnostics;
 combine it with `diagnostic_strategy = "cells"` for the former adaptive route.
 Existing saved objects are never silently recalculated. `CECstability()`
 still computes the raw pairwise formula from supplied labels.
+
+The additional stability gate prevents an independently unstable campaign from
+being assigned a stability of one through this rule. Equality with the threshold
+does not pass. Reference checks record the raw stability and the gate decision;
+previously saved results are not silently updated.
 
 ## Compiled numeric CEM (0.3.0.9005)
 

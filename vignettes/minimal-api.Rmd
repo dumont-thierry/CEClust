@@ -254,10 +254,13 @@ mask remains separate from the policy limiting which points are tested.
 Use `adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
 
 At every measured point, the best original execution is compared with the
-grid representative, before filtering. If it disagrees below the algorithmic
-threshold and does not improve the representative's score, that representative
-is fixed. Each existing bootstrap receives one CEM descent from its indexed
+grid representative, before filtering. The independent Stab_algo must be strictly
+above the algorithmic threshold, the best original must disagree with the
+representative below that threshold, and it must not improve its score. Only
+then is the representative fixed. Each existing bootstrap receives one CEM descent from its indexed
 labels. Stab_algo is then one by construction, and RSI is the mean agreement
 of frozen bootstrap projections with that reference. Raw independent values
 remain in the `_raw` columns and the complete records in `measurements`.
+Independent Stab_algo at or below the threshold leaves these diagnostics
+unchanged and cannot trigger a conditional bootstrap.
 `reference_bootstrap=FALSE` restores independent-only diagnostics.

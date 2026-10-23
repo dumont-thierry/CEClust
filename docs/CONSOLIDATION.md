@@ -1,9 +1,21 @@
-# Consolidated development version 0.3.0.9005
+# Consolidated development version 0.3.0.9006
 
 This local source is the repaired development version; publication to `main`
 is a separate step. The four `archive/*` branches retain
 earlier implementations; they are not dependencies of this version. Numerical
 engines, adaptive geometry and compiled EM are included in the package source.
+
+## Independent stability gate (23 October 2026)
+
+The conditional reference bootstrap requires all three conditions: raw independent
+Stab_algo strictly above its threshold; agreement of the best original execution
+with the grid representative strictly below that threshold; and no improvement
+of the representative's score. Equality with the stability threshold does not
+pass. If the independent campaign is unstable, preserve its diagnostics and
+continue the component traversal. No reference bootstrap is launched for that
+point. The check uses raw stability even when an older object contains a value
+of one from a conditional calculation. It applies before filtering at every
+measured point of the numeric CEM/EM, fixed/adaptive and rescoring routes.
 
 ## Compiled numeric CEM (23 October 2026)
 
@@ -15,7 +27,7 @@ The default `optimizer_control$cem_engine="compiled"` can be switched to
 their reasons recorded. The R statistics path is preallocated; exhaustive
 agreements use exact memoization and direct contingency counting.
 
-Matched 20-worker campaigns, with the same 40 independent searches and all 590
+In version 0.3.0.9005, matched 20-worker campaigns with the same 40 independent searches and all 590
 agreements, measured gains of x14.6 and x11.2 including saving. The complete
 fresh pilot reproduces all 4796 cell partitions and 6373 searches in 94.69 s
 (maximum score difference 4.44e-16). The barycentric diagnostic phase then uses
@@ -24,6 +36,9 @@ total sums separately timed fresh pilot and diagnostic phases; replay reading
 is excluded. Early stopping under the new reference rule is a separate gain
 from the matched numerical-kernel improvement. Validation is archived in
 `Validation/speed_20261023`; no scientific budget was reduced.
+These full-procedure timings used the earlier two-condition reference rule.
+The additional gate in 0.3.0.9006 can require more candidate points per component;
+it does not change the compiled fitting kernel.
 
 ## Component traversal and reference bootstrap (23 October 2026)
 
@@ -36,7 +51,8 @@ and raw independent winners remain separate. The previous measurement-improvemen
 loop below is retained as `diagnostic_strategy="cells"`, not the default.
 
 Before filtering every measured point in numeric fixed/adaptive grids, both
-optimizers and penalties check the reference rule. A sufficiently different
+optimizers and penalties check the reference rule. When raw independent
+Stab_algo strictly exceeds its threshold, a sufficiently different
 best original execution that does not improve the representative's score
 triggers one projected-reference CEM descent per bootstrap. SA=1 is fixed by
 construction; RSI is agreement with that fixed reference. Raw independent
