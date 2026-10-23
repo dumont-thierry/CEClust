@@ -215,7 +215,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
       z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],saturation_at_measurement=g$saturation[i],
         runs=runs,best=best,diagnostics=d)
       CECreference_stability(z,state$parts[[as.character(g$id[i])]],cfg,g[i,],partition_metric,
-        stab_algo_threshold,o$reference_bootstrap,run_jobs)
+        stab_algo_threshold,o$reference_bootstrap,run_jobs,rsi_min=rsi_threshold)
     }
     regional <- CECadaptive_component_diagnostics(state,eligible,measure,stab_algo_threshold,rsi_threshold,verbose)
     measurements <- regional$measurements
@@ -243,7 +243,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
       z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],
         saturation_at_measurement=g$saturation[i],wave=measurement_wave,runs=runs,best=best,diagnostics=d)
       z <- CECreference_stability(z,state$parts[[id]],cfg,g[i,],partition_metric,
-        stab_algo_threshold,o$reference_bootstrap,run_jobs)
+        stab_algo_threshold,o$reference_bootstrap,run_jobs,rsi_min=rsi_threshold)
       d <- z$diagnostics
       values <- data.frame(method='exhaustif',Stab_algo=d$Stab_algo,Stab_boot=d$Stab_boot,RSI=d$RSI)
       qualifies <- is.finite(d$RSI) && d$RSI>rsi_threshold && is.finite(d$Stab_algo) &&
@@ -281,7 +281,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   if(is.null(regional))for(i in which(ids%in%names(measurements))) {
     id <- ids[i]
     measurements[[id]] <- CECreference_stability(measurements[[id]],p[[i]],cfg,g[i,],
-      partition_metric,stab_algo_threshold,o$reference_bootstrap,run_jobs)
+      partition_metric,stab_algo_threshold,o$reference_bootstrap,run_jobs,rsi_min=rsi_threshold)
   }
   final <- vapply(p,register,0L);winners <- matrix(NA_integer_,nrow(g),k0+B)
   g$A_harm <- g$stab_algo <- g$stab_boot <- g$rsi <- NA_real_

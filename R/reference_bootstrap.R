@@ -31,7 +31,7 @@ CECreference_bootstrap_job <- function(job,cfg) {
   result
 }
 
-CECreference_stability <- function(z,reference,cfg,cell,metric,algo_min,enabled=TRUE,runner=NULL) {
+CECreference_stability <- function(z,reference,cfg,cell,metric,algo_min,enabled=TRUE,runner=NULL,rsi_min=.95) {
   previous_runs <- z$reference_bootstrap;previous_signatures <- z$reference_check$bootstrap_signatures
   raw <- if(is.null(z$diagnostics_raw))z$diagnostics else z$diagnostics_raw
   z$diagnostics <- raw;z$reference_bootstrap <- NULL
@@ -49,11 +49,13 @@ CECreference_stability <- function(z,reference,cfg,cell,metric,algo_min,enabled=
   agreement <- if(is.null(best))NA_real_ else partition_similarity(best$labels,target$labels,method=metric)
   worse_or_equal <- !is.null(best) && !ca_better(best$J,target$J,cfg$settings$tolerance)
   independent_stability_passed <- is.finite(raw$Stab_algo) && raw$Stab_algo>algo_min
-  applied <- enabled && length(cfg$boots)>0L && independent_stability_passed && is.finite(raw$Stab_boot) &&
+  independent_rsi_passed <- is.finite(raw$RSI) && raw$RSI>rsi_min
+  applied <- enabled && length(cfg$boots)>0L && independent_stability_passed && independent_rsi_passed && is.finite(raw$Stab_boot) &&
     is.finite(agreement) && agreement<algo_min && worse_or_equal
   z$diagnostics_raw <- raw
   z$reference_check <- list(applied=applied,enabled=enabled,agreement=agreement,threshold=algo_min,
     independent_stability=raw$Stab_algo,independent_stability_passed=independent_stability_passed,
+    independent_rsi=raw$RSI,independent_rsi_threshold=rsi_min,independent_rsi_passed=independent_rsi_passed,
     best_original_score=if(is.null(best))NA_real_ else best$J,reference_score=target$J,
     original_not_better=worse_or_equal,tolerance=cfg$settings$tolerance,
     best_original_index=if(is.null(best))NA_integer_ else which.min(vapply(scored,`[[`,0,'J')),

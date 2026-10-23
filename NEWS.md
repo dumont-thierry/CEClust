@@ -1,3 +1,14 @@
+# CEClust 0.3.0.9007
+
+- Conditional reference bootstraps now require both raw independent Stab_algo
+  and raw independent RSI to strictly exceed their configured thresholds,
+  in addition to disagreement with the grid representative and no score
+  improvement. A poor independent RSI can no longer be rescued by this branch.
+- Forward the requested RSI threshold through fixed/adaptive CEM, EM-bank and
+  rescoring routes. Record independent_rsi, independent_rsi_threshold and
+  independent_rsi_passed in reference_check. Previously corrected values never
+  replace raw diagnostics in these gates. Search budgets and kernels are unchanged.
+
 # CEClust 0.3.0.9006
 
 - The conditional reference bootstrap now also requires the raw independent

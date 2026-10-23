@@ -56,7 +56,7 @@ before continuing:
 ``` r
 library(CEClust)
 packageVersion("CEClust")
-#> [1] '0.3.0.9006'
+#> [1] '0.3.0.9007'
 ```
 
 ## 1. Start with the observations
@@ -211,8 +211,8 @@ resolutions.
 
 Before a point is filtered, the numeric grid engines compare their best
 original execution with the grid representative. The conditional rule
-requires all three conditions: the independent `stab_algo` is strictly
-above the requested algorithmic threshold, agreement with the
+requires all three conditions: the independent `stab_algo` and RSI are
+strictly above their respective requested thresholds, agreement with the
 representative is strictly below that threshold, and the execution does
 not improve the representative’s score. The representative is then fixed
 as the reference. `stab_algo` is then one by construction. Each
@@ -226,9 +226,11 @@ stability of one. `reference_bootstrap_applied` and
 `diagnostic_definition` identify the branch; `stab_algo_raw`,
 `stab_boot_raw` and `rsi_raw` retain the independent diagnostics. The
 complete reference check and bootstrap fits are in `g$measurements`. If
-independent `stab_algo` is equal to or below the threshold, the raw
-diagnostics are kept and no conditional bootstrap is run. Use
-`reference_bootstrap = FALSE` to obtain independent-only diagnostics.
+either independent diagnostic is equal to or below its threshold, the
+raw diagnostics are kept and no conditional bootstrap is run. The rule
+cannot rescue a low independent RSI by replacing it with a conditional
+value. Use `reference_bootstrap = FALSE` to obtain independent-only
+diagnostics.
 
 ## 5. Inspect each retained partition once
 

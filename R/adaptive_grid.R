@@ -209,7 +209,7 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
       original_parts=lapply(winners[i,seq_len(k0)],function(j)pool[[j]]))
     runner <- function(jobs,worker)CECreference_parallel(jobs,reference_cfg,n_cores)
     CECreference_stability(z,p[[i]],reference_cfg,g[i,],partition_metric,
-      stab_algo_threshold,o$reference_bootstrap,runner)
+      stab_algo_threshold,o$reference_bootstrap,runner,rsi_min=rsi_threshold)
   }
   if(o$diagnostic_strategy=='components') {
     measure <- function(i) {

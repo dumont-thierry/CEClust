@@ -82,6 +82,10 @@ stopping. `reference_bootstrap.R` owns the three-condition check and exactly one
 CEM descent per projected reference bootstrap. The check runs before filtering
 at every measured point, not only at retained witnesses. These are explicit
 changes to the diagnostics; preserve raw independent outputs and comparisons.
+The first condition requires both raw Stab_algo and raw RSI to strictly exceed
+their respective configured thresholds. Forward rsi_threshold from every caller;
+never test a previously corrected value or use a fixed default instead of the
+user's cutoff. Missing values or equality with either cutoff do not pass.
 The component strategy freezes the pilot. It must not inject campaign winners
 or add a saturation/A_harm acceptance filter. Saturation still gates candidate
 measurement and masks final display. Pointwise and regional provenance must

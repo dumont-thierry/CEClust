@@ -28,10 +28,11 @@ Every measured point in the numeric fixed/adaptive grid engines checks this
 rule before filtering, for CEM and EM banks, with either penalty. Let R be the
 grid representative after any harmonization and P the best original-data
 execution, using the same minimized criterion at that point. All three
-conditions are required: the raw independent Stab_algo is strictly greater
-than stab_algo_threshold; agreement(P,R) is strictly below that threshold;
+conditions are required: both raw independent Stab_algo and raw independent RSI
+are strictly greater than stab_algo_threshold and rsi_threshold respectively;
+agreement(P,R) is strictly below stab_algo_threshold;
 and P is not better than R (using the solver's recorded numerical score
-tolerance). Equality with the stability threshold does not trigger the rule.
+tolerance). Equality with either diagnostic threshold does not trigger the rule.
 
 R is then fixed as the original-data reference. Stab_algo is set to one by
 construction, not estimated again from random executions. Each existing
@@ -41,7 +42,7 @@ random starts or subdivision searches. Parameters are estimated on that
 bootstrap and projected onto the original observations without refitting.
 Stab_boot is the mean agreement between R and these B projected partitions;
 RSI equals this mean. Empty bootstrap sets or unavailable ordinary diagnostics
-cannot trigger the branch. If independent Stab_algo is at or below its threshold,
+cannot trigger the branch. If either independent diagnostic is at or below its threshold,
 the independent diagnostics are retained and no conditional bootstrap is run.
 
 This is conditional resampling sensitivity around a fixed better reference,
@@ -49,7 +50,11 @@ not the original independent optimization experiment. \code{measurements}
 preserves \code{diagnostics_raw}, independent outputs, reference labels, both
 scores, the trigger agreement and conditional bootstrap results.
 The \code{reference_check} record includes \code{independent_stability} and
-\code{independent_stability_passed} for the additional stability gate.
+\code{independent_stability_passed} for the stability gate, and
+\code{independent_rsi}, \code{independent_rsi_threshold} and
+\code{independent_rsi_passed} for the raw RSI gate. Already replaced conditional
+values are never used in these gates. The rule cannot rescue an independent
+RSI that fails the requested threshold.
 Summary fields
 \code{stab_algo_raw}, \code{stab_boot_raw}, \code{rsi_raw},
 \code{reference_bootstrap_applied} and \code{diagnostic_definition} distinguish

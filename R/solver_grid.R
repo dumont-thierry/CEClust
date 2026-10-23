@@ -306,7 +306,7 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
       original_parts=lapply(winners[i,seq_len(k0)],function(j)pool$parts[[j]]))
     runner <- function(jobs,worker)CECreference_parallel(jobs,reference_cfg,n_cores)
     z <- CECreference_stability(z,pool$parts[[final[i]]],reference_cfg,grid[i,],partition_metric,
-      stab_algo_threshold,reference_bootstrap,runner)
+      stab_algo_threshold,reference_bootstrap,runner,rsi_min=rsi_threshold)
     measurements[[as.character(i)]] <- z
     diagnostic[i,] <- c(z$diagnostics$Stab_algo,z$diagnostics$Stab_boot,z$diagnostics$RSI)
   }

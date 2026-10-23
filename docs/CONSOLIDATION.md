@@ -1,4 +1,4 @@
-# Consolidated development version 0.3.0.9006
+# Consolidated development version 0.3.0.9007
 
 This local source is the repaired development version; publication to `main`
 is a separate step. The four `archive/*` branches retain
@@ -8,10 +8,11 @@ engines, adaptive geometry and compiled EM are included in the package source.
 ## Independent stability gate (23 October 2026)
 
 The conditional reference bootstrap requires all three conditions: raw independent
-Stab_algo strictly above its threshold; agreement of the best original execution
+Stab_algo and raw independent RSI strictly above their respective thresholds;
+agreement of the best original execution
 with the grid representative strictly below that threshold; and no improvement
 of the representative's score. Equality with the stability threshold does not
-pass. If the independent campaign is unstable, preserve its diagnostics and
+pass. If either independent diagnostic fails, preserve the raw diagnostics and
 continue the component traversal. No reference bootstrap is launched for that
 point. The check uses raw stability even when an older object contains a value
 of one from a conditional calculation. It applies before filtering at every
@@ -37,7 +38,7 @@ is excluded. Early stopping under the new reference rule is a separate gain
 from the matched numerical-kernel improvement. Validation is archived in
 `Validation/speed_20261023`; no scientific budget was reduced.
 These full-procedure timings used the earlier two-condition reference rule.
-The additional gate in 0.3.0.9006 can require more candidate points per component;
+The additional gates in 0.3.0.9006/9007 can require more candidate points per component;
 it does not change the compiled fitting kernel.
 
 ## Component traversal and reference bootstrap (23 October 2026)
@@ -51,8 +52,8 @@ and raw independent winners remain separate. The previous measurement-improvemen
 loop below is retained as `diagnostic_strategy="cells"`, not the default.
 
 Before filtering every measured point in numeric fixed/adaptive grids, both
-optimizers and penalties check the reference rule. When raw independent
-Stab_algo strictly exceeds its threshold, a sufficiently different
+optimizers and penalties check the reference rule. When both raw independent
+Stab_algo and RSI strictly exceed their thresholds, a sufficiently different
 best original execution that does not improve the representative's score
 triggers one projected-reference CEM descent per bootstrap. SA=1 is fixed by
 construction; RSI is agreement with that fixed reference. Raw independent
