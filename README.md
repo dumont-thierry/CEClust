@@ -13,7 +13,7 @@ groupings to examine.
 This guide follows one small dataset from its first plot to the
 interpretation of that set. It then shows how to add a BIC-type penalty
 and change the optimization method. The code, printed results and
-figures below are produced with **CEClust 0.3.0.9005**.
+figures below are produced with **CEClust 0.3.0.9008**.
 
 ## Installation
 
@@ -56,7 +56,7 @@ before continuing:
 ``` r
 library(CEClust)
 packageVersion("CEClust")
-#> [1] '0.3.0.9007'
+#> [1] '0.3.0.9008'
 ```
 
 ## 1. Start with the observations

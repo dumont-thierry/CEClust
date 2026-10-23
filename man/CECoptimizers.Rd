@@ -32,6 +32,13 @@ and Gaussian profiles are estimated anew before scoring each candidate.
 The same bank can be used for every lambda and either penalty. CEM decreases
 the hard score; EM increases the soft likelihood used to generate candidates.
 These are different objectives, and neither certifies a global hard optimum.
+The compiled EM descent reuses the immutable centered observations and exact
+Cholesky factors already computed in the M-step. When fitting and reference
+data are identical, the verified MAP allocation and its hard statistics are
+reused. These execution optimizations leave initializations, softening,
+constraints, iteration limits, stopping tests and bootstrap projections unchanged.
+Adaptive scoring also reuses pooled profiles only for candidates whose local
+statistics are exactly identical; different bootstrap statistics remain separate.
 }
 \section{Control fields}{
 \describe{

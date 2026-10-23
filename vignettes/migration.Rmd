@@ -166,6 +166,14 @@ combine it with `diagnostic_strategy = "cells"` for the former adaptive route.
 Existing saved objects are never silently recalculated. `CECstability()`
 still computes the raw pairwise formula from supplied labels.
 
+## EM execution optimizations (0.3.0.9008)
+
+The soft EM kernel reuses centered data, covariance factorizations and matrix
+buffers. Original-data banks reuse their verified training MAP allocation and
+hard statistics when fitting and reference data are identical. Bootstrap
+projections, initialization draws, likelihood updates, determinant constraints
+and stopping tests are unchanged. No new control is required.
+
 The diagnostic gates prevent a failing independent stability or RSI from being
 replaced by passing conditional values. Equality with either threshold does
 not pass. Reference checks record both raw diagnostics, their thresholds and gate decisions;

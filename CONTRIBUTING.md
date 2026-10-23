@@ -27,7 +27,7 @@ testthat, knitr, rmarkdown and Pandoc available:
 
 ```sh
 R CMD build CEClust
-R CMD check --no-manual CEClust_0.3.0.9005.tar.gz
+R CMD check --no-manual CEClust_0.3.0.9008.tar.gz
 ```
 
 Do not disable vignette building for a distribution. The introductory and

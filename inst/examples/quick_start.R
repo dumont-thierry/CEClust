@@ -1,4 +1,4 @@
-# CEClust 0.3.0.9002: executed small-budget workflow.
+# CEClust: executed small-budget workflow.
 # The budgets illustrate the API; they are not a validation of search quality.
 library(CEClust)
 set.seed(12)
