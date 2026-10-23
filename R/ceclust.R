@@ -7513,9 +7513,10 @@ CECfitLambdaGrid <- function(
   optimization = c("cem", "em_bank"), penalty = c("none", "bic"),
   optimizer_control = list(),
   rsi_policy = c("all", "unsaturated", "nontrivial_unsaturated", "saturation_band"),
-  rsi_saturation_max = .10
+  rsi_saturation_max = .10,
+  reference_bootstrap = TRUE
 ) {
-  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control)>0 || !missing(rsi_policy)
+  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control)>0 || !missing(rsi_policy) || !missing(reference_bootstrap)
   optimization <- match.arg(optimization); penalty <- match.arg(penalty); rsi_policy <- match.arg(rsi_policy)
   if (selected) {
     if (!is.null(Nshots_init) && missing(Nshots_fresh)) Nshots_fresh <- Nshots_init
@@ -7531,7 +7532,7 @@ CECfitLambdaGrid <- function(
       Nshots_fresh=Nshots_fresh,Nloop=Nloop,algo_seed=if(is.null(seed))sample.int(.Machine$integer.max,1L) else seed,
       n_cores=n_cores,optimization=optimization,penalty=penalty,optimizer_control=optimizer_control,
       rsi_policy=rsi_policy,rsi_saturation_max=rsi_saturation_max,partition_metric=match.arg(partition_metric),
-      checkpoint_dir=checkpoint_dir,resume=resume,verbose=verbose)
+      checkpoint_dir=checkpoint_dir,resume=resume,verbose=verbose,reference_bootstrap=reference_bootstrap)
     value <- out$runs_by_C[[1L]]$lambda_diag
     value$grid <- out
     return(value)

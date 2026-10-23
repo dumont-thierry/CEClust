@@ -27,7 +27,7 @@ testthat, knitr, rmarkdown and Pandoc available:
 
 ```sh
 R CMD build CEClust
-R CMD check --no-manual CEClust_0.3.0.9003.tar.gz
+R CMD check --no-manual CEClust_0.3.0.9004.tar.gz
 ```
 
 Do not disable vignette building for a distribution. The introductory and
@@ -73,3 +73,22 @@ A test of score equality or a `diagnostics=FALSE` flag alone cannot establish
 these invariants. Preserve the distinction between an execution's internal
 starts, independent executions, and the final representative. Test the number,
 phase and input data of actual fitting calls, as well as their outputs.
+
+
+## Regional and reference-bootstrap branches
+
+`component_diagnostics.R` owns geometry, barycentric ordering and first-success
+stopping. `reference_bootstrap.R` owns the two-condition check and exactly one
+CEM descent per projected reference bootstrap. The check runs before filtering
+at every measured point, not only at retained witnesses. These are explicit
+changes to the diagnostics; preserve raw independent outputs and comparisons.
+The component strategy freezes the pilot. It must not inject campaign winners
+or add a saturation/A_harm acceptance filter. Saturation still gates candidate
+measurement and masks final display. Pointwise and regional provenance must
+survive selection, extraction, compaction and plotting.
+
+Test equal-order distinct partitions, disconnected regions, unequal cell
+areas, raw axis distances, saturation gating, early stop, both trigger
+conditions (including boundaries), penalized scores, one descent/no random
+starts, frozen projection, and serial/parallel/partial resume equivalence.
+Keep the cell strategy and independent-only option as regression baselines.

@@ -237,3 +237,27 @@ dimensions for comparisons. A faster run is not evidence of equal search quality
 
 The maintained reference is available through `?CECoptimizers`,
 `?CECdiagnostics`, `?CECresults`, and the function-specific help pages.
+
+## Regional measurement and reference bootstrap
+
+Adaptive diagrams default to `diagnostic_strategy="components"` in
+`adaptive_control`. The calibrated pilot is frozen; edge-connected cells with
+the same partition form a component. Eligible test points are ordered by
+distance to its area-weighted barycentre in raw `(log C, lambda)` coordinates.
+Testing stops at the first strict diagnostic success. The final saturation
+mask remains separate from the policy limiting which points are tested.
+
+`measured` identifies direct campaigns. Regional values carry
+`diagnostic_origin="component_witness"` and their source cell in
+`diagnostic_witness`; `_direct` columns retain the actual pointwise values.
+`adaptive$components` stores the geometry, ordering and stopping decisions.
+Use `adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
+
+At every measured point, the best original execution is compared with the
+grid representative, before filtering. If it disagrees below the algorithmic
+threshold and does not improve the representative's score, that representative
+is fixed. Each existing bootstrap receives one CEM descent from its indexed
+labels. Stab_algo is then one by construction, and RSI is the mean agreement
+of frozen bootstrap projections with that reference. Raw independent values
+remain in the `_raw` columns and the complete records in `measurements`.
+`reference_bootstrap=FALSE` restores independent-only diagnostics.

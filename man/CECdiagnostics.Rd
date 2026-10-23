@@ -23,6 +23,39 @@ optimization randomization. It can exceed one and is not clipped. High matching
 agreement can be dominated by a large group; inspect sizes and alternative
 partitions, especially when small outlier groups are present.
 }
+\section{Conditional reference bootstrap}{
+Every measured point in the numeric fixed/adaptive grid engines checks this
+rule before filtering, for CEM and EM banks, with either penalty. Let R be the
+grid representative after any harmonization and P the best original-data
+execution, using the same minimized criterion at that point. The rule applies
+when agreement(P,R) is strictly below stab_algo_threshold AND P is not better
+than R (using the solver's recorded numerical score tolerance).
+
+R is then fixed as the original-data reference. Stab_algo is set to one by
+construction, not estimated again from random executions. Each existing
+bootstrap is initialized with R's labels indexed by its sampled rows, followed
+by exactly one CEM descent under the same C, lambda and penalty. There are no
+random starts or subdivision searches. Parameters are estimated on that
+bootstrap and projected onto the original observations without refitting.
+Stab_boot is the mean agreement between R and these B projected partitions;
+RSI equals this mean. Empty bootstrap sets or unavailable ordinary diagnostics
+cannot trigger the branch.
+
+This is conditional resampling sensitivity around a fixed better reference,
+not the original independent optimization experiment. \code{measurements}
+preserves \code{diagnostics_raw}, independent outputs, reference labels, both
+scores, the trigger agreement and conditional bootstrap results. Summary fields
+\code{stab_algo_raw}, \code{stab_boot_raw}, \code{rsi_raw},
+\code{reference_bootstrap_applied} and \code{diagnostic_definition} distinguish
+the conventions. A fixed SA=1 has zero measured original pairs; the conditional
+mean has B reference-bootstrap comparisons. The raw L(L-1)/2 and LB comparisons
+remain archived. \code{reference_bootstrap=FALSE} disables this branch.
+
+\code{CECstability()} remains the raw pairwise arithmetic helper: label lists
+alone provide neither the data, the scores nor the fitting rule required for
+this recalculation. Historical linked/categorical engines retain their previous
+conventions; select an explicit numeric optimization route for this workflow.
+}
 \section{Saturation}{
 Saturation is the fraction of observations assigned to groups whose
 Gaussian density constraint is active, allowing a numerical tolerance. It is
@@ -31,7 +64,7 @@ saturated in the numeric profile. Saturation alone is not evidence that the
 data lack structure; it reports dependence on the concentration ceiling.
 }
 \section{Measurement policy}{
-For fixed grids and adaptive EM banks, policies are applied to the final
+The component strategy freezes the pilot and applies the policy to its candidate test points. For fixed grids and cell-by-cell adaptive EM banks, policies are applied to the final
 representative of each cell. Adaptive CEM first applies the policy to its
 completed pilot, then rechecks coverage after measurement improvements and
 harmonization. Existing campaigns stay frozen if the representative changes.
@@ -46,7 +79,7 @@ not change the score. In adaptive CEM it gates the entire independent fitting
 campaign, after the pilot; elsewhere it gates comparisons of already fitted
 outputs. Adaptive CEM defaults to \code{saturation_band}; fixed grids and
 adaptive EM default to \code{all}. Explicit policies override these defaults.
-Unmeasured cells contain NA and are not retained. The measured flag requires finite algorithmic and bootstrap
+Direct diagnostics remain NA at unmeasured points. The component strategy can display and retain a region by its identified witness; this is explicitly marked regional inheritance, not a direct measurement. The measured flag requires finite algorithmic and bootstrap
 averages. For EM grids, a broader policy can be evaluated by rescoring the banks.
 }
 \section{Filtering and interpretation}{

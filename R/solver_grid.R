@@ -178,7 +178,7 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   rsi_saturation_max=.10,stab_algo_threshold=.85,rsi_threshold=.95,sat_threshold=0,
   partition_metric=c('match','ARI'),bootstrap_indices=NULL,checkpoint_dir=FALSE,
   resume=FALSE,force_recompute=FALSE,save_results=FALSE,output_dir=tempdir(),verbose=FALSE,
-  banks=NULL,cells=NULL,diagnostics=TRUE) {
+  banks=NULL,cells=NULL,diagnostics=TRUE,reference_bootstrap=TRUE) {
   X <- CECnumeric_data(Z);C_grid <- CECgrid_values(C_grid,'C_grid')
   lambda_grid <- CECgrid_values(lambda_grid,'lambda_grid')
   if(!is.null(cells)) {
@@ -192,6 +192,8 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   algo_seed <- CECinteger(algo_seed,'algo_seed',0L)
   rsi_policy <- match.arg(rsi_policy);partition_metric <- match.arg(partition_metric)
   optimization <- match.arg(optimization,c('cem','em_bank'));penalty <- match.arg(penalty,c('none','bic'))
+  if(!is.logical(reference_bootstrap)||length(reference_bootstrap)!=1L||is.na(reference_bootstrap))
+    stop('reference_bootstrap must be TRUE or FALSE.')
   for(x in list(rsi_saturation_max,stab_algo_threshold,rsi_threshold,sat_threshold))
     if(!is.numeric(x)||length(x)!=1L||!is.finite(x)||x<0)stop('Diagnostic thresholds must be finite nonnegative numbers.')
   if(rsi_saturation_max>1 || sat_threshold>1 || stab_algo_threshold>1)stop('Saturation and agreement thresholds must not exceed one.')
@@ -276,10 +278,31 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
     nontrivial_unsaturated=grid$REO>1 & grid$sat==0,saturation_band=grid$sat<=rsi_saturation_max)
   if(!isTRUE(diagnostics))eligible[] <- FALSE
   diagnostic <- CECgrid_diagnostics(winners,pool$parts,eligible,k0,B,partition_metric)
+  grid$id <- seq_len(M)
+  reference_cfg <- list(X=X,boots=boots,seed=algo_seed,settings=CECadaptive_cem_settings(control),
+    penalty=penalty,signature=signature,cache=NULL,resume=isTRUE(resume)&&!force_recompute)
+  if(!is.null(cache)) {
+    reference_cfg$cache <- file.path(dirname(cache),paste0('reference_',signature))
+    dir.create(reference_cfg$cache,recursive=TRUE,showWarnings=FALSE)
+  }
+  measurements <- list()
+  for(i in which(eligible)) {
+    d <- as.list(diagnostic[i,]);d$definition <- 'exhaustive_original_bootstrap'
+    d$original_pairs <- k0*(k0-1)/2;d$cross_pairs <- k0*B
+    z <- list(cell_id=i,C=grid$C[i],lambda=grid$lambda[i],diagnostics=d,
+      original_partition_ids=winners[i,seq_len(k0)],
+      original_parts=lapply(winners[i,seq_len(k0)],function(j)pool$parts[[j]]))
+    runner <- function(jobs,worker)CECreference_parallel(jobs,reference_cfg,n_cores)
+    z <- CECreference_stability(z,pool$parts[[final[i]]],reference_cfg,grid[i,],partition_metric,
+      stab_algo_threshold,reference_bootstrap,runner)
+    measurements[[as.character(i)]] <- z
+    diagnostic[i,] <- c(z$diagnostics$Stab_algo,z$diagnostics$Stab_boot,z$diagnostics$RSI)
+  }
   grid$objective <- vapply(profiles,`[[`,0,'J');grid$Hphi <- grid$objective/grid$lambda
   grid$entropy <- vapply(profiles,`[[`,0,'J_raw');grid$penalty_value <- vapply(profiles,`[[`,0,'BIC_penalty_relative')
   grid$stab_algo <- diagnostic$Stab_algo;grid$stab_boot <- diagnostic$Stab_boot;grid$rsi <- diagnostic$RSI
   grid$measured <- eligible & is.finite(grid$stab_algo) & is.finite(grid$stab_boot)
+  grid <- CECattach_reference_summary(grid,measurements)
   grid$keep_stability <- grid$measured & grid$stab_algo>stab_algo_threshold & grid$rsi>rsi_threshold
   grid$keep_stability[is.na(grid$keep_stability)] <- FALSE
   grid$exclude_saturation <- grid$sat>sat_threshold;grid$keep <- grid$keep_stability & !grid$exclude_saturation
@@ -290,14 +313,17 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   meta <- list(optimization=optimization,penalty=penalty,stability_approach='exhaustive',partition_metric=partition_metric,
     rsi_policy=rsi_policy,rsi_saturation_max=rsi_saturation_max,stab_algo_threshold=stab_algo_threshold,
     rsi_threshold=rsi_threshold,sat_threshold=sat_threshold,k0=k0,B=B,algo_seed=algo_seed,control=control,
-    signature=signature,n_cores=n_cores,fitting_elapsed=fitting_elapsed,checkpoint_file=cache,
+    signature=digest::digest(list(signature,reference_bootstrap,rsi_policy,rsi_saturation_max,
+      stab_algo_threshold,rsi_threshold,sat_threshold,partition_metric)),
+    n_cores=n_cores,fitting_elapsed=fitting_elapsed,checkpoint_file=cache,
     data_fingerprint=digest::digest(unname(X)),
     comparisons_per_cell=attr(diagnostic,'comparisons_per_cell'),familyType='gaussVector',Cquali=Inf,
-    pipeline_version=as.character(utils::packageVersion('CEClust')))
+    reference_bootstrap=reference_bootstrap,pipeline_version=as.character(utils::packageVersion('CEClust')))
   out <- CECgrid_compatible_output(X,grid,pool$parts,final,winners,banks,boots,meta)
+  out$measurements <- measurements
   if(isTRUE(save_results)) {
     dir.create(output_dir,recursive=TRUE,showWarnings=FALSE)
-    file <- file.path(output_dir,paste0('CEC_',optimization,'_',penalty,'_',substr(signature,1,12),'.rds'))
+    file <- file.path(output_dir,paste0('CEC_',optimization,'_',penalty,'_',substr(meta$signature,1,12),'.rds'))
     saveRDS(out,file);out$result_file <- file
   }
   if(isTRUE(verbose))message(M,' cells; ',length(banks),' independent repetitions; ',sum(grid$keep),' retained.')

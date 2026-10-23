@@ -63,3 +63,14 @@ added together. Use
 \code{system.time()} around the full call for an elapsed-time comparison.
 }
 \seealso{\link{CECsummariseGrid}, \link{CECextractPartition}, \link{CECrescoreGrid}, \link{CECcompactGrid}.}
+
+\section{Regional and conditional diagnostics}{
+Adaptive component diagrams store actual tested points in \code{measurements}
+and component membership, candidate ordering and witnesses in
+\code{adaptive$components}. Summary \code{measured} is true only at tested
+points; \code{diagnostics_available} also includes identified regional values.
+Raw independent diagnostics remain in \code{diagnostics_raw}; conditional
+bootstrap descents remain in \code{reference_bootstrap} for triggered points.
+See \link{CECdiagnostics} and \link{CECadaptiveDiagram} before interpreting a
+regional value or a stability fixed to one by construction.
+}

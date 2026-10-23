@@ -27,8 +27,10 @@ A new \code{CEC_solver_grid} with reused banks and updated summaries, winner ind
 \details{
 No EM descent is repeated. Hard group profiles are still reevaluated
 under each C. Bootstrap winners are chosen on their own training data before
-comparison on the common original observations. The final pooled optimum is
-not used as a reference for measuring stability.
+comparison on the common original observations. Raw stability keeps these
+independent winners. The conditional reference rule is checked before filtering
+each measured point and can run new single-descent CEM bootstrap fits, without
+repeating EM. Its setting is inherited from the input. See \link{CECdiagnostics}.
 
 Stored data are checked against their original fingerprint. Do not modify Z,
 bank contents or bootstrap indices before rescoring. The original randomization,

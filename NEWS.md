@@ -1,3 +1,25 @@
+# CEClust 0.3.0.9004
+
+- Adaptive diagrams now default to connected-component traversal after freezing
+  the pilot. Candidates are ordered by distance to the area-weighted barycentre
+  in (log C, lambda), restricted by the measurement policy, and stop at the
+  first point passing both diagnostic thresholds. Witness values may describe
+  a region; direct measurements, raw diagnostics and independent winners remain
+  identifiable. Use adaptive_control=list(diagnostic_strategy="cells") for
+  exhaustive cell-by-cell coverage.
+- Every measured point in the numeric grid engines checks the reference rule
+  before filtering. When the best original execution disagrees with the grid
+  representative below the algorithmic threshold and does not improve its
+  score, fix the representative and use exactly one projected-label CEM descent
+  per bootstrap. Algorithmic stability is then one by construction; RSI is
+  the mean agreement of the frozen-reference bootstrap projections. Ordinary
+  exhaustive diagnostics and the two trigger conditions are retained.
+- Both optimizers and penalties, fixed grids, adaptive grids and EM rescoring
+  use this rule. reference_bootstrap=FALSE restores independent-only diagnostics;
+  adaptive_control$reference_bootstrap can set it for adaptive diagrams.
+- Added per-reference bootstrap checkpoints, provenance in selection/plots,
+  component geometry, ordering, trigger, single-descent and restart tests.
+
 # CEClust 0.3.0.9003
 
 - Replaced adaptive CEM orchestration with a separate original-data pilot,

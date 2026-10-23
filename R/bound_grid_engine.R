@@ -3081,7 +3081,8 @@
         s$stab_algo >= stab_algo_threshold &
         s$rsi >= rsi_threshold
       if (inherits(grid_obj, "CEC_solver_grid")) {
-        keep_stability <- s$measured & is.finite(s$stab_algo) & is.finite(s$rsi) &
+        available <- if('diagnostics_available'%in%names(s))s$diagnostics_available else s$measured
+        keep_stability <- available & is.finite(s$stab_algo) & is.finite(s$rsi) &
           s$stab_algo > stab_algo_threshold & s$rsi > rsi_threshold
       }
       exclude_saturation <- is.finite(s$sat) & s$sat > sat_threshold

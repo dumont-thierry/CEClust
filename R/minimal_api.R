@@ -13,10 +13,11 @@ CECfitBoundGrid <- function(
   rsi_policy = c("all", "unsaturated", "nontrivial_unsaturated", "saturation_band"),
   rsi_saturation_max = .10,
   grid_strategy = c("fixed", "adaptive"),
-  adaptive_control = list()
+  adaptive_control = list(),
+  reference_bootstrap = TRUE
 ) {
   rsi_policy_missing <- missing(rsi_policy)
-  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control) > 0 || !missing(rsi_policy) || !missing(grid_strategy) || length(adaptive_control)>0
+  selected <- !missing(optimization) || !missing(penalty) || length(optimizer_control) > 0 || !missing(rsi_policy) || !missing(grid_strategy) || length(adaptive_control)>0 || !missing(reference_bootstrap)
   optimization <- match.arg(optimization); penalty <- match.arg(penalty); rsi_policy <- match.arg(rsi_policy)
   grid_strategy <- match.arg(grid_strategy)
   if(rsi_policy_missing && grid_strategy=='adaptive' && optimization=='cem')
@@ -27,7 +28,7 @@ CECfitBoundGrid <- function(
       checkpoint_dir <- file.path(output_dir,"solver_checkpoints")
     return(CECsolver_bound_dispatch(list(...),optimization,penalty,optimizer_control,
       rsi_policy,rsi_saturation_max,save_results,output_dir,checkpoint_dir,resume,force_recompute,
-      grid_strategy,adaptive_control))
+      grid_strategy,adaptive_control,reference_bootstrap))
   }
   out <- run_cec_grid(
     ...,

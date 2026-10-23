@@ -1,9 +1,35 @@
-# Consolidated development version 0.3.0.9003
+# Consolidated development version 0.3.0.9004
 
 This local source is the repaired development version; publication to `main`
 is a separate step. The four `archive/*` branches retain
 earlier implementations; they are not dependencies of this version. Numerical
 engines, adaptive geometry and compiled EM are included in the package source.
+
+## Component traversal and reference bootstrap (23 October 2026)
+
+The adaptive default is now a frozen-pilot component traversal. Exact partitions
+and edge connectivity define components independently of saturation. Test points
+are ordered by distance to the full area-weighted barycentre in raw (log C,
+lambda), restricted by the measurement policy, and stop at first diagnostic
+success. Regional values identify their measured witness; direct measurements
+and raw independent winners remain separate. The previous measurement-improvement
+loop below is retained as `diagnostic_strategy="cells"`, not the default.
+
+Before filtering every measured point in numeric fixed/adaptive grids, both
+optimizers and penalties check the reference rule. A sufficiently different
+best original execution that does not improve the representative's score
+triggers one projected-reference CEM descent per bootstrap. SA=1 is fixed by
+construction; RSI is agreement with that fixed reference. Raw independent
+diagnostics, comparisons and outputs remain archived. Repeated checks of the
+same reference reuse completed conditional descents, including without a disk
+checkpoint. `CECstability` alone remains the raw label-only arithmetic helper.
+
+Verification: 1773 test expectations, eight optimizer/penalty/strategy parallel
+and partial-resume comparisons, archived 4796-cell geometry regression, and
+the real five-group example with 20 single-descents (RSI .9817). See
+`test-component-diagnostics` and `test-reference-bootstrap`, plus the local
+`Validation/components_20261023` delivery checks. Fixed-grid defaults remain
+fixed; adaptive component traversal is selected only with the adaptive engine.
 
 This inventory was reviewed against the research implementations and the
 archived development discussion on 22 October 2026. The earlier inventory

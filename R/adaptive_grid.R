@@ -9,7 +9,8 @@ CECadaptive_control <- function(control,sat_threshold) {
   defaults <- list(max_cells=12000L,max_extensions=16L,max_rounds=12L,max_depth=8L,
     patience=2L,position_tolerance=.125,distinguish_partitions=TRUE,
     frontier_saturation=sat_threshold,harmonize=TRUE,harmonization_min=.95,
-    trivial_quadrants=FALSE,audit_fraction=.10,anchor_stability=.95)
+    trivial_quadrants=FALSE,audit_fraction=.10,anchor_stability=.95,
+    diagnostic_strategy='components',reference_bootstrap=TRUE)
   if(!is.list(control) || (length(control) && (is.null(names(control)) ||
       any(!nzchar(names(control))) || anyDuplicated(names(control)))))
     stop('adaptive_control must be a named list without duplicates.',call.=FALSE)
@@ -24,8 +25,11 @@ CECadaptive_control <- function(control,sat_threshold) {
   if(out$position_tolerance<=0 || out$audit_fraction<=0 || out$anchor_stability<=0 ||
      any(unlist(out[c('frontier_saturation','harmonization_min','audit_fraction','anchor_stability')])>1) ||
      out$frontier_saturation<sat_threshold)stop('Invalid adaptive thresholds.',call.=FALSE)
-  for(nm in c('harmonize','trivial_quadrants','distinguish_partitions'))
+  out$diagnostic_strategy <- match.arg(out$diagnostic_strategy,c('components','cells'))
+  for(nm in c('harmonize','trivial_quadrants','distinguish_partitions','reference_bootstrap'))
     if(!is.logical(out[[nm]]) || length(out[[nm]])!=1L || is.na(out[[nm]]))stop(nm,' must be TRUE or FALSE.')
+  if(out$diagnostic_strategy=='components' && out$trivial_quadrants)
+    stop('Component traversal and trivial_quadrants are alternative diagnostic strategies.')
   out
 }
 
@@ -82,11 +86,14 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
   rsi_saturation_max=.10,stab_algo_threshold=.85,rsi_threshold=.95,sat_threshold=0,
   partition_metric=c('match','ARI'),bootstrap_indices=NULL,checkpoint_dir=FALSE,
   resume=FALSE,force_recompute=FALSE,save_results=FALSE,output_dir=tempdir(),verbose=FALSE,
-  banks=NULL,adaptive_control=list()) {
+  banks=NULL,adaptive_control=list(),reference_bootstrap=TRUE) {
   started <- proc.time()[3];X <- CECnumeric_data(Z)
+  if(!is.logical(reference_bootstrap)||length(reference_bootstrap)!=1L||is.na(reference_bootstrap))
+    stop('reference_bootstrap must be TRUE or FALSE.')
   optimization <- match.arg(optimization,c('cem','em_bank'));penalty <- match.arg(penalty,c('none','bic'))
   rsi_policy <- match.arg(rsi_policy);partition_metric <- match.arg(partition_metric)
   initial <- CECadaptive_initial(X,C_grid,lambda_grid);o <- CECadaptive_control(adaptive_control,sat_threshold)
+  if(!'reference_bootstrap'%in%names(adaptive_control))o$reference_bootstrap <- reference_bootstrap
   if(length(initial$C)*length(initial$lambda)>o$max_cells)stop('Initial grid exceeds max_cells.')
   if(o$trivial_quadrants && rsi_policy=='nontrivial_unsaturated')
     stop('Trivial quadrants require a policy which measures trivial anchors.',call.=FALSE)
@@ -187,20 +194,58 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
   eligible <- switch(rsi_policy,all=rep(TRUE,nrow(g)),unsaturated=g$sat==0,
     nontrivial_unsaturated=g$REO>1 & g$sat==0,saturation_band=g$sat<=rsi_saturation_max)
   diagnostic_start <- proc.time()[3]
-  diagnostic <- CECadaptive_diagnostics(state,g,winners,pool,eligible,k0,B,partition_metric,o,
-    rsi_threshold,stab_algo_threshold,algo_seed,n_cores)
+  regional <- NULL
+  reference_measurements <- list()
+  reference_cfg <- list(X=X,boots=base$bootstrap_indices,seed=algo_seed,
+    settings=CECadaptive_cem_settings(control),penalty=penalty,
+    signature=digest::digest(list(base$meta$signature,initial,o,penalty)),cache=NULL,resume=isTRUE(resume)&&!force_recompute)
+  if(is.character(checkpoint_dir)) {
+    reference_cfg$cache <- file.path(checkpoint_dir,paste0('reference_',reference_cfg$signature))
+    dir.create(reference_cfg$cache,recursive=TRUE,showWarnings=FALSE)
+  }
+  correct <- function(i,d) {
+    z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],diagnostics=d,
+      original_partition_ids=winners[i,seq_len(k0)],
+      original_parts=lapply(winners[i,seq_len(k0)],function(j)pool[[j]]))
+    runner <- function(jobs,worker)CECreference_parallel(jobs,reference_cfg,n_cores)
+    CECreference_stability(z,p[[i]],reference_cfg,g[i,],partition_metric,
+      stab_algo_threshold,o$reference_bootstrap,runner)
+  }
+  if(o$diagnostic_strategy=='components') {
+    measure <- function(i) {
+      labels <- lapply(winners[i,],function(j)pool[[j]]$labels)
+      d <- CECstability(labels[seq_len(k0)],labels[k0+seq_len(B)],partition_metric)
+      correct(i,d)
+    }
+    regional <- CECadaptive_component_diagnostics(state,eligible,measure,stab_algo_threshold,rsi_threshold,verbose)
+    diagnostic <- list(values=regional$values,status=regional$origin,witness=regional$witness,screening=NULL)
+  } else {
+    correct_values <- function(i,d) {
+      d$definition <- 'exhaustive_original_bootstrap';d$original_pairs <- k0*(k0-1)/2;d$cross_pairs <- k0*B
+      z <- correct(i,d);reference_measurements[[as.character(g$id[i])]] <<- z
+      z$diagnostics
+    }
+    diagnostic <- CECadaptive_diagnostics(state,g,winners,pool,eligible,k0,B,partition_metric,o,
+      rsi_threshold,stab_algo_threshold,algo_seed,n_cores,correct_values)
+  }
   g$stab_algo <- diagnostic$values$Stab_algo;g$stab_boot <- diagnostic$values$Stab_boot;g$rsi <- diagnostic$values$RSI
   g$measured <- is.finite(g$stab_algo)&is.finite(g$stab_boot)
-  g$keep_stability <- g$measured & g$stab_algo>stab_algo_threshold & g$rsi>rsi_threshold
+  if(!is.null(regional))g <- CECadaptive_component_summary(g,regional)
+  reference_measurements <- if(is.null(regional))reference_measurements else regional$measurements
+  g <- CECattach_reference_summary(g,reference_measurements)
+  available <- if(is.null(regional))g$measured else g$diagnostics_available
+  g$keep_stability <- available & g$stab_algo>stab_algo_threshold & g$rsi>rsi_threshold
   g$keep_stability[is.na(g$keep_stability)] <- FALSE
   g$exclude_saturation <- g$sat>sat_threshold
   g$keep <- g$keep_stability & !g$exclude_saturation & g$keep_harmonization
-  g$measurement_status <- diagnostic$status;g$quadrant_witness <- diagnostic$witness
+  if(is.null(regional))g$measurement_status <- diagnostic$status
+  g$quadrant_witness <- if(is.null(regional))diagnostic$witness else NA_integer_
   g$measurement_status[g$measurement_status=='measured' & !g$measured] <- 'insufficient_repetitions'
   g$partition_id <- final;g$C_source <- g$C;g$C_reused <- FALSE;g$k_hat <- g$REO
-  g$fail_reason <- ifelse(g$keep,'ok',ifelse(!g$measured,'not_measured',
+  g$fail_reason <- ifelse(g$keep,'ok',ifelse(!available,'not_measured',
     ifelse(g$exclude_saturation,'saturation',ifelse(!g$keep_harmonization,'harmonization','stability_or_rsi'))))
   meta <- base$meta;meta$grid_strategy <- 'adaptive';meta$fitting_elapsed <- fit_time
+  meta$reference_bootstrap <- o$reference_bootstrap;meta$diagnostic_strategy <- o$diagnostic_strategy
   meta$diagnostics_elapsed <- unname(proc.time()[3]-diagnostic_start)
   meta$signature <- digest::digest(list(base$meta$signature,initial,o,penalty,rsi_policy,rsi_saturation_max,
     stab_algo_threshold,rsi_threshold,sat_threshold,partition_metric))
@@ -208,10 +253,11 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
   for(side in names(counts)[m$needs_extension & counts>=o$max_extensions & !blocked])
     restrictions[[length(restrictions)+1L]] <- list(side=side,reason='extension_budget',round=round)
   out <- CECgrid_compatible_output(X,g,pool,final,winners,all_banks,base$bootstrap_indices,meta)
+  out$measurements <- reference_measurements
   out$adaptive <- list(initial_C=initial$C,initial_lambda=initial$lambda,control=o,
     mesh=state$mesh,history=do.call(rbind,history),margins=m,restrictions=restrictions,
     extensions=counts,stop_reason=stop_reason,refinement=refinelog,harmonization=harmonies,
-    screening=diagnostic$screening,
+    screening=diagnostic$screening,components=if(is.null(regional))NULL else regional[names(regional)!='measurements'],
     completed=all(m$observed) && stop_reason%in%c('no_frontiers','adaptive_stable') && !length(restrictions))
   out$meta$elapsed <- unname(proc.time()[3]-started)
   class(out) <- c('CEC_adaptive_grid',class(out))
@@ -223,10 +269,17 @@ CECfit_adaptive_grid <- function(Z,C_grid=NULL,lambda_grid=NULL,k0=20L,B=20L,r0=
   out
 }
 
-CECadaptive_diagnostics <- function(state,g,winners,pool,eligible,L,B,metric,o,rsi_min,algo_min,seed,workers) {
+CECadaptive_diagnostics <- function(state,g,winners,pool,eligible,L,B,metric,o,rsi_min,algo_min,seed,workers,correct=NULL) {
   M <- nrow(g);status <- ifelse(eligible,'measured','outside_measurement_policy')
   witness <- rep(NA_integer_,M)
-  if(!o$trivial_quadrants) return(list(values=CECgrid_diagnostics(winners,pool,eligible,L,B,metric),
+  adjust <- function(values,indices) {
+    if(!is.null(correct))for(i in indices) {
+      d <- correct(i,as.list(values[i,]))
+      values[i,] <- c(d$Stab_algo,d$Stab_boot,d$RSI)
+    }
+    values
+  }
+  if(!o$trivial_quadrants) return(list(values=adjust(CECgrid_diagnostics(winners,pool,eligible,L,B,metric),which(eligible)),
     status=status,witness=witness,screening=NULL))
   cfg <- list(seed=seed,workers=workers,sat_max3=1,RSI_min=rsi_min,
     screening=list(trivial_quadrants=TRUE,anchor_rule='rsi_and_algo',audit_fraction=o$audit_fraction,
@@ -241,6 +294,7 @@ CECadaptive_diagnostics <- function(state,g,winners,pool,eligible,L,B,metric,o,r
       plan$table$status=='pending' & !plan$table$awaiting_quadrant_audit)
     if(!length(todo))break
     z <- CECgrid_diagnostics(winners,pool,seq_len(M)%in%todo,L,B,metric,cache)
+    z <- adjust(z,todo)
     values[todo,] <- z[todo,]
     for(i in todo) {
       v <- data.frame(method='exhaustif',Stab_algo=z$Stab_algo[i],Stab_boot=z$Stab_boot[i],RSI=z$RSI[i])
@@ -253,6 +307,7 @@ CECadaptive_diagnostics <- function(state,g,winners,pool,eligible,L,B,metric,o,r
   remaining <- which(eligible & !as.character(g$id)%in%names(metadata) & plan$table$status!='extrapolated_trivial_unmeasured')
   if(length(remaining)) {
     z <- CECgrid_diagnostics(winners,pool,seq_len(M)%in%remaining,L,B,metric,cache)
+    z <- adjust(z,remaining)
     values[remaining,] <- z[remaining,]
   }
   skipped <- eligible & plan$table$status=='extrapolated_trivial_unmeasured'

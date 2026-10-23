@@ -1,6 +1,6 @@
 CECsolver_bound_dispatch <- function(dots,optimization,penalty,optimizer_control,rsi_policy,
   rsi_saturation_max,save_results,output_dir,checkpoint_dir,resume,force_recompute,
-  grid_strategy='fixed',adaptive_control=list()) {
+  grid_strategy='fixed',adaptive_control=list(),reference_bootstrap=TRUE) {
   if(is.null(dots$Z)) {
     n <- if(is.null(dots$n))100L else CECinteger(dots$n,'n')
     seed <- if(is.null(dots$data_seed))13L else CECinteger(dots$data_seed,'data_seed',0L)
@@ -31,7 +31,7 @@ CECsolver_bound_dispatch <- function(dots,optimization,penalty,optimizer_control
   for(nm in c('final_descent_from_best','use_smoothed_keep'))dots[[nm]] <- NULL
   args <- c(dots,list(optimization=optimization,penalty=penalty,optimizer_control=optimizer_control,
     rsi_policy=rsi_policy,rsi_saturation_max=rsi_saturation_max,save_results=FALSE,output_dir=output_dir,
-    checkpoint_dir=checkpoint_dir,resume=resume,force_recompute=force_recompute))
+    checkpoint_dir=checkpoint_dir,resume=resume,force_recompute=force_recompute,reference_bootstrap=reference_bootstrap))
   engine <- if(grid_strategy=='adaptive')CECfit_adaptive_grid else CECfit_solver_grid
   if(grid_strategy=='adaptive')args$adaptive_control <- adaptive_control
   unknown <- setdiff(names(args),names(formals(engine)))
@@ -112,7 +112,8 @@ CECrescoreGrid <- function(x,C_grid=if(inherits(x,'CEC_adaptive_grid'))x$adaptiv
     algo_seed=x$meta$algo_seed,rsi_policy=rsi_policy,rsi_saturation_max=x$meta$rsi_saturation_max,
     stab_algo_threshold=x$meta$stab_algo_threshold,rsi_threshold=x$meta$rsi_threshold,
     sat_threshold=x$meta$sat_threshold,partition_metric=x$meta$partition_metric,
-    bootstrap_indices=x$bootstrap_indices,banks=x$banks)
+    bootstrap_indices=x$bootstrap_indices,banks=x$banks,
+    reference_bootstrap=if(is.null(x$meta$reference_bootstrap))TRUE else x$meta$reference_bootstrap)
   if(grid_strategy=='adaptive')args$adaptive_control <- adaptive_control
   out <- do.call(engine,args);out$meta$grid_strategy <- grid_strategy
   out$display_data <- x$display_data;out$density <- x$density;out$dataset_name <- x$dataset_name

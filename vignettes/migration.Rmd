@@ -112,7 +112,7 @@ they do not decide which partition should be retained scientifically.
 independent winner indices and original data, so rescoring remains possible.
 A compact object is not an anonymized object or a set of only final labels.
 
-## Adaptive CEM from version 0.3.0.9003
+## Adaptive CEM from version 0.3.0.9004
 
 The adaptive CEM driver now separates pilot construction from independent
 measurement. Versions 0.3.0.9001 and 0.3.0.9002 ran the repeated fits during
@@ -142,3 +142,24 @@ the RDS. For paired scoring of one EM bank, save each result under a distinct
 filename. Neither the library version nor a filename alone documents which
 optimizer, penalty and diagnostic convention a study used; the result metadata
 records those choices.
+
+## Component traversal and conditional RSI (0.3.0.9004)
+
+Adaptive diagrams now freeze the pilot and visit each connected partition
+region from its area-weighted barycentre in `(log C, lambda)`, restricted by
+the measurement policy. The first point passing both thresholds supplies the
+region's display diagnostics. `measured`, `diagnostic_origin` and
+`diagnostic_witness` distinguish fitting from regional inheritance.
+Use `adaptive_control = list(diagnostic_strategy = "cells")` for the previous
+pointwise coverage. Optional trivial quadrants require that cell strategy.
+
+All measured points in the numeric grid engines check the new reference rule
+before filtering. If the best independent original execution disagrees with
+the representative below the algorithmic threshold and does not improve its
+criterion, fix the reference and run one projected-label CEM descent per
+bootstrap. SA is then one by construction and RSI is the mean agreement with
+the reference. Raw independent diagnostics and outputs remain archived.
+Use `reference_bootstrap = FALSE` to reproduce independent-only diagnostics;
+combine it with `diagnostic_strategy = "cells"` for the former adaptive route.
+Existing saved objects are never silently recalculated. `CECstability()`
+still computes the raw pairwise formula from supplied labels.

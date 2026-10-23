@@ -90,18 +90,18 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
     parallel::clusterCall(cluster,setup,.libPaths(),as.character(utils::packageVersion('CEClust')))
   }
   executions <- list();job_elapsed <- 0;agreement_elapsed <- 0;harmony_elapsed <- 0
-  run_jobs <- function(jobs) {
+  run_jobs <- function(jobs,worker=CECadaptive_cem_job) {
     if(!length(jobs))return(list())
     for(job in jobs) {
-      key <- digest::digest(list(cfg$signature,job))
+      key <- if(job$phase=='reference_bootstrap')CECreference_job_signature(job,cfg) else digest::digest(list(cfg$signature,job))
       reused <- !is.null(cache) && cfg$resume && file.exists(file.path(cache,paste0(key,'.rds')))
       executions[[length(executions)+1L]] <<- data.frame(phase=job$phase,kind=job$kind,
         cell_id=job$id,rep=job$rep,seed=job$seed,C=job$C,lambda=job$lambda,
-        warm=job$phase=='pilot' && !is.null(job$warm),checkpoint_reused=reused)
+        warm=(job$phase=='pilot' && !is.null(job$warm)) || job$phase=='reference_bootstrap',checkpoint_reused=reused)
     }
     tm <- proc.time()[3]
-    result <- if(is.null(cluster))lapply(jobs,CECadaptive_cem_job,cfg=cfg) else
-      parallel::parLapplyLB(cluster,jobs,CECadaptive_cem_job,cfg=cfg)
+    result <- if(is.null(cluster))lapply(jobs,worker,cfg=cfg) else
+      parallel::parLapplyLB(cluster,jobs,worker,cfg=cfg)
     job_elapsed <<- job_elapsed+unname(proc.time()[3]-tm)
     result
   }
@@ -194,7 +194,31 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   pilot_elapsed <- unname(proc.time()[3]-started)
   if(!is.null(cache))CECwrite_rds_atomic(list(state=pilot,memory=memory,stop_reason=stop_reason),file.path(cache,'pilot_complete.rds'))
   phase <- 'measurement';diagnostic_started <- proc.time()[3]
-  repeat {
+  regional <- NULL
+  if(o$diagnostic_strategy=='components') {
+    # Freeze the harmonized pilot. Campaigns describe it without moving its
+    # components or their barycentres during the traversal.
+    g <- ceca_diagram(state)
+    eligible <- CECadaptive_cem_eligible(g,rsi_policy,rsi_saturation_max)
+    measure <- function(i) {
+      jobs <- lapply(seq_len(k0+B),function(k) {
+        kind <- if(k<=k0)'original' else 'bootstrap';rep <- if(k<=k0)k else k-k0
+        list(phase='measurement',kind=kind,rep=rep,id=g$id[i],C=g$C[i],lambda=g$lambda[i],
+          seed=ca_seed(algo_seed,'measurement',g$id[i],kind,rep))
+      })
+      runs <- run_jobs(jobs);parts <- lapply(runs,`[[`,'part');labels <- lapply(parts,`[[`,'labels')
+      tm <- proc.time()[3]
+      d <- CECstability(labels[seq_len(k0)],labels[k0+seq_len(B)],partition_metric)
+      agreement_elapsed <<- agreement_elapsed+unname(proc.time()[3]-tm)
+      best <- parts[[which.min(vapply(parts[seq_len(k0)],`[[`,0,'J'))]]
+      z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],saturation_at_measurement=g$saturation[i],
+        runs=runs,best=best,diagnostics=d)
+      CECreference_stability(z,state$parts[[as.character(g$id[i])]],cfg,g[i,],partition_metric,
+        stab_algo_threshold,o$reference_bootstrap,run_jobs)
+    }
+    regional <- CECadaptive_component_diagnostics(state,eligible,measure,stab_algo_threshold,rsi_threshold,verbose)
+    measurements <- regional$measurements
+  } else repeat {
     plan <- ceca_screen_plan(state,screen_cfg,metadata,audit);audit <- plan$audit_state
     g <- ceca_diagram(state);eligible <- CECadaptive_cem_eligible(g,rsi_policy,rsi_saturation_max)
     todo <- plan$next_indices;todo <- todo[eligible[todo]]
@@ -215,12 +239,16 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
       d <- CECstability(labels[seq_len(k0)],labels[k0+seq_len(B)],partition_metric)
       agreement_elapsed <- agreement_elapsed+unname(proc.time()[3]-tm)
       best <- parts[[which.min(vapply(parts,`[[`,0,'J'))]]
+      z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],
+        saturation_at_measurement=g$saturation[i],wave=measurement_wave,runs=runs,best=best,diagnostics=d)
+      z <- CECreference_stability(z,state$parts[[id]],cfg,g[i,],partition_metric,
+        stab_algo_threshold,o$reference_bootstrap,run_jobs)
+      d <- z$diagnostics
       values <- data.frame(method='exhaustif',Stab_algo=d$Stab_algo,Stab_boot=d$Stab_boot,RSI=d$RSI)
       qualifies <- is.finite(d$RSI) && d$RSI>rsi_threshold && is.finite(d$Stab_algo) &&
         d$Stab_algo>screen_cfg$screening$stability_min
       metadata[[id]] <- list(best=best,values=values,qualifies=qualifies)
-      measurements[[id]] <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],
-        saturation_at_measurement=g$saturation[i],wave=measurement_wave,runs=runs,best=best,diagnostics=d)
+      measurements[[id]] <- z
       if(ca_better(best$J,state$parts[[id]]$J,cfg$settings$tolerance)) {
         state$parts[[id]] <- best;changed <- c(changed,g$id[i])
       }
@@ -233,7 +261,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   plan <- ceca_screen_plan(state,screen_cfg,metadata,audit);audit <- plan$audit_state
   g <- ceca_diagram(state);eligible <- CECadaptive_cem_eligible(g,rsi_policy,rsi_saturation_max)
   pending <- eligible & plan$table$status=='pending'
-  if(any(pending))stop('Internal error: eligible CEM cells remain unmeasured without an exemption.')
+  if(is.null(regional) && any(pending))stop('Internal error: eligible CEM cells remain unmeasured without an exemption.')
   final_memory <- ceca_wake_changed(state,memory,o$frontier_saturation)
   final_pick <- ceca_select_refinement(state,final_memory,settings)
   refinement_pending <- !final_pick$status%in%c('no_frontiers','adaptive_stable')
@@ -249,34 +277,46 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
     id
   }
   ids <- as.character(g$id);p <- ceca_current(state)
+  if(is.null(regional))for(i in which(ids%in%names(measurements))) {
+    id <- ids[i]
+    measurements[[id]] <- CECreference_stability(measurements[[id]],p[[i]],cfg,g[i,],
+      partition_metric,stab_algo_threshold,o$reference_bootstrap,run_jobs)
+  }
   final <- vapply(p,register,0L);winners <- matrix(NA_integer_,nrow(g),k0+B)
   g$A_harm <- g$stab_algo <- g$stab_boot <- g$rsi <- NA_real_
+  g$reference_bootstrap_applied <- FALSE
   for(i in which(ids%in%names(measurements))) {
     z <- measurements[[ids[i]]]
     winners[i,] <- vapply(z$runs,function(r)register(r$part),0L)
     g$stab_algo[i] <- z$diagnostics$Stab_algo;g$stab_boot[i] <- z$diagnostics$Stab_boot;g$rsi[i] <- z$diagnostics$RSI
     g$A_harm[i] <- ca_sim(z$best$labels,p[[i]]$labels)
+    g$reference_bootstrap_applied[i] <- isTRUE(z$reference_check$applied)
   }
   g$sat <- g$saturation;g$objective <- vapply(p,`[[`,0,'J');g$Hphi <- g$objective/g$lambda
   g$entropy <- vapply(p,`[[`,0,'J_raw');g$penalty_value <- vapply(p,`[[`,0,'BIC_penalty_relative')
   g$n_sat_clusters <- vapply(p,function(p)sum(p$saturated),0L);g$any_bound_saturation <- g$n_sat_clusters>0L
   g$measured <- is.finite(g$stab_algo)&is.finite(g$stab_boot)
   g$keep_harmonization <- is.finite(g$A_harm) & g$A_harm>=o$harmonization_min
-  g$keep_stability <- g$measured & g$stab_algo>stab_algo_threshold & g$rsi>rsi_threshold
+  g$keep_harmonization[g$reference_bootstrap_applied] <- TRUE
+  if(!is.null(regional))g <- CECadaptive_component_summary(g,regional)
+  g <- CECattach_reference_summary(g,measurements)
+  available <- if(is.null(regional))g$measured else g$diagnostics_available
+  g$keep_stability <- available & g$stab_algo>stab_algo_threshold & g$rsi>rsi_threshold
   g$keep_stability[is.na(g$keep_stability)] <- FALSE
   g$exclude_saturation <- g$sat>sat_threshold
   g$keep <- g$keep_stability & !g$exclude_saturation & g$keep_harmonization
-  g$measurement_status <- ifelse(ids%in%names(measurements),'measured',
+  if(is.null(regional))g$measurement_status <- ifelse(ids%in%names(measurements),'measured',
     ifelse(plan$table$status=='extrapolated_trivial_unmeasured','quadrant_unmeasured','outside_measurement_policy'))
   g$measurement_status[g$measurement_status=='measured' & !g$measured] <- 'insufficient_repetitions'
   g$quadrant_witness <- plan$table$witness;g$partition_id <- final;g$C_source <- g$C;g$C_reused <- FALSE;g$k_hat <- g$REO
-  g$fail_reason <- ifelse(g$keep,'ok',ifelse(!g$measured,'not_measured',ifelse(g$exclude_saturation,'saturation',
+  g$fail_reason <- ifelse(g$keep,'ok',ifelse(!available,'not_measured',ifelse(g$exclude_saturation,'saturation',
     ifelse(!g$keep_harmonization,'harmonization','stability_or_rsi'))))
   m <- borders()
   for(side in names(counts)[m$needs_extension & counts>=o$max_extensions & !blocked])
     restrictions[[length(restrictions)+1L]] <- list(side=side,reason='extension_budget',round=round)
   meta <- list(optimization='cem',penalty=penalty,grid_strategy='adaptive',protocol='staged_cem_v1',
-    stability_approach='exhaustive',partition_metric=partition_metric,rsi_policy=rsi_policy,
+    stability_approach='exhaustive_with_conditional_reference',diagnostic_strategy=o$diagnostic_strategy,
+    reference_bootstrap=o$reference_bootstrap,partition_metric=partition_metric,rsi_policy=rsi_policy,
     rsi_saturation_max=rsi_saturation_max,stab_algo_threshold=stab_algo_threshold,rsi_threshold=rsi_threshold,
     sat_threshold=sat_threshold,k0=k0,B=B,algo_seed=algo_seed,control=control,signature=signature,
     n_cores=n_cores,pilot_elapsed=pilot_elapsed,fitting_elapsed=job_elapsed+harmony_elapsed,
@@ -290,7 +330,8 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
     mesh=state$mesh,history=do.call(rbind,history),margins=m,restrictions=restrictions,extensions=counts,
     stop_reason=stop_reason,refinement=refinelog,harmonization=harmonies,pilot=pilot,pilot_fits=pilots,
     final_refinement_status=final_pick$status,final_refinement_pending=refinement_pending,
-    screening=list(coverage=plan$table,quadrants=plan$quadrants,rejected=plan$rejected,audit_state=audit),
+    screening=if(is.null(regional))list(coverage=plan$table,quadrants=plan$quadrants,rejected=plan$rejected,audit_state=audit) else NULL,
+    components=if(is.null(regional))NULL else regional[names(regional)!='measurements'],
     completed=all(m$observed) && stop_reason%in%c('no_frontiers','adaptive_stable') &&
       final_pick$status%in%c('no_frontiers','adaptive_stable'))
   out$meta$elapsed <- unname(proc.time()[3]-started)

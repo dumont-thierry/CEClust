@@ -1,0 +1,108 @@
+reference_fixture <- function() {
+  X <- CECwith_seed(18,matrix(c(rnorm(12,-3,.2),rnorm(12,3,.2)),ncol=1))
+  labels <- rep(1:2,each=12L)
+  control <- CECoptimization_control(list(Rmax=2,Ninit=1,max_iter=15),24,10,1,15)
+  cfg <- list(X=X,boots=list(rep(c(1:10,13:14),2),24:1),seed=31L,
+    settings=CECadaptive_cem_settings(control),penalty='none',signature='fixture',cache=NULL,resume=FALSE)
+  z <- list(original_labels=rep(list(rep(1L,24)),3),
+    diagnostics=CECstability(rep(list(rep(1L,24)),3),rep(list(rep(1L,24)),2)))
+  list(cfg=cfg,z=z,reference=list(labels=labels),cell=data.frame(id=7L,C=10,lambda=1))
+}
+
+test_that('both trigger conditions are checked before any final filtering', {
+  f <- reference_fixture();calls <- 0L
+  runner <- function(jobs,worker) {
+    calls <<- calls+length(jobs)
+    lapply(jobs,function(j)list(part=list(labels=f$reference$labels)))
+  }
+  a <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)
+  expect_true(a$reference_check$applied);expect_equal(calls,2L)
+  expect_equal(a$diagnostics$Stab_algo,1);expect_equal(a$diagnostics$RSI,1)
+  expect_identical(a$diagnostics_raw,f$z$diagnostics)
+  expect_equal(a$diagnostics$original_pairs,0L);expect_equal(a$diagnostics$cross_pairs,2L)
+  expect_identical(a$original_labels,f$z$original_labels)
+  again <- CECreference_stability(a,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)
+  expect_identical(again,a);expect_equal(calls,2L)
+  # Equality with the similarity threshold does not trigger.
+  b <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.5,TRUE,runner)
+  expect_false(b$reference_check$applied);expect_equal(calls,2L)
+  # The one-group candidate is better when lambda is sufficiently large.
+  cell <- f$cell;cell$lambda <- 10
+  b <- CECreference_stability(f$z,f$reference,f$cfg,cell,'match',.85,TRUE,runner)
+  expect_false(b$reference_check$original_not_better);expect_false(b$reference_check$applied)
+  expect_equal(calls,2L)
+  b <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.85,FALSE,runner)
+  expect_false(b$reference_check$applied);expect_identical(b$diagnostics,f$z$diagnostics)
+  cfg <- f$cfg;cfg$boots <- list()
+  expect_false(CECreference_stability(f$z,f$reference,cfg,f$cell,'match',.85,TRUE,runner)$reference_check$applied)
+  # Lack of repetitions never establishes algorithmic stability.
+  z <- f$z;z$diagnostics$Stab_algo <- NA_real_
+  expect_false(CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,runner)$reference_check$applied)
+})
+
+test_that('one reference descent uses indexed labels and frozen projection without multistart', {
+  f <- reference_fixture();cache <- tempfile('reference_cache');dir.create(cache)
+  f$cfg$cache <- cache;f$cfg$resume <- TRUE
+  local_mocked_bindings(q_fit=function(...)stop('Multistart must not be called'),
+    ca_subdivide=function(...)stop('Subdivision must not be called'),.package='CEClust')
+  for(penalty in c('none','bic')) {
+    f$cfg$penalty <- penalty
+    z <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.85)
+    expect_true(z$reference_check$applied)
+    expect_length(z$reference_bootstrap,2L)
+    for(b in 1:2) {
+      r <- z$reference_bootstrap[[b]]
+      expect_identical(r$initial_labels,ca_labels(f$reference$labels[f$cfg$boots[[b]]]))
+      expect_identical(r$bootstrap_indices,f$cfg$boots[[b]])
+      expect_equal(r$descent_count,1L)
+      pred <- predict_frozen(f$cfg$X,r$fit$params,'CEC',r$projection_seed)
+      expect_identical(r$part$labels,ca_labels(pred$labels))
+      expect_lte(r$fit$part$J,r$fit$initial_J+1e-10)
+    }
+    expect_identical(z$diagnostics$RSI,mean(vapply(z$reference_bootstrap,
+      function(r)ca_sim(f$reference$labels,r$part$labels),0)))
+    resumed <- CECreference_stability(f$z,f$reference,f$cfg,f$cell,'match',.85)
+    expect_identical(z,resumed)
+  }
+  expect_length(list.files(cache,pattern='[.]rds$'),4L)
+})
+
+test_that('a failed ordinary RSI may be corrected before regional traversal advances', {
+  f <- reference_fixture();s <- list(mesh=ceca_mesh(exp(0:2),c(1,2)))
+  s$parts <- setNames(rep(list(list(labels=f$reference$labels,K=2L,saturation=0)),6),1:6)
+  # This example's original labels have length 24, independent of mesh labels.
+  s$parts <- lapply(s$parts,function(p)list(labels=f$reference$labels,K=2L,saturation=0))
+  calls <- integer()
+  measure <- function(i) {
+    calls <<- c(calls,i)
+    z <- f$z;z$diagnostics$Stab_algo <- .8;z$diagnostics$RSI <- .2
+    CECreference_stability(z,f$reference,f$cfg,f$cell,'match',.85,TRUE,
+      function(jobs,worker)lapply(jobs,function(j)list(part=list(labels=f$reference$labels))))
+  }
+  a <- CECadaptive_component_diagnostics(s,rep(TRUE,6),measure,.85,.95)
+  expect_length(calls,1L);expect_equal(a$plan$table$status,'accepted')
+  expect_true(all(a$values$RSI==1))
+})
+
+test_that('fixed grids check the rule even when no cell can pass the final RSI filter', {
+  f <- reference_fixture();X <- f$cfg$X
+  part <- function(labels)list(labels=labels,local_labels=labels,
+    stats=ca_stats(X,labels),local_stats=ca_stats(X,labels))
+  banks <- c(rep(list(list(candidates=list(part(rep(1L,24))),cell_winners=c(1L,1L))),3),
+    rep(list(list(candidates=list(part(f$reference$labels)),cell_winners=c(1L,1L))),2))
+  for(method in c('cem','em_bank'))for(penalty in c('none','bic')) {
+    a <- CECfit_solver_grid(X,10,c(1,10),k0=3,B=2,optimization=method,penalty=penalty,
+      banks=banks,bootstrap_indices=list(1:24,24:1),rsi_threshold=1.1,
+      optimizer_control=list(Rmax=2,Ninit=1,max_iter=15))
+    expect_false(any(a$summary$keep))
+    expect_identical(a$summary$reference_bootstrap_applied,c(TRUE,FALSE))
+    expect_equal(a$summary$rsi_raw[1],.5)
+    expect_gt(a$summary$rsi[1],.95)
+    expect_length(a$measurements[['1']]$reference_bootstrap,2L)
+    b <- CECfit_solver_grid(X,10,c(1,10),k0=3,B=2,optimization=method,penalty=penalty,
+      banks=banks,bootstrap_indices=list(1:24,24:1),reference_bootstrap=FALSE,
+      optimizer_control=list(Rmax=2,Ninit=1,max_iter=15))
+    expect_identical(a$winners,b$winners);expect_identical(a$selected,b$selected)
+    expect_equal(b$summary$rsi[1],.5)
+  }
+})

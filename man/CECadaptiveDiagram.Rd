@@ -57,7 +57,9 @@ Pass a named \code{adaptive_control} list. Its fields are:
 \item{\code{patience=2, position_tolerance=0.125}}{Local stopping controls; displacement is measured in initial-grid units.}
 \item{\code{distinguish_partitions=TRUE}}{Refine partition changes even when REO is unchanged.}
 \item{\code{frontier_saturation}}{Saturation threshold for relevant frontiers; defaults to sat_threshold and cannot be smaller.}
-\item{\code{harmonize=TRUE, harmonization_min=0.95}}{For CEM, propagate improving neighbour partitions and run a descent from them. The initial pass visits the whole mesh. Later passes start from the newly evaluated cells and their neighbours; an improvement reactivates affected neighbours until propagation stops. Keep requires agreement at least harmonization_min between the best independent campaign partition and the final harmonized representative. It is missing for cells without a campaign. Independent repetitions remain unchanged. EM uses its common bank, has no additional harmonization, and has A_harm=1.}
+\item{\code{harmonize=TRUE, harmonization_min=0.95}}{For CEM, propagate improving neighbour partitions and run a descent from them. The initial pass visits the whole mesh. Later passes start from the newly evaluated cells and their neighbours; an improvement reactivates affected neighbours until propagation stops. Keep requires agreement at least harmonization_min between the best independent campaign partition and the final harmonized representative. It is missing for cells without a campaign. Independent repetitions remain unchanged. This additional agreement filter applies to the cell strategy unless the conditional reference branch is used. Regional acceptance uses the two diagnostic thresholds only. EM uses its common bank and has no additional harmonization.}
+\item{\code{diagnostic_strategy="components"}}{Freeze the final pilot and traverse connected components of exactly the same partition. Use "cells" for the previous cell-by-cell strategy.}
+\item{\code{reference_bootstrap=TRUE}}{Apply the conditional reference-bootstrap rule to every tested point before accepting it; see \link{CECdiagnostics}. This adaptive setting overrides the top-level value when supplied.}
 \item{\code{trivial_quadrants=FALSE}}{Optional heuristic exemption from diagnostic measurement in validated upper-left trivial quadrants.}
 \item{\code{audit_fraction=0.10, anchor_stability=0.95}}{Quadrant controls described below.}
 }
@@ -66,8 +68,44 @@ Inspect \code{g$adaptive$history}, \code{margins}, \code{restrictions},
 reported as completed adaptation. Even completed adaptation only means that
 the specified numerical stopping rules were met within the explored window.
 }
+\section{Connected-component traversal}{
+The default \code{diagnostic_strategy="components"} freezes the harmonized pilot
+before diagnostic campaigns. Edge-sharing cells belong to one component only
+when their label vectors describe exactly the same partition, up to relabeling.
+Disconnected regions remain separate, even when they share a partition.
+Saturation does not split components.
+
+The barycentre is computed over the whole component in (log C, lambda), weighting
+each cell centre by its rectangular area in these coordinates. This prevents
+unequal refinement from moving the geometric centre. Candidate cells are ordered
+by increasing Euclidean distance to this barycentre, without rescaling the axes;
+cell ID breaks ties. The measurement policy then restricts the candidates.
+Thus the default CEM saturation band still excludes test points above 0.10.
+
+Each candidate receives the ordinary exhaustive diagnostics and, when its two
+conditions hold, the conditional reference-bootstrap recalculation. This is done
+before comparing Stab_algo and RSI to their strict thresholds. A component stops
+at its first passing point, or after exhausting its eligible candidates.
+No extra A_harm filter is applied to regional acceptance; its direct value is
+retained for interpretation. Campaign winners never alter the frozen pilot.
+
+For display and selection, a passing witness supplies its diagnostic values to
+the whole component. The final saturation mask is applied separately. This is
+a regional approximation: it does not establish stability at each untested point.
+\code{measured} identifies actual campaigns, \code{diagnostic_origin} identifies
+regional values, and \code{diagnostic_witness} gives their measured source.
+\code{stab_algo_direct}, \code{stab_boot_direct}, and \code{rsi_direct} preserve
+pointwise values, including failed attempts. \code{adaptive$components} records
+membership, full barycentres, candidate paths, attempts and stopping decisions.
+\code{winners} retains only the independent outputs at measured CEM cells;
+untested CEM rows remain missing. EM winners remain available from its banks.
+
+This strategy and optional trivial-quadrant screening are alternatives and
+cannot be combined. Tightening plotting thresholds cannot reconstruct skipped
+campaigns; rerun diagnostics if complete coverage at new thresholds is required.
+}
 \section{Diagnostics and optional quadrants}{
-Adaptive CEM has two stages. The pilot runs one complete multistart search
+With \code{diagnostic_strategy="cells"}, adaptive CEM has two stages. The pilot runs one complete multistart search
 on the original observations at each new cell, followed by neighbour
 harmonization. A child cell additionally starts from its parent's partition.
 No original-data repetition campaign or bootstrap fit is run during this

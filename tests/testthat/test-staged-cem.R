@@ -1,7 +1,7 @@
 staged_args <- function()list(Z=CECwith_seed(19,cbind(c(rnorm(12,-2,.4),rnorm(12,2,.4)),rnorm(24,sd=.5))),C_grid=c(.001,.004),lambda_grid=c(.6,1.4),
   k0=3,B=2,algo_seed=11,optimization='cem',grid_strategy='adaptive',
   optimizer_control=list(Rmax=2,Ninit=1,max_iter=8,max_batches=1),
-  adaptive_control=list(max_cells=60,max_rounds=2,max_extensions=0))
+  adaptive_control=list(max_cells=60,max_rounds=2,max_extensions=0,diagnostic_strategy='cells',reference_bootstrap=FALSE))
 
 test_that('a saturated pilot performs exactly one fit per cell and no campaigns', {
   calls <- list();worker <- CECadaptive_cem_job

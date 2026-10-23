@@ -21,11 +21,11 @@ and removing duplicates, the output is a set of distinct groupings to examine.
 This guide follows one small dataset from its first plot to the interpretation
 of that set. It then shows how to add a BIC-type penalty and change the
 optimization method. The code, printed results and figures below are produced
-with **CEClust 0.3.0.9003**.
+with **CEClust 0.3.0.9004**.
 
 ## Installation
 
-This local repair is version 0.3.0.9003 and has not yet been pushed to GitHub.
+This local repair is version 0.3.0.9004 and has not yet been pushed to GitHub.
 Install its supplied ZIP or source archive to use this revision. The GitHub
 command below installs the currently published version.
 
@@ -49,7 +49,7 @@ requires neither a compiler nor Pandoc. Replace the example path with your file:
 
 ```{r install, eval=FALSE}
 install.packages(c("clue", "digest", "mvtnorm", "Rcpp"))
-install.packages("path/to/CEClust_0.3.0.9003.zip",
+install.packages("path/to/CEClust_0.3.0.9004.zip",
                  repos = NULL, type = "win.binary")
 ```
 
@@ -188,6 +188,24 @@ by the chosen `C`.
 At `(1, 1.5)`, two groups are retained with zero saturation and high agreement.
 The one-group partition at `(0.2, 1.5)` also passes. The diagram therefore
 contains two admissible descriptions at different resolutions.
+
+### Conditional bootstrap around a better grid partition
+
+Before a point is filtered, the numeric grid engines compare their best
+original execution with the grid representative. If their agreement is below
+the requested algorithmic threshold and the execution does not improve the
+representative's score, the representative is fixed as the reference.
+`stab_algo` is then one by construction. Each bootstrap receives **one CEM
+descent**, starting from that reference's labels on the sampled rows; there
+are no additional starts. The RSI is the mean agreement of its projections
+with the fixed reference.
+
+This measures resampling sensitivity conditional on that reference. It does
+not turn a failed optimization experiment into an empirical stability of one.
+`reference_bootstrap_applied` and `diagnostic_definition` identify the branch;
+`stab_algo_raw`, `stab_boot_raw` and `rsi_raw` retain the independent diagnostics.
+The complete reference check and bootstrap fits are in `g$measurements`.
+Use `reference_bootstrap = FALSE` to obtain independent-only diagnostics.
 
 ## 5. Inspect each retained partition once
 
@@ -384,3 +402,28 @@ development and validation instructions. The
 [consolidation inventory](docs/CONSOLIDATION.md) maps the successive additions
 to their implementations and checks. Repository:
 [dumont-thierry/CEClust](https://github.com/dumont-thierry/CEClust).
+
+## Adaptive diagnostics by connected component
+
+Adaptive diagrams now default to
+`adaptive_control = list(diagnostic_strategy = "components")`.
+After calibration and boundary refinement, the pilot diagram is frozen.
+Connected cells representing exactly the same partition form a component.
+Its geometric barycentre uses rectangular areas in `(log C, lambda)`;
+candidate cells are visited from nearest to farthest, without rescaling axes.
+The measurement policy still limits the test points: for adaptive CEM the
+default is saturation at most 0.10.
+
+At every tested point, the conditional reference rule above is checked before
+acceptance. Testing stops at the first point passing both diagnostic thresholds.
+Its values then describe the component for visualization and selection; the
+final saturation mask is applied separately. This can avoid many campaigns,
+but provides a regional approximation rather than stability measured everywhere.
+
+`measured` marks actual test points. `diagnostic_origin = "component_witness"`
+marks inherited values and `diagnostic_witness` identifies their source.
+The `_direct` diagnostic columns preserve pointwise values; untested direct
+values remain missing. `g$adaptive$components` records the barycentres, ordered
+candidates and stopping decisions. Use `diagnostic_strategy = "cells"` for
+the previous cell-by-cell coverage. Recompute diagnostics when a different
+threshold requires points skipped by the original traversal.

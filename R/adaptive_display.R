@@ -25,10 +25,11 @@ CECplot_adaptive <- function(grid_obj,selected_C=NULL,selected_lambda=NULL,
   rr <- cec_grid_reo_range(s)
   ix <- pmax(1L,pmin(length(reo_col),1L+floor((length(reo_col)-1L)*(s$REO-rr[1])/diff(rr))))
   col <- ifelse(s$keep,reo_col[ix],bad_fill)
-  unmeasured <- !s$measured;col[unmeasured] <- '#E6EBF0'
+  regional <- if('diagnostic_origin'%in%names(s))s$diagnostic_origin=='component_witness' else rep(FALSE,nrow(s))
+  unmeasured <- !s$measured & !regional;col[unmeasured] <- '#E6EBF0'
   quadrant <- s$measurement_status=='quadrant_unmeasured';col[quadrant] <- '#EAC985'
   graphics::rect(s$u0,s$v0,s$u1,s$v1,col=col,border='white',lwd=.35)
-  fail <- s$measured & !s$keep_stability
+  fail <- (s$measured | regional) & !s$keep_stability
   if(any(fail))graphics::rect(s$u0[fail],s$v0[fail],s$u1[fail],s$v1[fail],
     density=10,angle=45,col=bad_hatch_col,border=NA)
   if(any(s$exclude_saturation)) {
@@ -52,6 +53,10 @@ CECplot_adaptive <- function(grid_obj,selected_C=NULL,selected_lambda=NULL,
       }
     }
   }
+  if(any(regional)) {
+    at <- which(s$keep & s$measured & s$diagnostic_origin=='measured')
+    if(length(at))graphics::points(log(s$C[at]),s$lambda[at],pch=21,bg='white',col='black',cex=.8)
+  }
   if(!is.null(selected_C)&&!is.null(selected_lambda)) {
     i <- CECadaptive_cell(grid_obj,selected_C,selected_lambda)
     graphics::rect(s$u0[i],s$v0[i],s$u1[i],s$v1[i],border='black',lwd=2)
@@ -64,6 +69,7 @@ CECplot_adaptive <- function(grid_obj,selected_C=NULL,selected_lambda=NULL,
     graphics::legend(x=limits[2]+.02*diff(limits[1:2]),y=limits[4],xjust=0,yjust=1,bty='n',cex=.8,
       legend=c(paste('REO',orders),'Not retained','Not measured',if(any(quadrant))'Quadrant (not measured)'),
       fill=c(colors,bad_fill,'#E6EBF0',if(any(quadrant))'#EAC985'))
+    if(any(regional))graphics::mtext('Regions inherit witness diagnostics; circles: accepted witnesses',side=3,line=.2,cex=.65)
   }
   invisible(s)
 }

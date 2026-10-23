@@ -2,7 +2,7 @@ adaptive_data <- function()CECwith_seed(19,cbind(c(rnorm(12,-2,.4),rnorm(12,2,.4
 adaptive_args <- function()list(Z=adaptive_data(),C_grid=c(.2,1),lambda_grid=c(.6,1.4),
  k0=3,B=2,algo_seed=11,optimization='em_bank',penalty='none',grid_strategy='adaptive',
  optimizer_control=list(Rmax=3,orders=c(1,3),Ninit=1,Cmax=20,max_iter=12),
- adaptive_control=list(max_cells=120,max_rounds=3,max_extensions=2))
+ adaptive_control=list(max_cells=120,max_rounds=3,max_extensions=2,diagnostic_strategy='cells',reference_bootstrap=FALSE))
 
 test_that('adaptive EM cells agree with direct bank scoring and independent diagnostics', {
   a <- do.call(CECfitBoundGrid,adaptive_args())
@@ -78,7 +78,7 @@ test_that('right stopping uses matching rows and two unsaturated extensions', {
 
 test_that('limits are reported and no unmeasured cell passes the filter', {
   args <- adaptive_args();args$rsi_policy <- 'nontrivial_unsaturated'
-  args$adaptive_control <- list(max_cells=40,max_rounds=2,max_extensions=0)
+  args$adaptive_control <- list(max_cells=40,max_rounds=2,max_extensions=0,diagnostic_strategy='cells',reference_bootstrap=FALSE)
   a <- do.call(CECfitBoundGrid,args);s <- a$summary
   omitted <- s$REO==1 | s$sat>0
   expect_true(any(omitted));expect_true(all(is.na(s$rsi[omitted])))
@@ -95,7 +95,7 @@ test_that('limits are reported and no unmeasured cell passes the filter', {
 
 test_that('quadrant coverage never manufactures diagnostic values', {
   args <- adaptive_args();args$C_grid<-c(.01,.02);args$lambda_grid<-c(10,20)
-  args$adaptive_control<-list(max_cells=50,max_rounds=2,max_extensions=0,trivial_quadrants=TRUE)
+  args$adaptive_control<-list(max_cells=50,max_rounds=2,max_extensions=0,trivial_quadrants=TRUE,diagnostic_strategy='cells',reference_bootstrap=FALSE)
   a <- do.call(CECfitBoundGrid,args)
   waived <- a$summary$measurement_status=='quadrant_unmeasured'
   expect_true(any(waived));expect_true(all(is.na(a$summary$rsi[waived])))
@@ -110,7 +110,7 @@ test_that('adaptive CEM supports both penalties and preserves repetitions throug
   args <- adaptive_args();args$optimization <- 'cem';args$k0 <- 2;args$B <- 1
   args$rsi_policy <- 'all'
   args$optimizer_control <- list(Rmax=2,Ninit=1,Cmax=20,max_iter=8,max_batches=1)
-  args$adaptive_control <- list(max_cells=60,max_rounds=2,max_extensions=0)
+  args$adaptive_control <- list(max_cells=60,max_rounds=2,max_extensions=0,diagnostic_strategy='cells',reference_bootstrap=FALSE)
   for(penalty in c('none','bic')) {
     args$penalty <- penalty;a <- do.call(CECfitBoundGrid,args)
     expect_true(all(a$summary$A_harm>=0 & a$summary$A_harm<=1))
@@ -146,7 +146,7 @@ test_that('later CEM harmony starts locally and leaves no improving neighbour tr
   args$optimization <- 'cem';args$k0 <- 2;args$B <- 1
   args$C_grid <- c(.3,2);args$lambda_grid <- c(.8,1.4)
   args$optimizer_control <- list(Rmax=2,Ninit=1,Cmax=20,max_iter=10,max_batches=1)
-  args$adaptive_control <- list(max_cells=80,max_rounds=2,max_extensions=1)
+  args$adaptive_control <- list(max_cells=80,max_rounds=2,max_extensions=1,diagnostic_strategy='cells',reference_bootstrap=FALSE)
   for(penalty in c('none','bic')) {
     args$penalty <- penalty
     a <- do.call(CECfitBoundGrid,args)
