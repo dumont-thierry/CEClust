@@ -3,7 +3,7 @@
 \alias{CECmigration}
 \title{Use explicit solvers while retaining historical workflows}
 \description{
-Compatibility differences between historical linked-path calculations and the consolidated numeric engines in CEClust 0.3.0.9003.
+Compatibility differences between historical linked-path calculations and the consolidated numeric engines in CEClust 0.3.0.9008.
 }
 \section{Choosing the route}{
 For new numeric analyses, explicitly pass optimization="cem" or
@@ -51,6 +51,22 @@ The default adaptive CEM policy is now saturation_band. Fixed-grid and EM-bank
 protocols retain their defaults. Old adaptive CEM checkpoints are not accepted
 as staged campaigns and old saved results are not silently recomputed.
 See \link{CECadaptiveDiagram} for the stages and stored records.
+}
+\section{Regional and conditional diagnostics}{
+Since 0.3.0.9004, adaptive diagrams default to a frozen pilot and connected
+partition components. Eligible points are ordered from the area-weighted
+barycentre in (log C, lambda); the first passing witness supplies regional
+display values. Direct measurements remain identifiable. Use
+\code{adaptive_control=list(diagnostic_strategy="cells")} for pointwise coverage.
+
+The conditional reference bootstrap now requires both raw independent Stab_algo
+and raw independent RSI to strictly pass their requested thresholds, disagreement
+with the representative below the algorithmic threshold, and no improvement of
+its score. Only then is the reference fixed and one projected-label CEM descent
+run per bootstrap. Raw independent outputs remain archived. Set
+\code{reference_bootstrap=FALSE} for independent-only diagnostics.
+See \link{CECdiagnostics} and \link{CECadaptiveDiagram} for definitions and provenance.
+Existing saved objects are never silently recalculated.
 }
 \section{Scope of this version}{
 New solvers are numeric Gaussian implementations. The package's historical

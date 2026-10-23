@@ -1,5 +1,8 @@
 # CEClust 0.3.0.9008
 
+- Refresh installation instructions and the executable README, help and guides
+  for the current adaptive component workflow. Distinguish direct, inherited,
+  raw independent and conditional-reference diagnostics throughout.
 - Reuse the immutable centered data and the exact covariance Cholesky factors
   within each soft EM descent. Reuse probability buffers and move accepted
   states instead of copying their matrices. Covariance constraints, likelihood

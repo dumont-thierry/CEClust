@@ -59,7 +59,9 @@ and descents are in `solver_numerics.R` and `optimization.R`. `solver_grid.R`
 retains the fixed-grid engine and common output construction. The historical
 linked-path engine remains for compatibility; it is not used by these drivers.
 
-For staged CEM, enforce these invariants in `test-staged-cem.R`:
+For staged CEM, enforce these invariants in `test-staged-cem.R`. The improvement
+and renewed-coverage loop below applies to `diagnostic_strategy="cells"`;
+the default component strategy additionally follows the rules in the next section:
 
 - one complete original-data pilot execution per new cell, before any L+B work;
 - parent starts only in the pilot, never in independent campaigns;
@@ -67,7 +69,8 @@ For staged CEM, enforce these invariants in `test-staged-cem.R`:
 - frozen original/bootstrap outputs after improvement and harmonization;
 - renewed border/coverage checks, with pending refinement explicitly reported;
 - per-execution checkpoints and identical randomizations across worker counts;
-- missing diagnostics and winners on unmeasured cells, never automatic keep.
+- missing direct diagnostics and winners on unmeasured cells; regional values
+  require an identified passing witness, never automatic keep.
 
 A test of score equality or a `diagnostics=FALSE` flag alone cannot establish
 these invariants. Preserve the distinction between an execution's internal

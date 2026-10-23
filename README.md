@@ -17,14 +17,10 @@ figures below are produced with **CEClust 0.3.0.9008**.
 
 ## Installation
 
-This local repair is version 0.3.0.9005 and has not yet been pushed to
-GitHub. Install its supplied ZIP or source archive to use this revision.
-The GitHub command below installs the currently published version.
-
-The `main` branch contains the current consolidated development version.
-Install it from GitHub with R \>= 4.3 and a C++ toolchain (Rtools on
-Windows). Building the installed guides also requires Pandoc, which is
-bundled with RStudio:
+The `main` branch contains the current consolidated development version,
+**0.3.0.9008**. Install it from GitHub with R \>= 4.3 and a C++
+toolchain (Rtools on Windows). Building the installed guides also
+requires Pandoc, which is bundled with RStudio:
 
 ``` r
 install.packages(c("remotes", "knitr", "rmarkdown"))
@@ -44,7 +40,7 @@ path with your file:
 
 ``` r
 install.packages(c("clue", "digest", "mvtnorm", "Rcpp"))
-install.packages("path/to/CEClust_0.3.0.9005.zip",
+install.packages("path/to/CEClust_0.3.0.9008.zip",
                  repos = NULL, type = "win.binary")
 ```
 
@@ -213,12 +209,13 @@ Before a point is filtered, the numeric grid engines compare their best
 original execution with the grid representative. The conditional rule
 requires all three conditions: the independent `stab_algo` and RSI are
 strictly above their respective requested thresholds, agreement with the
-representative is strictly below that threshold, and the execution does
-not improve the representative’s score. The representative is then fixed
-as the reference. `stab_algo` is then one by construction. Each
-bootstrap receives **one CEM descent**, starting from that reference’s
-labels on the sampled rows; there are no additional starts. The RSI is
-the mean agreement of its projections with the fixed reference.
+representative is strictly below the algorithmic-stability threshold,
+and the execution does not improve the representative’s score under the
+recorded numerical tolerance. The representative is then fixed as the
+reference. `stab_algo` is then one by construction. Each bootstrap
+receives **one CEM descent**, starting from that reference’s labels on
+the sampled rows; there are no additional starts. The RSI is the mean
+agreement of its projections with the fixed reference.
 
 This measures resampling sensitivity conditional on that reference. It
 does not turn a failed optimization experiment into an empirical
@@ -275,7 +272,7 @@ q2 <- representatives[representatives$REO == 2, ][1, ]
 labels <- CECextractPartition(g, C = q2$C, lambda = q2$lambda)
 table(labels)
 #> labels
-#>  1  2 
+#>  1  2
 #> 30 30
 ```
 
@@ -315,10 +312,11 @@ reduction in group count is not itself an admissibility test: inspect
 result.
 
 No EM fit is repeated. Each independent execution selects its winner
-again, then the stability diagnostics are recomputed. The penalty is
-added to the hard composite entropy, **not** to the soft-mixture
-likelihood used by EM. Its formula and the distinction from ordinary BIC
-are given in `?CECoptimizers`.
+again, then the stability diagnostics are recomputed. The conditional
+rule described above can require new single-descent CEM bootstrap fits.
+The penalty is added to the hard composite entropy, **not** to the
+soft-mixture likelihood used by EM. Its formula and the distinction from
+ordinary BIC are given in `?CECoptimizers`.
 
 ## 7. Choose the optimizer independently of the penalty
 
@@ -342,8 +340,8 @@ fit <- CECclassif(X, C = 1, lambda = 1.5,
   optimization = "em_bank", penalty = "none",
   optimizer_control = list(Rmax = 3, Ninit = 2, max_iter = 30, seed = 4))
 table(fit$clusters)
-#> 
-#>  1  2 
+#>
+#>  1  2
 #> 30 30
 ```
 
@@ -365,7 +363,8 @@ g_adaptive <- CECfitBoundGrid(Z = X, grid_strategy = "adaptive",
   algo_seed = 14, rsi_policy = "unsaturated",
   optimizer_control = list(Rmax = 3, Ninit = 2, Cmax = 10, max_iter = 30),
   adaptive_control = list(max_cells = 300, max_rounds = 3,
-                          max_extensions = 2))
+                          max_extensions = 2,
+                          diagnostic_strategy = "components"))
 CECplotGrid(g_adaptive)
 ```
 
@@ -389,25 +388,66 @@ completed adaptation. Inspect `g_adaptive$adaptive$history` and
 `$margins`; the default budgets and all stopping rules are explained in
 `?CECadaptiveDiagram`.
 
-For adaptive hard searches, use `optimization="cem"`. This follows two
-stages:
+### Measure representative points within each region
 
-1.  Construct and refine the pilot grid on the original data, with one
-    complete multistart search at each new cell. No bootstrap fitting is
-    done here.
-2.  Run the independent original and bootstrap campaigns at eligible
-    active cells. By default, their saturation must be at most 0.10,
-    including trivial cells. Specify `rsi_policy="unsaturated"` to
-    require zero saturation.
+Adaptive diagrams use `diagnostic_strategy="components"` by default.
+After calibration and refinement, the pilot diagram is frozen.
+Edge-connected cells representing exactly the same partition form a
+component, even if their saturations differ. Disconnected regions remain
+separate.
 
-A child pilot receives its parent’s partition as an additional start.
-Independent campaigns receive no such starts. Better campaign results
-can improve the displayed diagram and trigger local propagation and
-another coverage check; their diagnostic outputs remain frozen. Cells
-without a campaign retain missing diagnostics and are excluded. Inspect
-`$adaptive$final_refinement_pending` if measurement updates reactivate a
-boundary. Per-execution checkpoints allow interrupted campaigns to
-resume.
+For each component, the package computes its geometric barycentre in
+`(log C, lambda)`, weighting cell centres by their rectangular areas. It
+visits eligible cells by increasing distance to that barycentre, without
+rescaling the axes. Testing stops at the first point passing both strict
+diagnostic thresholds, or when all eligible cells have been tested.
+
+The successful point, called the witness, supplies diagnostic values for
+displaying and selecting its component. The final saturation mask is
+applied separately. This can avoid many campaigns, but is a regional
+approximation; stability has not been measured at every cell in the
+region.
+
+``` r
+sa <- CECsummariseGrid(g_adaptive)
+table(sa$diagnostic_origin)
+#>
+#> component_witness          measured      not_measured
+#>               118                 2                 8
+g_adaptive$adaptive$components$plan$table[, c("REO", "candidates", "attempts", "status")]
+#>   REO candidates attempts                     status
+#> 1   1         50        1                   accepted
+#> 2   2         10        1                   accepted
+#> 3   3          0        0 outside_measurement_policy
+#> 4   3          0        0 outside_measurement_policy
+#> 5   3          0        0 outside_measurement_policy
+```
+
+`measured` identifies actual test points.
+`diagnostic_origin="component_witness"` marks inherited values and
+`diagnostic_witness` identifies their source. The `_direct` columns
+preserve pointwise values; untested direct values remain missing. The
+conditional reference rule is checked at every tested point, before
+deciding whether it passes. A different threshold can require points
+skipped by the original traversal; changing a plot does not run those
+tests.
+
+For adaptive hard searches, use `optimization="cem"`. Its pilot runs one
+complete multistart search at each new cell and harmonizes neighbouring
+partitions before diagnostics begin. Children receive their parent’s
+partition as an additional start. No bootstrap fitting takes place
+during this stage. Independent original and bootstrap campaigns then run
+at the eligible points visited within each component, without pilot or
+neighbour starts. By default, test points must have saturation at most
+0.10, including trivial points. Specify `rsi_policy="unsaturated"` for
+zero saturation instead.
+
+Use `adaptive_control=list(diagnostic_strategy="cells")` to measure each
+eligible cell rather than stop at a component witness. In that CEM mode,
+better campaign partitions can update the diagram, trigger local
+harmonization and a coverage check. Independent outputs remain frozen.
+Inspect `$adaptive$final_refinement_pending` for reactivated boundaries.
+Per-execution checkpoints allow interrupted campaigns to resume.
 
 For EM banks, `CECrescoreGrid(g_adaptive, penalty="bic")` reuses every
 fit, recomputes each independent winner and builds the penalized
@@ -431,10 +471,11 @@ g <- readRDS("cec_none.rds")
 
 For larger calculations, `n_cores` distributes the independent grid
 executions. The `rsi_policy = "nontrivial_unsaturated"` option restricts
-diagnostic work to nontrivial, unsaturated cells. Skipped cells have
-missing diagnostics and are not retained automatically, including the
-one-group partition. It is a computational choice, separate from the
-final filtering thresholds.
+test points to nontrivial, unsaturated cells. Skipped points have
+missing direct diagnostics; a component can inherit values only from its
+identified passing witness. The one-group partition is not retained
+automatically. Measurement policy is separate from the final filtering
+thresholds.
 
 The new engines illustrated here use numeric Gaussian references.
 Historical unpenalized CEM also supports categorical and mixed data; the
@@ -460,33 +501,6 @@ the successive additions to their implementations and checks.
 Repository:
 [dumont-thierry/CEClust](https://github.com/dumont-thierry/CEClust).
 
-## Adaptive diagnostics by connected component
-
-Adaptive diagrams now default to
-`adaptive_control = list(diagnostic_strategy = "components")`. After
-calibration and boundary refinement, the pilot diagram is frozen.
-Connected cells representing exactly the same partition form a
-component. Its geometric barycentre uses rectangular areas in
-`(log C, lambda)`; candidate cells are visited from nearest to farthest,
-without rescaling axes. The measurement policy still limits the test
-points: for adaptive CEM the default is saturation at most 0.10.
-
-At every tested point, the conditional reference rule above is checked
-before acceptance. Testing stops at the first point passing both
-diagnostic thresholds. Its values then describe the component for
-visualization and selection; the final saturation mask is applied
-separately. This can avoid many campaigns, but provides a regional
-approximation rather than stability measured everywhere.
-
-`measured` marks actual test points.
-`diagnostic_origin = "component_witness"` marks inherited values and
-`diagnostic_witness` identifies their source. The `_direct` diagnostic
-columns preserve pointwise values; untested direct values remain
-missing. `g$adaptive$components` records the barycentres, ordered
-candidates and stopping decisions. Use `diagnostic_strategy = "cells"`
-for the previous cell-by-cell coverage. Recompute diagnostics when a
-different threshold requires points skipped by the original traversal.
-
 ## Compiled CEM and performance records
 
 Numeric CEM now uses a compiled descent by default. Gaussian moments are
@@ -509,3 +523,10 @@ operation with `system.time()` when comparing wall time, and keep the
 same workers and budgets. The exhaustive stability helper reuses
 identical agreement calculations while retaining every pair value and
 its original position.
+
+Soft EM also reuses centered data, covariance factorizations and matrix
+buffers. Its initializations, likelihood updates, constraints and
+stopping tests are unchanged. Gains depend on the workload: reducing
+grid-scoring work need not substantially reduce the time spent
+generating EM banks. Compare complete elapsed times with the same data,
+seeds, starts and workers.

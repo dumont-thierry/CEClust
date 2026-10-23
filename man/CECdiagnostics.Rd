@@ -75,12 +75,15 @@ saturated in the numeric profile. Saturation alone is not evidence that the
 data lack structure; it reports dependence on the concentration ceiling.
 }
 \section{Measurement policy}{
-The component strategy freezes the pilot and applies the policy to its candidate test points. For fixed grids and cell-by-cell adaptive EM banks, policies are applied to the final
-representative of each cell. Adaptive CEM first applies the policy to its
-completed pilot, then rechecks coverage after measurement improvements and
-harmonization. Existing campaigns stay frozen if the representative changes.
+The component strategy freezes the pilot and applies the policy to candidate
+test points; it stops visiting a component after its first passing witness.
+For fixed grids and cell-by-cell adaptive EM banks, policies are applied to the
+final representative of each cell. With \code{diagnostic_strategy="cells"},
+adaptive CEM first applies the policy to its completed pilot, then rechecks
+coverage after measurement improvements and harmonization. Existing campaigns
+stay frozen if the representative changes.
 \describe{
-\item{\code{all}}{Measure every cell, including trivial and saturated cells.}
+\item{\code{all}}{Every cell is eligible for measurement, including trivial and saturated cells. Component traversal can stop before visiting all eligible cells.}
 \item{\code{unsaturated}}{Measure only cells with saturation zero; trivial cells are included.}
 \item{\code{nontrivial_unsaturated}}{Measure only cells with more than one occupied group and saturation zero.}
 \item{\code{saturation_band}}{Measure cells whose saturation is at most rsi_saturation_max, including trivial cells.}
@@ -90,8 +93,13 @@ not change the score. In adaptive CEM it gates the entire independent fitting
 campaign, after the pilot; elsewhere it gates comparisons of already fitted
 outputs. Adaptive CEM defaults to \code{saturation_band}; fixed grids and
 adaptive EM default to \code{all}. Explicit policies override these defaults.
-Direct diagnostics remain NA at unmeasured points. The component strategy can display and retain a region by its identified witness; this is explicitly marked regional inheritance, not a direct measurement. The measured flag requires finite algorithmic and bootstrap
-averages. For EM grids, a broader policy can be evaluated by rescoring the banks.
+Direct diagnostics remain NA at unmeasured points. The component strategy can
+display and retain a region by its identified witness; this is marked regional
+inheritance, not a direct measurement. In component summaries, \code{measured}
+identifies visited points and \code{diagnostics_available} identifies finite
+values, including inherited ones. Outside this strategy, the measured flag
+requires finite algorithmic and bootstrap averages. For EM grids, a broader
+policy can be evaluated by rescoring the banks.
 }
 \section{Filtering and interpretation}{
 Consolidated defaults retain cells with Stab_algo > 0.85, RSI > 0.95

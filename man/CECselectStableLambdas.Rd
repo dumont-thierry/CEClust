@@ -18,12 +18,16 @@ CECselectStableLambdas(x, best_parts = NULL, C = NULL, ...)
 A list with \code{summary}, \code{stable_lambda}, \code{stable_index}, logical \code{stable}, rejection information and the applied thresholds. \code{lambda_min} is the first retained lambda or NA; it is not an automatically selected analysis scale.
 }
 \details{
-For the consolidated engine, retention requires measured finite
+For the consolidated engine, retention requires available finite
 diagnostics, Stab_algo strictly above its threshold, RSI strictly above its
 threshold, and saturation at or below its threshold. In particular,
 sat_threshold=0 allows exactly zero saturation. Missing diagnostics never pass.
 Changing a threshold cannot recover a diagnostic skipped at fitting time;
 for EM banks, use \code{CECrescoreGrid()} with a broader measurement policy.
+Adaptive component diagrams can use values inherited from a passing witness;
+this is not a measurement at every retained cell. Inspect \code{diagnostic_origin}
+and \code{diagnostic_witness}. Changed thresholds may require a new traversal;
+see \link{CECadaptiveDiagram}.
 
 \code{min_consecutive} removes retained runs shorter than this many adjacent
 grid entries. It counts cells, not a distance in lambda. If coordinates are omitted, the display selects a retained cell with smallest REO, taking the first tie. If no cell is retained, it uses a finite-REO cell instead. This is a display default, not a rule for choosing a final clustering.

@@ -112,6 +112,17 @@ is active. It reports sensitivity to a concentration ceiling, not an absence
 of structure. A high agreement dominated by one large group can also hide
 variation in a few observations; inspect sizes and allocations.
 
+Before filtering, the grid also checks whether the best original execution
+disagrees with a better grid representative. A conditional bootstrap is run
+only if both raw independent diagnostics already pass their strict thresholds,
+agreement with the representative is below the algorithmic threshold, and the
+execution does not improve its score. The representative is then fixed,
+algorithmic stability is one by construction, and each bootstrap receives one
+CEM descent from its projected labels. This conditional RSI measures agreement
+with that reference. Raw independent values remain in the `_raw` columns;
+`reference_bootstrap_applied` and `diagnostic_definition` identify the branch.
+Use `reference_bootstrap=FALSE` for independent-only diagnostics.
+
 ## Inspect retained organizations
 
 ```{r representatives}
@@ -141,7 +152,8 @@ does not rank the retained partitions by scientific relevance. If a particular
 application requires one decision, its external objective can guide the choice.
 A rejected cell can also be inspected by supplying its coordinates explicitly.
 The extraction helpers resolve to the nearest stored cell; they do not fit a
-new model at an unstored coordinate.
+new model at an unstored coordinate. For an adaptive diagram they use the
+containing rectangle and reject points outside the explored window.
 
 ## Change the penalty while keeping the candidates
 
@@ -184,10 +196,21 @@ For adaptive CEM, the pilot is constructed first, without L+B campaigns;
 the policy then gates whole cell campaigns. Its default saturation band also
 measures eligible trivial cells. With EM banks, as in this example, the banks
 already exist and the policy gates agreement calculations.
-Skipped values remain `NA`; a trivial cell is not automatically admitted.
+Skipped direct values remain `NA`; a trivial cell is not automatically admitted.
 For an EM grid, `CECrescoreGrid(g,rsi_policy="all")` broadens measurement
 without repeating EM. It is unnecessary here because the original call
 already measured all cells.
+
+Adaptive diagrams default to connected-component traversal after freezing
+the pilot. Cells with exactly the same partition and a shared edge form a
+region. Eligible points are tested by increasing distance to its area-weighted
+barycentre in `(log C, lambda)`. The first point passing both thresholds supplies
+the region's diagnostic values for display and selection; the final saturation
+filter is applied separately. These inherited values are a regional approximation.
+`measured`, `diagnostic_origin`, `diagnostic_witness` and `_direct` columns
+distinguish them from tests at individual points. Set
+`adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
+See `?CECadaptiveDiagram` for window calibration, refinement and stopping limits.
 
 ## Preserve the analysis
 

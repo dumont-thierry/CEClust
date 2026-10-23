@@ -120,13 +120,13 @@ targeted <- CECrescoreGrid(g,rsi_policy="nontrivial_unsaturated")
 targeted$summary[,c("C","lambda","REO","sat","measured","rsi","keep")]
 ```
 
-For fixed grids and EM banks, policies apply to the final representative.
-Adaptive CEM applies them after its pilot and rechecks coverage after
-measurement improvements, while retaining completed campaigns unchanged:
+For fixed grids, policies apply to the final representative. Adaptive component
+traversal applies them to candidate test points in the frozen pilot. The table
+describes eligibility; testing can stop before every eligible point is visited:
 
 | Policy | Requirement for measurement |
 |:--|:--|
-| `all` | None |
+| `all` | All cells, including trivial and saturated cells |
 | `unsaturated` | `sat == 0` |
 | `nontrivial_unsaturated` | `sat == 0` and `REO > 1` |
 | `saturation_band` | `sat <= rsi_saturation_max` |
@@ -145,9 +145,38 @@ stability value by convention.
 Adaptive CEM defaults to the saturation band. Its pilot calibrates and refines
 without any L+B campaigns; only eligible active cells then receive the repeated
 fits. Pilot children receive parent starts, while independent campaigns do not.
-Better measurement results can improve the diagram and reactivate boundaries;
-check `$adaptive$final_refinement_pending`. EM banks are fitted once across
-the grid, so their measurement policy skips comparisons, not EM generation.
+With `diagnostic_strategy="cells"`, better measurement results can improve the
+diagram and reactivate boundaries; check `$adaptive$final_refinement_pending`.
+The default component strategy keeps the pilot fixed. EM banks are fitted once
+across the grid, so their measurement policy skips comparisons, not EM generation.
+
+## Regional measurement and reference bootstrap
+
+Adaptive diagrams default to `diagnostic_strategy="components"` in
+`adaptive_control`. The calibrated pilot is frozen; edge-connected cells with
+the same partition form a component. Eligible test points are ordered by
+distance to its area-weighted barycentre in raw `(log C, lambda)` coordinates.
+Testing stops at the first strict diagnostic success. The final saturation
+mask remains separate from the policy limiting which points are tested.
+
+`measured` identifies direct campaigns. Regional values carry
+`diagnostic_origin="component_witness"` and their source cell in
+`diagnostic_witness`; `_direct` columns retain the actual pointwise values.
+`adaptive$components` stores the geometry, ordering and stopping decisions.
+Use `adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
+
+At every measured point, the best original execution is compared with the
+grid representative, before filtering. Independent Stab_algo and independent RSI
+must both be strictly above their respective requested thresholds. The best original must disagree with the
+representative below that threshold, and it must not improve its score. Only
+then is the representative fixed. Each existing bootstrap receives one CEM descent from its indexed
+labels. Stab_algo is then one by construction, and RSI is the mean agreement
+of frozen bootstrap projections with that reference. Raw independent values
+remain in the `_raw` columns and the complete records in `measurements`.
+Either independent diagnostic at or below its threshold leaves these diagnostics
+unchanged and cannot trigger a conditional bootstrap. In particular, a poor
+independent RSI cannot be rescued by this rule.
+`reference_bootstrap=FALSE` restores independent-only diagnostics.
 
 ## Use the same bootstrap samples across analyses
 
@@ -237,31 +266,3 @@ dimensions for comparisons. A faster run is not evidence of equal search quality
 
 The maintained reference is available through `?CECoptimizers`,
 `?CECdiagnostics`, `?CECresults`, and the function-specific help pages.
-
-## Regional measurement and reference bootstrap
-
-Adaptive diagrams default to `diagnostic_strategy="components"` in
-`adaptive_control`. The calibrated pilot is frozen; edge-connected cells with
-the same partition form a component. Eligible test points are ordered by
-distance to its area-weighted barycentre in raw `(log C, lambda)` coordinates.
-Testing stops at the first strict diagnostic success. The final saturation
-mask remains separate from the policy limiting which points are tested.
-
-`measured` identifies direct campaigns. Regional values carry
-`diagnostic_origin="component_witness"` and their source cell in
-`diagnostic_witness`; `_direct` columns retain the actual pointwise values.
-`adaptive$components` stores the geometry, ordering and stopping decisions.
-Use `adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
-
-At every measured point, the best original execution is compared with the
-grid representative, before filtering. Independent Stab_algo and independent RSI
-must both be strictly above their respective requested thresholds. The best original must disagree with the
-representative below that threshold, and it must not improve its score. Only
-then is the representative fixed. Each existing bootstrap receives one CEM descent from its indexed
-labels. Stab_algo is then one by construction, and RSI is the mean agreement
-of frozen bootstrap projections with that reference. Raw independent values
-remain in the `_raw` columns and the complete records in `measurements`.
-Either independent diagnostic at or below its threshold leaves these diagnostics
-unchanged and cannot trigger a conditional bootstrap. In particular, a poor
-independent RSI cannot be rescued by this rule.
-`reference_bootstrap=FALSE` restores independent-only diagnostics.

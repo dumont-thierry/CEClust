@@ -21,6 +21,11 @@ Changing thresholds in a plot or in \code{CECselectStableLambdas()} does not
 alter this table. \code{sat} is a fraction in [0,1], not a percentage.
 \code{partition_id} identifies identical labelings within the same grid object;
 these identifiers need not match those of another fit.
+For adaptive component diagrams, inspect \code{measured},
+\code{diagnostic_origin}, \code{diagnostic_witness} and the \code{_direct}
+columns to distinguish tested points from inherited regional values.
+The \code{_raw} fields and \code{diagnostic_definition} distinguish independent
+diagnostics from conditional-reference diagnostics; see \link{CECdiagnostics}.
 }
 \seealso{\link{CECresults}, \link{CECselectStableLambdas}, \link{CECextractPartition}.}
 \examples{

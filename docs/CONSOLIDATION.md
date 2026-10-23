@@ -1,9 +1,26 @@
-# Consolidated development version 0.3.0.9007
+# Consolidated development version 0.3.0.9008
 
-This local source is the repaired development version; publication to `main`
-is a separate step. The four `archive/*` branches retain
+The `main` branch contains this consolidated development version. The four
+`archive/*` branches retain
 earlier implementations; they are not dependencies of this version. Numerical
 engines, adaptive geometry and compiled EM are included in the package source.
+
+## EM execution optimizations (0.3.0.9008)
+
+The soft kernel reuses centered data, exact M-step Cholesky factors and matrix
+buffers. Verified training MAP labels and hard statistics are reused only when
+fitting and reference data are identical. Adaptive scoring reuses a pooled
+profile only when the local statistics are exactly identical. Bootstrap
+statistics and projections remain separate; no starts, orders, constraints,
+tolerances or diagnostic rules are changed.
+
+Controlled medians of three alternated repetitions on the same logical CPU
+gave 28.11 to 27.19 seconds for a complete n=1000, d=2 bank with orders 1--20
+and five starts per order. This is a modest gain, not a substantial acceleration
+of bank generation. Scoring 164 points on the same 40 archived banknote banks
+gave 12.67 to 9.74 seconds without the penalty and 6.73 to 4.72 seconds with it;
+these are scoring times, not complete diagram times. Frozen-kernel, RNG,
+bank, fixed/adaptive and both-penalty regressions verify unchanged outputs.
 
 ## Independent stability gate (23 October 2026)
 
@@ -90,9 +107,9 @@ are the function help pages and the three installed vignettes.
 | Exhaustive stability | L(L-1)/2 original-original pairs and L B original-bootstrap pairs; standalone `CECstability` also accepts another method's labels | Independent agreement checks and `test-optimization-methods` |
 | Deferred CEM campaigns | One multistart original-data pilot per new cell; no L+B campaign before pilot calibration/refinement ends | Fitting-call phase/count tests in `test-staged-cem` |
 | Parent starts in the CEM pilot | A new child receives the parent partition; independent campaigns always use fresh randomizations | Warm-start isolation and archived-parent tests |
-| Measurement improvements and coverage | Inject better campaign partitions, harmonize locally, recheck borders and eligibility; keep completed campaigns frozen | Controlled improvement/coverage test, no duplicate campaign executions |
-| Post-measurement refinement | Reactivated frontiers or exhausted budgets prevent completed adaptation and have explicit final status | Pending-frontier test |
-| Targeted diagnostic measurement | `all`, `unsaturated`, `nontrivial_unsaturated`, `saturation_band`; adaptive CEM gates whole campaigns (default saturation band .10), while EM/fixed routes gate comparisons; skipped diagnostics remain missing and excluded | Policy and missing-value tests |
+| Measurement improvements and coverage (cell strategy) | Inject better campaign partitions, harmonize locally, recheck borders and eligibility; keep completed campaigns frozen | Controlled improvement/coverage test, no duplicate campaign executions |
+| Post-measurement refinement (cell strategy) | Reactivated frontiers or exhausted budgets prevent completed adaptation and have explicit final status | Pending-frontier test |
+| Targeted diagnostic measurement | `all`, `unsaturated`, `nontrivial_unsaturated`, `saturation_band`; adaptive CEM gates whole campaigns (default saturation band .10), while EM/fixed routes gate comparisons; skipped direct values remain missing, inherited values require a passing component witness | Policy, provenance and missing-value tests |
 | Three separate saturation controls | Final `sat_threshold`, frontier `adaptive_control$frontier_saturation`, and measurement `rsi_saturation_max` | Documented in `CECdiagnostics` and `CECadaptiveDiagram` |
 | Initial window and four extensions | `grid_strategy="adaptive"`; supplied initial centres or a window scaled from the data | Exact geometry import and regression against the research runner |
 | Row-wise right stopping | Each row is trivial/saturated, or remains unsaturated at unchanged REO over two extensions; changed comparison intervals reset its history | Dedicated mixed-row test |
@@ -107,8 +124,9 @@ are the function help pages and the three installed vignettes.
 
 ## Staged adaptive CEM
 
-`adaptive_cem.R` owns the CEM pilot, deferred campaigns and final coverage
-loop. `adaptive_grid.R` dispatches to it and retains the EM-bank mesh driver.
+`adaptive_cem.R` owns the CEM pilot, deferred campaigns and the cell strategy's
+final coverage loop. `component_diagnostics.R` owns the default regional
+traversal. `adaptive_grid.R` dispatches to CEM and retains the EM-bank mesh driver.
 Shared geometry is in `adaptive_geometry.R`; propagation is in
 `adaptive_harmonization.R`. The fixed-grid and historical compatibility
 routes remain separate. The maintained numerical kernels are unchanged by
