@@ -23,9 +23,20 @@ optimization randomization. It can exceed one and is not clipped. High matching
 agreement can be dominated by a large group; inspect sizes and alternative
 partitions, especially when small outlier groups are present.
 }
-\section{Conditional reference bootstrap}{
-Every measured point in the numeric fixed/adaptive grid engines checks this
-rule before filtering, for CEM and EM banks, with either penalty. Let R be the
+\section{Default independent-reference gate}{
+Numeric CEM and EM grids default to independent-only diagnostics. A point
+must pass the strict Stab_algo and RSI thresholds and the best original-data
+execution must agree with the grid representative by at least
+\code{stab_algo_threshold}. A smaller or unavailable agreement rejects it,
+regardless of which partition has the better criterion. Component traversal
+continues to the next eligible point. Independent diagnostic values are not
+replaced. Set \code{require_reference_agreement=FALSE} to disable this gate.
+The adaptive control of the same name overrides the top-level setting.
+}
+\section{Optional conditional reference bootstrap}{
+Explicit \code{reference_bootstrap=TRUE} selects this alternative and disables
+the default reference gate. Every measured point then checks this rule before
+filtering, for CEM and EM banks, with either penalty. Let R be the
 grid representative after any harmonization and P the best original-data
 execution, using the same minimized criterion at that point. All three
 conditions are required: both raw independent Stab_algo and raw independent RSI
@@ -61,6 +72,11 @@ Summary fields
 the conventions. A fixed SA=1 has zero measured original pairs; the conditional
 mean has B reference-bootstrap comparisons. The raw L(L-1)/2 and LB comparisons
 remain archived. \code{reference_bootstrap=FALSE} disables this branch.
+The default \code{require_reference_agreement=TRUE} rejects a candidate
+whose best independent original-data partition agrees with the fixed grid
+reference by less than \code{stab_algo_threshold}. A component traversal then tests
+the next candidate. This gate preserves the independent diagnostic values;
+it cannot be combined with the conditional reference recalculation.
 
 \code{CECstability()} remains the raw pairwise arithmetic helper: label lists
 alone provide neither the data, the scores nor the fitting rule required for

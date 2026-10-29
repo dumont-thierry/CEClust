@@ -10,10 +10,12 @@ CECfitBoundGrid(..., save_results = FALSE, output_dir = file.path(tempdir(), "CE
     auto_checkpoint = FALSE, resume = FALSE, force_recompute = FALSE, optimization = c("cem", 
         "em_bank"), penalty = c("none", "bic"), optimizer_control = list(), rsi_policy = c("all", 
         "unsaturated", "nontrivial_unsaturated", "saturation_band"), rsi_saturation_max = 0.1, grid_strategy = c("fixed", "adaptive"),
-    adaptive_control = list(), reference_bootstrap = TRUE)
+    adaptive_control = list(), reference_bootstrap = FALSE,
+    require_reference_agreement = NULL)
 }
 \arguments{
-\item{reference_bootstrap}{Check the conditional fixed-reference bootstrap rule at every measured point, before filtering. See \link{CECdiagnostics}. FALSE preserves independent-only diagnostics.}
+\item{reference_bootstrap}{Opt into the conditional fixed-reference bootstrap rule. The default FALSE preserves independent-only diagnostics. See \link{CECdiagnostics}.}
+\item{require_reference_agreement}{NULL enables the independent-reference gate unless conditional bootstraps are explicitly requested. TRUE requires agreement at least stab_algo_threshold between the best independent original partition and the grid reference. FALSE disables this gate. Adaptive controls override these settings. Explicit TRUE cannot be combined with reference_bootstrap=TRUE.}
 \item{...}{Named data, grid, fitting and diagnostic arguments listed below. For the recommended workflow, supply \code{optimization} explicitly. Unimplemented options are rejected by the consolidated engine.}
 \item{save_results}{Logical; save the result as an RDS file. The default is \code{FALSE}.}
 \item{output_dir}{Directory for requested results or automatic checkpoints. The default temporary directory is not persistent between R sessions.}

@@ -1,3 +1,36 @@
+# CEClust 0.4.0.9000
+
+- New CECdiagram entry point: adaptive grid or experimental bands.
+- Automatic initial C centres 2^(1:10) * Cmin, no left extension in this entry point.
+- Integrated CEClustBands 0.1.0.9001 with optional separate cleanup.
+- Preserved legacy entry points and numerical algorithms.
+- Common bands profile uses the last agreed A10/E2/P200 budget.
+- Standalone-package checkpoint signatures are not reused.
+
+# CEClust 0.3.0.9010
+
+- Extend the left edge of adaptive CEM and EM diagrams until every boundary
+  cell exceeds the final saturation threshold. An unsaturated one-group cell
+  no longer stops extension towards smaller C. Other boundary rules, fitting,
+  diagnostics and search budgets are unchanged.
+
+# CEClust 0.3.0.9009
+
+- Share exact partition agreements and complete independent winner patterns
+  across component test points. Repeated agreements retain their original
+  values and all exhaustive pair arrays; optimization and random draws are
+  unchanged. Cache counters are available in `meta$agreement_cache`.
+- Numeric diagrams now default to independent-only diagnostics with
+  `reference_bootstrap=FALSE` and a required reference-agreement gate.
+  `require_reference_agreement=NULL` selects this gate automatically; use
+  `FALSE` to disable it, or opt into the previous conditional rule with
+  `reference_bootstrap=TRUE`. Adaptive controls can override these settings.
+  A candidate must also have agreement at least `stab_algo_threshold` between
+  its best independent original-data partition and its fixed grid reference.
+  Failure rejects that point and continues the component traversal, without
+  changing its raw stability or RSI. In a component traversal, the next
+  eligible candidate is then tested. Scores do not override disagreement.
+
 # CEClust 0.3.0.9008
 
 - Refresh installation instructions and the executable README, help and guides

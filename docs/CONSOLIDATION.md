@@ -1,9 +1,22 @@
-# Consolidated development version 0.3.0.9008
+# Consolidated local development version 0.3.0.9009
 
-The `main` branch contains this consolidated development version. The four
-`archive/*` branches retain
-earlier implementations; they are not dependencies of this version. Numerical
-engines, adaptive geometry and compiled EM are included in the package source.
+The published `main` branch remains at 0.3.0.9008. The local 0.3.0.9009 source
+adds a shared exact agreement cache and changes the default diagnostic policy:
+independent Stab_algo and RSI, plus agreement of the best original-data output
+with the grid reference at least equal to the algorithmic threshold. Failure
+rejects the point regardless of score ordering and component traversal continues.
+The pilot remains frozen. This gate can be disabled explicitly; the previous
+conditional bootstrap remains available as an explicit alternative. See
+`CECdiagnostics`, `CECadaptiveDiagram` and `CONTRIBUTING.md` for current controls.
+
+The cache optimization changes neither fitting nor agreement values. It is
+separate from the new default selection policy. Component counters and full
+raw pair arrays remain available for verification. Unit tests cover direct
+and regional selection, fixed/adaptive CEM/EM, penalties and rescoring.
+
+The `archive/*` branches retain earlier implementations, not dependencies.
+The dated development record below describes earlier versions; its historical
+defaults and timing results do not describe the new default policy.
 
 ## EM execution optimizations (0.3.0.9008)
 

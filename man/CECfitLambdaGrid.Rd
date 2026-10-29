@@ -14,10 +14,12 @@ CECfitLambdaGrid(Z, lambda_grid = seq(0.1, 2, by = 0.1), k0 = 10, B = 10, C = 1,
     checkpoint_compress = FALSE, partition_metric = c("match", "ARI"), stability_approach = c("exhaustive", 
         "pairwise", "reference_bestH"), optimization = c("cem", "em_bank"), penalty = c("none", 
         "bic"), optimizer_control = list(), rsi_policy = c("all", "unsaturated", "nontrivial_unsaturated", 
-        "saturation_band"), rsi_saturation_max = 0.1, reference_bootstrap = TRUE)
+        "saturation_band"), rsi_saturation_max = 0.1, reference_bootstrap = FALSE,
+    require_reference_agreement = NULL)
 }
 \arguments{
-\item{reference_bootstrap}{Use the conditional reference rule for the numeric solver route; see \link{CECdiagnostics}. An explicit value selects that route.}
+\item{reference_bootstrap}{Opt into the conditional reference rule for the numeric solver route; default FALSE. See \link{CECdiagnostics}. An explicit value selects that route.}
+\item{require_reference_agreement}{NULL defaults to independent-reference rejection unless reference_bootstrap=TRUE. TRUE or FALSE sets the gate explicitly. An explicit value selects the numeric route; see \link{CECfitBoundGrid}.}
 \item{Z}{Data as for \code{CECclassif()}.}
 \item{lambda_grid}{Distinct positive lambda values, sorted for the consolidated engine.}
 \item{k0}{Number L of original repetitions; default 10.}

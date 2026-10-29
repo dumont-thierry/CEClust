@@ -1,8 +1,8 @@
 Package: CEClust
 Type: Package
-Title: Compact Composite Entropy Clustering Grid Explorer
-Version: 0.3.0.9008
-Config/CEClust/LocalPatch: integrated-adaptive-diagrams
+Title: Composite Entropy Clustering with Adaptive Grids and Candidate Bands
+Version: 0.4.0.9000
+Config/CEClust/LocalPatch: unified-grid-and-bands
 Config/CEClust/UpstreamCommit: 9a38174d6d79cb84e522f7cf6f1f4c5882c30313
 Authors@R: c(
     person(
@@ -22,6 +22,8 @@ Description: Fits composite entropy clusterings and explores fixed or adaptive g
     a relative stability index and saturation-aware filtering. Historical
     unpenalized categorical and mixed-data CEM remains available. Results can be
     inspected through tables, static plots and an optional Shiny explorer.
+    A common interface also provides an experimental candidate-band engine
+    with bootstrap anchors, compact storage and separate subdivision screening.
 License: file LICENSE
 Encoding: UTF-8
 Depends:
@@ -34,6 +36,7 @@ Imports:
     grid,
     mvtnorm,
     parallel,
+    tools,
     Rcpp
 LinkingTo:
     Rcpp,
@@ -52,3 +55,4 @@ ByteCompile: true
 URL: https://github.com/dumont-thierry/CEClust
 BugReports: https://github.com/dumont-thierry/CEClust/issues
 Config/testthat/edition: 3
+SystemRequirements: C++17

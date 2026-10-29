@@ -28,8 +28,8 @@ Theoretical reference families can be broader than Gaussian densities; the
 new optimization implementations documented here are numeric Gaussian engines.
 }
 \section{Version and source}{
-This help describes consolidated development version 0.3.0.9008, published on
-the main branch. The archive branches preserve historical implementations.
+This help describes local development version 0.3.0.9009. The published main
+branch currently contains 0.3.0.9008. The archive branches preserve historical implementations.
 Check \code{packageVersion("CEClust")} after installation.
 Source: \url{https://github.com/dumont-thierry/CEClust}.
 Maintainer: Thierry Dumont, \email{tdumont@parisnanterre.fr}.

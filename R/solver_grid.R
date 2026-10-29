@@ -85,30 +85,58 @@ CECgrid_collect <- function(banks) {
 # Public help: man/CECstability.Rd (maintained by hand).
 CECstability <- function(original,bootstrap,partition_metric=c('match','ARI')) {
   partition_metric <- match.arg(partition_metric)
+  CECstability_cached(original,bootstrap,partition_metric)
+}
+
+# One diagram owns this cache. Keys describe the actual canonical partitions,
+# not their order in a particular cell. Public CECstability keeps a fresh cache.
+CECstability_cache_summary <- function(cache) {
+  list(pair_evaluations=if(is.null(cache$pair_evaluations))0L else cache$pair_evaluations,
+    pattern_hits=if(is.null(cache$pattern_hits))0L else cache$pattern_hits,
+    patterns=if(is.environment(cache$patterns))length(ls(cache$patterns)) else 0L)
+}
+
+CECstability_cached <- function(original,bootstrap,partition_metric,cache=NULL) {
   pp <- c(original,bootstrap)
   if(!is.list(original) || !is.list(bootstrap) || !length(pp) ||
      any(lengths(pp)==0L) || length(unique(lengths(pp)))!=1L || any(vapply(pp,anyNA,TRUE)))
     stop('Partitions must be nonempty lists of complete label vectors of equal length.',call.=FALSE)
   L <- length(original);B <- length(bootstrap)
+  if(is.null(cache))cache <- new.env(parent=emptyenv())
+  for(nm in c('partitions','pairs','patterns'))
+    if(is.null(cache[[nm]]))cache[[nm]] <- new.env(parent=emptyenv())
+  if(is.null(cache$pair_evaluations))cache$pair_evaluations <- 0L
+  if(is.null(cache$pattern_hits))cache$pattern_hits <- 0L
   canonical <- lapply(pp,ca_labels)
   key <- vapply(canonical,digest::digest,'',algo='xxhash64')
-  ids <- match(key,unique(key));representatives <- match(unique(key),key)
-  for(i in seq_along(ids))if(!identical(canonical[[i]],canonical[[representatives[ids[i]]]]))
-    stop('Partition hash collision in stability calculation.')
-  cache <- new.env(parent=emptyenv())
+  for(i in seq_along(key)) {
+    if(exists(key[i],cache$partitions,inherits=FALSE)) {
+      if(!identical(canonical[[i]],get(key[i],cache$partitions,inherits=FALSE)))
+        stop('Partition hash collision in stability calculation.')
+    } else assign(key[i],canonical[[i]],cache$partitions)
+  }
+  pattern <- paste(c(partition_metric,L,B,key),collapse=':')
+  if(exists(pattern,cache$patterns,inherits=FALSE)) {
+    cache$pattern_hits <- cache$pattern_hits+1L
+    return(get(pattern,cache$patterns,inherits=FALSE))
+  }
   similarity <- function(i,j) {
-    if(ids[i]==ids[j])return(1)
-    pair <- paste(sort(c(ids[i],ids[j])),collapse=':')
-    if(!exists(pair,cache,inherits=FALSE))assign(pair,
-      CECcanonical_similarity(canonical[[i]],canonical[[j]],method=partition_metric),cache)
-    get(pair,cache,inherits=FALSE)
+    if(key[i]==key[j])return(1)
+    pair <- paste(c(partition_metric,sort(c(key[i],key[j]))),collapse=':')
+    if(!exists(pair,cache$pairs,inherits=FALSE)) {
+      assign(pair,CECcanonical_similarity(canonical[[i]],canonical[[j]],method=partition_metric),cache$pairs)
+      cache$pair_evaluations <- cache$pair_evaluations+1L
+    }
+    get(pair,cache$pairs,inherits=FALSE)
   }
   a <- if(L>=2L)utils::combn(seq_len(L),2,function(ij)similarity(ij[1],ij[2])) else numeric()
   b <- if(L && B)unlist(lapply(seq_len(L),function(i)vapply(L+seq_len(B),function(j)similarity(i,j),0)),use.names=FALSE) else numeric()
   SA <- if(length(a))mean(a) else NA_real_;SB <- if(length(b))mean(b) else NA_real_
-  list(Stab_algo=SA,Stab_boot=SB,RSI=if(is.finite(SA)&&SA>0)SB/SA else NA_real_,
+  result <- list(Stab_algo=SA,Stab_boot=SB,RSI=if(is.finite(SA)&&SA>0)SB/SA else NA_real_,
     original_pairs=length(a),cross_pairs=length(b),definition='exhaustive_original_bootstrap',
     algorithm_agreements=a,bootstrap_agreements=b)
+  assign(pattern,result,cache$patterns)
+  result
 }
 
 CECgrid_diagnostics <- function(winners,parts,eligible,L,B,partition_metric='match',cache=NULL) {
@@ -190,7 +218,7 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   rsi_saturation_max=.10,stab_algo_threshold=.85,rsi_threshold=.95,sat_threshold=0,
   partition_metric=c('match','ARI'),bootstrap_indices=NULL,checkpoint_dir=FALSE,
   resume=FALSE,force_recompute=FALSE,save_results=FALSE,output_dir=tempdir(),verbose=FALSE,
-  banks=NULL,cells=NULL,diagnostics=TRUE,reference_bootstrap=TRUE) {
+  banks=NULL,cells=NULL,diagnostics=TRUE,reference_bootstrap=FALSE,require_reference_agreement=NULL) {
   X <- CECnumeric_data(Z);C_grid <- CECgrid_values(C_grid,'C_grid')
   lambda_grid <- CECgrid_values(lambda_grid,'lambda_grid')
   if(!is.null(cells)) {
@@ -206,6 +234,7 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   optimization <- match.arg(optimization,c('cem','em_bank'));penalty <- match.arg(penalty,c('none','bic'))
   if(!is.logical(reference_bootstrap)||length(reference_bootstrap)!=1L||is.na(reference_bootstrap))
     stop('reference_bootstrap must be TRUE or FALSE.')
+  require_reference_agreement <- CECresolve_reference_gate(reference_bootstrap,require_reference_agreement)
   for(x in list(rsi_saturation_max,stab_algo_threshold,rsi_threshold,sat_threshold))
     if(!is.numeric(x)||length(x)!=1L||!is.finite(x)||x<0)stop('Diagnostic thresholds must be finite nonnegative numbers.')
   if(rsi_saturation_max>1 || sat_threshold>1 || stab_algo_threshold>1)stop('Saturation and agreement thresholds must not exceed one.')
@@ -315,22 +344,26 @@ CECfit_solver_grid <- function(Z,C_grid,lambda_grid,k0=20L,B=20L,r0=20L,
   grid$stab_algo <- diagnostic$Stab_algo;grid$stab_boot <- diagnostic$Stab_boot;grid$rsi <- diagnostic$RSI
   grid$measured <- eligible & is.finite(grid$stab_algo) & is.finite(grid$stab_boot)
   grid <- CECattach_reference_summary(grid,measurements)
+  grid <- CECapply_reference_gate(grid,require_reference_agreement,stab_algo_threshold)
   grid$keep_stability <- grid$measured & grid$stab_algo>stab_algo_threshold & grid$rsi>rsi_threshold
   grid$keep_stability[is.na(grid$keep_stability)] <- FALSE
-  grid$exclude_saturation <- grid$sat>sat_threshold;grid$keep <- grid$keep_stability & !grid$exclude_saturation
+  grid$exclude_saturation <- grid$sat>sat_threshold
+  grid$keep <- grid$keep_stability & !grid$exclude_saturation & grid$keep_harmonization
   grid$n_sat_clusters <- vapply(profiles,function(p)sum(p$saturated),0L)
   grid$any_bound_saturation <- grid$n_sat_clusters>0
   grid$partition_id <- final;grid$C_source <- grid$C;grid$C_reused <- FALSE;grid$k_hat <- grid$REO
-  grid$fail_reason <- ifelse(grid$keep,'ok',ifelse(!grid$measured,'not_measured',ifelse(grid$exclude_saturation,'saturation','stability_or_rsi')))
+  grid$fail_reason <- ifelse(grid$keep,'ok',ifelse(!grid$measured,'not_measured',ifelse(grid$exclude_saturation,'saturation',
+    ifelse(!grid$keep_harmonization,'reference_disagreement','stability_or_rsi'))))
   meta <- list(optimization=optimization,penalty=penalty,stability_approach='exhaustive',partition_metric=partition_metric,
     rsi_policy=rsi_policy,rsi_saturation_max=rsi_saturation_max,stab_algo_threshold=stab_algo_threshold,
     rsi_threshold=rsi_threshold,sat_threshold=sat_threshold,k0=k0,B=B,algo_seed=algo_seed,control=control,
-    signature=digest::digest(list(signature,reference_bootstrap,rsi_policy,rsi_saturation_max,
+    signature=digest::digest(list(signature,reference_bootstrap,require_reference_agreement,rsi_policy,rsi_saturation_max,
       stab_algo_threshold,rsi_threshold,sat_threshold,partition_metric)),
     n_cores=n_cores,fitting_elapsed=fitting_elapsed,checkpoint_file=cache,
     data_fingerprint=digest::digest(unname(X)),
     comparisons_per_cell=attr(diagnostic,'comparisons_per_cell'),familyType='gaussVector',Cquali=Inf,
-    reference_bootstrap=reference_bootstrap,pipeline_version=as.character(utils::packageVersion('CEClust')))
+    reference_bootstrap=reference_bootstrap,require_reference_agreement=require_reference_agreement,
+    pipeline_version=as.character(utils::packageVersion('CEClust')))
   out <- CECgrid_compatible_output(X,grid,pool$parts,final,winners,banks,boots,meta)
   out$measurements <- measurements
   if(isTRUE(save_results)) {

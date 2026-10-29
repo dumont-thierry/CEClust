@@ -156,7 +156,9 @@ Adaptive diagrams default to `diagnostic_strategy="components"` in
 `adaptive_control`. The calibrated pilot is frozen; edge-connected cells with
 the same partition form a component. Eligible test points are ordered by
 distance to its area-weighted barycentre in raw `(log C, lambda)` coordinates.
-Testing stops at the first strict diagnostic success. The final saturation
+Testing stops at the first strict diagnostic success whose best original
+partition also agrees with the grid reference by at least the algorithmic
+threshold. The final saturation
 mask remains separate from the policy limiting which points are tested.
 
 `measured` identifies direct campaigns. Regional values carry
@@ -165,7 +167,12 @@ mask remains separate from the policy limiting which points are tested.
 `adaptive$components` stores the geometry, ordering and stopping decisions.
 Use `adaptive_control=list(diagnostic_strategy="cells")` for pointwise coverage.
 
-At every measured point, the best original execution is compared with the
+By default, the diagnostics remain independent and a point is rejected when
+the best original execution agrees with the grid reference by less than
+`stab_algo_threshold`, regardless of their score ordering. Disable this gate
+with `require_reference_agreement=FALSE` when that alternative is intended.
+
+With explicit `reference_bootstrap=TRUE`, the best original execution is compared with the
 grid representative, before filtering. Independent Stab_algo and independent RSI
 must both be strictly above their respective requested thresholds. The best original must disagree with the
 representative below that threshold, and it must not improve its score. Only
@@ -176,7 +183,7 @@ remain in the `_raw` columns and the complete records in `measurements`.
 Either independent diagnostic at or below its threshold leaves these diagnostics
 unchanged and cannot trigger a conditional bootstrap. In particular, a poor
 independent RSI cannot be rescued by this rule.
-`reference_bootstrap=FALSE` restores independent-only diagnostics.
+`reference_bootstrap=FALSE` is the default independent-only mode.
 
 ## Use the same bootstrap samples across analyses
 

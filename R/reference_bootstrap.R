@@ -1,5 +1,23 @@
 # Conditional diagnostic: the original-data reference is fixed by construction.
 # This is kept separate from CECstability's independent exhaustive averages.
+CECresolve_reference_gate <- function(reference_bootstrap,require_reference_agreement=NULL) {
+  if(is.null(require_reference_agreement))require_reference_agreement <- !reference_bootstrap
+  if(!is.logical(require_reference_agreement)||length(require_reference_agreement)!=1L||is.na(require_reference_agreement))
+    stop('require_reference_agreement must be TRUE, FALSE or NULL.')
+  if(require_reference_agreement && reference_bootstrap)
+    stop('require_reference_agreement requires reference_bootstrap=FALSE.')
+  require_reference_agreement
+}
+
+CECapply_reference_gate <- function(g,required,algo_min) {
+  g$reference_agreement_required <- required
+  if(!'selection_reference_agreement'%in%names(g))g$selection_reference_agreement <- g$reference_agreement
+  if(required)g$keep_harmonization <- is.finite(g$selection_reference_agreement) &
+    g$selection_reference_agreement>=algo_min
+  else if(!'keep_harmonization'%in%names(g))g$keep_harmonization <- TRUE
+  g
+}
+
 CECreference_job_signature <- function(job,cfg)
   digest::digest(list('single_reference_descent_v1',cfg$signature,cfg$penalty,cfg$settings,job))
 

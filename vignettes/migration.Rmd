@@ -101,7 +101,8 @@ penalized CEM paths because the historical repair does not evaluate that penalty
 The fixed grid does not add a final best-fit CEM descent. Adaptive CEM harmonizes
 neighbouring pilot cells. The additional `A_harm` filter applies to the cell
 strategy unless the conditional-reference branch is used; component acceptance
-uses the two diagnostic thresholds and preserves direct `A_harm` separately.
+uses the two diagnostic thresholds and, since 0.3.0.9009, the default agreement
+gate at the algorithmic threshold. Direct `A_harm` remains available separately.
 
 ## Plot filters and compact objects
 
@@ -156,7 +157,8 @@ region's display diagnostics. `measured`, `diagnostic_origin` and
 Use `adaptive_control = list(diagnostic_strategy = "cells")` for the previous
 pointwise coverage. Optional trivial quadrants require that cell strategy.
 
-All measured points in the numeric grid engines check the reference rule
+When `reference_bootstrap=TRUE` is explicitly requested, all measured points
+in the numeric grid engines check the reference rule
 before filtering. Since 0.3.0.9006 it requires the raw independent Stab_algo
 to be strictly above its threshold; 0.3.0.9007 also requires raw independent RSI
 to strictly exceed its configured threshold. In addition, the best independent original
@@ -166,8 +168,26 @@ bootstrap. SA is then one by construction and RSI is the mean agreement with
 the reference. Raw independent diagnostics and outputs remain archived.
 Use `reference_bootstrap = FALSE` to reproduce independent-only diagnostics;
 combine it with `diagnostic_strategy = "cells"` for the former adaptive route.
+Since 0.3.0.9009 independent-only diagnostics are the default, together with
+the reference-agreement rejection below. To reproduce independent-only results
+without that additional gate, also set `require_reference_agreement=FALSE`.
 Existing saved objects are never silently recalculated. `CECstability()`
 still computes the raw pairwise formula from supplied labels.
+
+## Independent-reference rejection and shared agreements (0.3.0.9009)
+
+Numeric grids now default to `reference_bootstrap=FALSE`. In addition to the
+strict Stab_algo and RSI requirements, the best of the independent original
+executions must agree with the grid representative by at least the algorithmic
+threshold. Disagreement rejects that point regardless of score ordering;
+component traversal continues. `require_reference_agreement=FALSE` disables
+this gate. Explicit `reference_bootstrap=TRUE` selects the conditional
+alternative; combining it with explicit required agreement is an error.
+
+Component diagnostics reuse identical partition agreements and complete winner
+patterns across cells. Exhaustive arrays and randomization remain unchanged;
+`meta$agreement_cache` records the reuse. This optimization is separate from
+the change in the default selection rule.
 
 The diagnostic gates prevent a failing independent stability or RSI from being
 replaced by passing conditional values. Equality with either threshold does

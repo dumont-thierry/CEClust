@@ -1,532 +1,112 @@
+# CEClust : grille adaptative et bandes
 
-<!-- README.md is rendered from README.Rmd. The tutorial chunks are executed. -->
+Version **0.4.0.9000**, assemblée le 29 octobre 2026.
 
-# CEClust
+## Installation depuis GitHub
 
-CEClust implements composite entropy clustering (CEC) to explore how a
-dataset can be grouped at different resolutions. It fits partitions,
-measures their reproducibility and displays the results in a **CEC
-diagram**. Several cells may describe the same partition; after
-filtering and removing duplicates, the output is a set of distinct
-groupings to examine.
+R >= 4.3 et un compilateur C++17 sont nécessaires (Rtools sous Windows).
+La construction des guides utilise Pandoc, fourni notamment avec RStudio.
 
-This guide follows one small dataset from its first plot to the
-interpretation of that set. It then shows how to add a BIC-type penalty
-and change the optimization method. The code, printed results and
-figures below are produced with **CEClust 0.3.0.9008**.
-
-## Installation
-
-The `main` branch contains the current consolidated development version,
-**0.3.0.9008**. Install it from GitHub with R \>= 4.3 and a C++
-toolchain (Rtools on Windows). Building the installed guides also
-requires Pandoc, which is bundled with RStudio:
-
-``` r
+```r
 install.packages(c("remotes", "knitr", "rmarkdown"))
-remotes::install_github("dumont-thierry/CEClust", ref = "main",
-                        build_vignettes = TRUE)
+remotes::install_github("dumont-thierry/CEClust", build_vignettes = TRUE)
 ```
 
-The `archive/*` branches preserve earlier implementations. They are
-historical snapshots, not additional components to install or source.
-The current package includes its numerical engines and adaptive-grid
-construction.
+## Choisir la méthode
 
-If you have a Windows binary archive built for R 4.5 x64, install its
-dependencies and then the archive. Its guides are already built, so
-installation requires neither a compiler nor Pandoc. Replace the example
-path with your file:
-
-``` r
-install.packages(c("clue", "digest", "mvtnorm", "Rcpp"))
-install.packages("path/to/CEClust_0.3.0.9008.zip",
-                 repos = NULL, type = "win.binary")
-```
-
-For a source installation, use the `.tar.gz` archive and
-`type = "source"`; a C++ toolchain and `RcppArmadillo` are also needed.
-R \>= 4.3 is required. Load the package and check the installed version
-before continuing:
-
-``` r
+```r
 library(CEClust)
-packageVersion("CEClust")
-#> [1] '0.3.0.9008'
+fit <- CECdiagram(X, method = "adaptive",
+  L = 20, B = 20, workers = 4, seed = 1, directory = "resultats_grille")
+fit_bandes <- CECdiagram(X, method = "bands",
+  L = 20, B = 20, workers = 4, seed = 1, directory = "resultats_bandes")
 ```
 
-## 1. Start with the observations
+La grille adaptative est le choix par défaut. Les bandes restent expérimentales.
+`penalty = "bic"` active une pénalité d'ordre dans chaque moteur.
+Les banques, l'exploration et les règles de validation propres à chaque méthode
+restent distinctes. Le choix de méthode ne garantit pas des partitions identiques.
 
-We generate 60 observations with two measurements. The first measurement
-separates two groups; the second adds variation within them.
+## Grille adaptative
 
-``` r
-set.seed(12)
-X <- cbind(x = c(rnorm(30, -2, 0.5), rnorm(30, 2, 0.5)),
-           y = rnorm(60, sd = 0.5))
-plot(X, pch = 19, col = "#34495E", asp = 1,
-     main = "The observations, before clustering")
+Moteur CEClust 0.3.0.9010 : CEM, propagation et subdivisions conservées.
+La nouvelle entrée calcule Cmin comme le pic de la gaussienne ajustée au groupe
+unique, avec covariance empirique divisée par n. Les dix centres initiaux valent
+`2^(1:10) * Cmin`. Pas d'extension à gauche par défaut. Les extensions à droite
+et en lambda sont conservées. Les bords des cellules restent à mi-pas des centres.
+Cmin est une référence d'exploration, pas une garantie universelle de saturation.
+
+```r
+CECinitialGrid(X)
+ctl <- CECdiagramControl("adaptive",
+  optimizer_control = list(Rmax = 20, Ninit = 5),
+  adaptive_control = list(max_cells = 12000, extend_left = FALSE),
+  rsi_threshold = .95)
+fit <- CECdiagram(X, "adaptive", control = ctl, directory = "grille_2")
+CECsummariseGrid(fit)
+CECplotGrid(fit)
 ```
 
-![](README_files/data-1.png)<!-- -->
+Une covariance singulière produit une erreur explicite : supprimer les variables
+redondantes ou fournir C_grid explicitement, sans régularisation cachée.
+Le recalcul conditionnel du RSI reste désactivé et l'accord entre champions
+requis par défaut, comme en 9010. Les options historiques restent accessibles.
+La variante par banques EM s'obtient avec `control = list(optimization = "em_bank")`.
+Les anciens appels CECfitBoundGrid gardent leur ancienne grille par défaut et
+leurs quatre extensions. Utiliser CECdiagram pour la nouvelle initialisation.
 
-For your own numeric data, replace `X` with a matrix or data frame: one
-row per observation and one column per measurement. Remove identifiers
-and known class labels from the fitting variables, and handle missing or
-non-finite values before fitting. CEClust does not standardize the
-columns automatically. If standardization is appropriate, apply it once,
-before constructing the diagram.
+## Bandes
 
-## 2. Understand the two axes
+Moteur CEClustBands 0.1.0.9001, descentes et diagnostics conservés.
+Budget de l'entrée commune : ordres pilote 1:20, 5 initialisations, 2 départs
+supplémentaires, 10 ancres, ordre enrichi maximal 40, 11/41 colonnes C,
+2 tours de raffinement, 2 tours de projection, 200 requêtes.
+L=B=20, stabilité > .85, RSI > .95, saturation de rétention nulle.
+workers vaut 1 par défaut et doit être choisi explicitement.
 
-For each proposed partition, CEC fits a reference density to each group.
-In this example the references are Gaussian. The criterion balances the
-fit within groups against the entropy of the group proportions. Two
-parameters control this balance and the allowed concentration:
-
-| Parameter | Role | Effect of changing it |
-|:---|:---|:---|
-| `C` | Upper bound on the peak of each fitted Gaussian density | Increasing it allows more concentrated groups. A small value forces broader fitted groups. |
-| `lambda` | Weight given to the entropy of the group proportions | Increasing it gives more weight to grouping observations together. Decreasing it allows finer divisions. |
-
-`C` is not the number of clusters. Its meaning depends on the units of
-the measurements, so the values below should not be copied unchanged to
-a dataset on a different scale. Neither parameter specifies a desired
-group count.
-
-The diagram evaluates several pairs `(C, lambda)`. Each pair is a *cell*
-with a fitted partition and its diagnostics. We will examine which cells
-satisfy our reproducibility and saturation requirements, then inspect
-their distinct partitions. There is no need to choose one parameter pair
-in advance.
-
-## 3. Fit a small grid and repeat the analysis
-
-We use three values on each axis, giving nine cells. The `"em_bank"`
-method first generates candidate partitions and then compares them at
-every cell. This shares fitting work across the grid. We initially use
-`penalty = "none"`.
-
-There are two different repetition levels:
-
-- `Ninit = 2` generates candidates from two starts at each mixture
-  order, up to `Rmax = 3`, within one complete execution.
-- `k0 = 3` repeats that complete execution three times on the original
-  data; `B = 3` repeats it on three bootstrap samples, each formed by
-  drawing 60 rows from `X` with replacement. These outputs provide the
-  stability measurements.
-
-These small budgets keep the tutorial quick. They illustrate the
-procedure; an analysis intended for scientific interpretation needs
-larger budgets and a check that its conclusions persist when they are
-increased.
-
-``` r
-g <- CECfitBoundGrid(
-  Z = X,
-  C_grid = c(0.2, 0.5, 1),
-  lambda_grid = c(0.6, 1, 1.5),
-  optimization = "em_bank", penalty = "none",
-  optimizer_control = list(Rmax = 3, Ninit = 2, Cmax = 1, max_iter = 30),
-  k0 = 3, B = 3, algo_seed = 14, n_cores = 1,
-  rsi_policy = "all",
-  stab_algo_threshold = 0.85,
-  rsi_threshold = 0.95,
-  sat_threshold = 0
-)
+```r
+ctl <- CECdiagramControl("bands", max_anchors = 10, extra_starts = 2)
+fit_bandes <- CECdiagram(X, "bands", control = ctl, directory = "bandes_2")
+bands_partitions(fit_bandes)
+bands_plot(fit_bandes)
+bands_validate(fit_bandes)
+# Facultatif, séparé, jamais automatique :
+# audit <- bands_cleanup(fit_bandes, directory = "menage", workers = 4)
 ```
 
-`Cmax = 1` is the density ceiling during candidate generation. It must
-be at least the largest `C` in the grid. `max_iter` limits each EM
-descent, while `algo_seed` makes the random starts and resampling
-reproducible.
+Le ménage élimine seulement : score meilleur ET (entropie des poids plus grande
+OU saturation), après subdivision et CEM. Aucun remplacement ni nouveau RSI.
+cec_bands et bands_control gardent leurs défauts historiques, plus coûteux.
+Ne pas les confondre avec le profil de CECdiagramControl("bands").
 
-For this grid, a cell is retained only if its algorithmic stability
-exceeds 0.85, its RSI exceeds 0.95, and its saturation is zero. The next
-step explains these quantities. `rsi_policy = "all"` requests their
-measurement in every cell.
+## Archives et reprise
 
-## 4. Read the diagram and its diagnostics
+Un dossier par essai. Conserver le dossier avec le résultat : les bandes y
+référencent leurs allocations. Reprise avec resume=TRUE, mêmes données et
+paramètres. Les checkpoints des packages séparés ont un autre runtime et ne
+sont pas réutilisés. Les anciennes archives ne sont pas modifiées.
 
-``` r
-par(oma = c(0, 0, 0, 4))  # Leave room for the rejection legend.
-CECplotGrid(g, main = "CEC: group count and diagnostic filtering",
-            reo_col = c("#0072B2", "#D55E00"))
+## Sources
+
+- R/diagram.R : entrée commune, Cmin, profils de paramètres.
+- R/adaptive_*.R : grille adaptative et géométrie.
+- R/bands_*.R : moteur bandes, fichiers nommés selon leur fonction.
+- src/bands_moments.cpp : noyau CEM des bandes.
+
+Les sources historiques et le manuscrit soumis restent inchangés.
+Ce regroupement ne résout pas les limites d'exploration connues des bandes.
+
+## Versions archivées
+
+- [0.3.0.9002 exacte](https://github.com/dumont-thierry/CEClust/tree/archive/0.3.0.9002),
+  commit `61dd3ca85d5f2fe817aa15f8318879c061f750a7`.
+- [0.3.0.9008, état de GitHub avant l'unification](https://github.com/dumont-thierry/CEClust/tree/archive/0.3.0.9008),
+  commit `2075babd81db884b8906d8c04eeffe537622f832`.
+
+Ces archives conservent les fichiers d'origine. Pour installer la version
+0.3.0.9002 exacte :
+
+```r
+remotes::install_github("dumont-thierry/CEClust", ref = "archive/0.3.0.9002",
+  build_vignettes = TRUE)
 ```
-
-![](README_files/diagram-1.png)<!-- -->
-
-The axes show `C` and `lambda`. Colors identify the number of occupied
-groups, called `REO`; the legend also identifies rejected cells and
-their rejection reasons. Use the numerical summary to distinguish a
-change in group count from a failure of the diagnostic requirements:
-
-``` r
-s <- CECsummariseGrid(g)
-s[, c("C", "lambda", "REO", "sat", "stab_algo", "rsi", "keep")]
-```
-
-|   C | lambda | REO | sat | stab_algo |   rsi | keep  |
-|----:|-------:|----:|----:|----------:|------:|:------|
-| 0.2 |    0.6 |   2 | 1.0 |     1.000 | 1.000 | FALSE |
-| 0.2 |    1.0 |   2 | 1.0 |     1.000 | 1.000 | FALSE |
-| 0.2 |    1.5 |   1 | 0.0 |     1.000 | 1.000 | TRUE  |
-| 0.5 |    0.6 |   3 | 1.0 |     1.000 | 0.950 | FALSE |
-| 0.5 |    1.0 |   2 | 1.0 |     1.000 | 1.000 | FALSE |
-| 0.5 |    1.5 |   2 | 1.0 |     1.000 | 1.000 | FALSE |
-| 1.0 |    0.6 |   3 | 0.5 |     0.844 | 0.993 | FALSE |
-| 1.0 |    1.0 |   3 | 0.5 |     0.944 | 0.984 | FALSE |
-| 1.0 |    1.5 |   2 | 0.0 |     1.000 | 0.989 | TRUE  |
-
-| Column | Interpretation |
-|:---|:---|
-| `sat` | Fraction of observations belonging to groups whose density ceiling is active. For example, 0.5 means 50% of the observations, not 50% of the groups. |
-| `stab_algo` | Agreement between repeated executions on the same observations. A value near one indicates little sensitivity to the random optimization starts. |
-| `stab_boot` | Agreement between original-data outputs and bootstrap outputs, after assigning the original observations with each bootstrap fit. It is also available in `s`. |
-| `rsi` | `stab_boot / stab_algo`: resampling agreement relative to optimization agreement. |
-| `keep` | Whether the cell satisfies all three requested thresholds. |
-
-The stability means use **all pairs**: here three original-original
-pairs and nine original-bootstrap pairs. Cluster labels are matched
-before agreement is measured, so renaming groups does not change the
-result. RSI is a relative diagnostic, not a confidence probability, and
-can exceed one.
-
-In the first row, `(C, lambda) = (0.2, 0.6)` gives two groups with
-perfect agreement, but `sat = 1`: both fitted groups reach the density
-ceiling. That cell is excluded by our zero-saturation requirement. This
-does not mean that the data have no structure. It means that the fitted
-concentration is limited by the chosen `C`.
-
-At `(1, 1.5)`, two groups are retained with zero saturation and high
-agreement. The one-group partition at `(0.2, 1.5)` also passes. The
-diagram therefore contains two admissible descriptions at different
-resolutions.
-
-### Conditional bootstrap around a better grid partition
-
-Before a point is filtered, the numeric grid engines compare their best
-original execution with the grid representative. The conditional rule
-requires all three conditions: the independent `stab_algo` and RSI are
-strictly above their respective requested thresholds, agreement with the
-representative is strictly below the algorithmic-stability threshold,
-and the execution does not improve the representative’s score under the
-recorded numerical tolerance. The representative is then fixed as the
-reference. `stab_algo` is then one by construction. Each bootstrap
-receives **one CEM descent**, starting from that reference’s labels on
-the sampled rows; there are no additional starts. The RSI is the mean
-agreement of its projections with the fixed reference.
-
-This measures resampling sensitivity conditional on that reference. It
-does not turn a failed optimization experiment into an empirical
-stability of one. `reference_bootstrap_applied` and
-`diagnostic_definition` identify the branch; `stab_algo_raw`,
-`stab_boot_raw` and `rsi_raw` retain the independent diagnostics. The
-complete reference check and bootstrap fits are in `g$measurements`. If
-either independent diagnostic is equal to or below its threshold, the
-raw diagnostics are kept and no conditional bootstrap is run. The rule
-cannot rescue a low independent RSI by replacing it with a conditional
-value. Use `reference_bootstrap = FALSE` to obtain independent-only
-diagnostics.
-
-## 5. Inspect each retained partition once
-
-On a finer grid, many cells can give exactly the same grouping. Use
-`partition_id` to remove duplicates among the retained cells:
-
-``` r
-retained <- s[s$keep, , drop = FALSE]
-representatives <- retained[!duplicated(retained$partition_id), , drop = FALSE]
-representatives[, c("C", "lambda", "REO", "partition_id")]
-```
-
-|   C | lambda | REO | partition_id |
-|----:|-------:|----:|-------------:|
-| 0.2 |    1.5 |   1 |            1 |
-| 1.0 |    1.5 |   2 |            2 |
-
-Plot their allocations to see what the group counts describe:
-
-``` r
-for (i in seq_len(nrow(representatives))) {
-  q <- representatives[i, ]
-  CECplotPartition(g, C = q$C, lambda = q$lambda,
-                   x_var = "x", y_var = "y")
-}
-```
-
-![](README_files/partitions-1.png)<!-- -->![](README_files/partitions-2.png)<!-- -->
-
-The two-group partition separates the left and right clouds. The
-one-group partition gives a coarser description of the same
-observations. Keeping both is consistent with the exploratory purpose of
-the diagram, much as a dendrogram can be read at several heights. CEC
-partitions need not be nested, and two different partitions can have the
-same number of groups.
-
-To recover the labels for further analysis, select the coordinates of
-the two-group representative and extract its partition:
-
-``` r
-q2 <- representatives[representatives$REO == 2, ][1, ]
-labels <- CECextractPartition(g, C = q2$C, lambda = q2$lambda)
-table(labels)
-#> labels
-#>  1  2
-#> 30 30
-```
-
-Always inspect allocations and group sizes alongside the diagnostics:
-high agreement can be dominated by a large group. Passing the filter
-establishes the requested numerical properties; scientific
-interpretation still depends on the observations and the application. If
-no cell passes, `retained` is empty; examine the rejection reasons
-before changing the window, computation budgets or diagnostic
-requirements.
-
-## 6. Compare with a BIC-type penalty
-
-The optional penalty increases the cost of keeping additional occupied
-groups. It can reduce fragmentation in finite samples. With EM banks,
-the comparison uses the candidates already generated:
-
-``` r
-g_bic <- CECrescoreGrid(g, penalty = "bic")
-s_bic <- CECsummariseGrid(g_bic)
-comparison <- data.frame(C = s$C, lambda = s$lambda,
-                         CEC = s$REO, CEC_BIC = s_bic$REO)
-comparison[comparison$CEC != comparison$CEC_BIC, ]
-```
-
-|   C | lambda | CEC | CEC_BIC |
-|----:|-------:|----:|--------:|
-| 0.2 |    1.0 |   2 |       1 |
-| 0.5 |    0.6 |   3 |       2 |
-| 1.0 |    0.6 |   3 |       2 |
-| 1.0 |    1.0 |   3 |       2 |
-
-These are the cells where the selected group count changes. For example,
-at `(0.5, 0.6)`, adding the penalty changes three groups into two. A
-reduction in group count is not itself an admissibility test: inspect
-`s_bic$keep` and the new diagnostics before interpreting the penalized
-result.
-
-No EM fit is repeated. Each independent execution selects its winner
-again, then the stability diagnostics are recomputed. The conditional
-rule described above can require new single-descent CEM bootstrap fits.
-The penalty is added to the hard composite entropy, **not** to the
-soft-mixture likelihood used by EM. Its formula and the distinction from
-ordinary BIC are given in `?CECoptimizers`.
-
-## 7. Choose the optimizer independently of the penalty
-
-The preceding workflow uses a common candidate bank. Its stages are:
-constrained soft EM, hard allocation by MAP, re-estimation of the group
-weights and Gaussian parameters under each target `C`, then comparison
-of the hard CEC scores. Empty MAP groups are removed. Sharing this bank
-across the grid saves fitting work, but restricts the search to its
-candidates.
-
-`optimization = "cem"` instead searches through hard allocations using
-the CEC score. Both methods are approximate, and both support
-`penalty = "none"` and `penalty = "bic"`. A larger budget can improve
-the search; neither method certifies a global optimum.
-
-For a single chosen pair, use `CECclassif()` instead of constructing a
-grid:
-
-``` r
-fit <- CECclassif(X, C = 1, lambda = 1.5,
-  optimization = "em_bank", penalty = "none",
-  optimizer_control = list(Rmax = 3, Ninit = 2, max_iter = 30, seed = 4))
-table(fit$clusters)
-#>
-#>  1  2
-#> 30 30
-```
-
-This returns one fitted partition; it does not perform the repetitions
-needed for stability diagnostics. State `optimization` and `penalty`
-explicitly in new analyses. Calls omitting the new options may select
-the historical engine, which has different defaults and initialization
-rules (`?CECmigration`).
-
-## Continue with your own data
-
-The small fixed grid above makes each step easy to inspect. For a real
-diagram, the package can extend the window and concentrate cells around
-its boundaries automatically:
-
-``` r
-g_adaptive <- CECfitBoundGrid(Z = X, grid_strategy = "adaptive",
-  optimization = "em_bank", penalty = "none", k0 = 3, B = 3,
-  algo_seed = 14, rsi_policy = "unsaturated",
-  optimizer_control = list(Rmax = 3, Ninit = 2, Cmax = 10, max_iter = 30),
-  adaptive_control = list(max_cells = 300, max_rounds = 3,
-                          max_extensions = 2,
-                          diagnostic_strategy = "components"))
-CECplotGrid(g_adaptive)
-```
-
-![](README_files/adaptive-1.png)<!-- -->
-
-``` r
-g_adaptive$adaptive$stop_reason
-g_adaptive$adaptive$completed
-```
-
-The initial window is scaled from the data when coordinates are omitted.
-It expands left, right, down and up according to the boundary rules.
-Cells on both sides of a change in partition or saturation are then
-subdivided. Two partitions with the same number of groups can therefore
-define a boundary. This constructs a multiscale description; it does not
-pick a single C or lambda.
-
-The deliberately small budgets above keep the tutorial quick. An
-exhausted budget or a reached `Cmax` is recorded as a limit, never as
-completed adaptation. Inspect `g_adaptive$adaptive$history` and
-`$margins`; the default budgets and all stopping rules are explained in
-`?CECadaptiveDiagram`.
-
-### Measure representative points within each region
-
-Adaptive diagrams use `diagnostic_strategy="components"` by default.
-After calibration and refinement, the pilot diagram is frozen.
-Edge-connected cells representing exactly the same partition form a
-component, even if their saturations differ. Disconnected regions remain
-separate.
-
-For each component, the package computes its geometric barycentre in
-`(log C, lambda)`, weighting cell centres by their rectangular areas. It
-visits eligible cells by increasing distance to that barycentre, without
-rescaling the axes. Testing stops at the first point passing both strict
-diagnostic thresholds, or when all eligible cells have been tested.
-
-The successful point, called the witness, supplies diagnostic values for
-displaying and selecting its component. The final saturation mask is
-applied separately. This can avoid many campaigns, but is a regional
-approximation; stability has not been measured at every cell in the
-region.
-
-``` r
-sa <- CECsummariseGrid(g_adaptive)
-table(sa$diagnostic_origin)
-#>
-#> component_witness          measured      not_measured
-#>               118                 2                 8
-g_adaptive$adaptive$components$plan$table[, c("REO", "candidates", "attempts", "status")]
-#>   REO candidates attempts                     status
-#> 1   1         50        1                   accepted
-#> 2   2         10        1                   accepted
-#> 3   3          0        0 outside_measurement_policy
-#> 4   3          0        0 outside_measurement_policy
-#> 5   3          0        0 outside_measurement_policy
-```
-
-`measured` identifies actual test points.
-`diagnostic_origin="component_witness"` marks inherited values and
-`diagnostic_witness` identifies their source. The `_direct` columns
-preserve pointwise values; untested direct values remain missing. The
-conditional reference rule is checked at every tested point, before
-deciding whether it passes. A different threshold can require points
-skipped by the original traversal; changing a plot does not run those
-tests.
-
-For adaptive hard searches, use `optimization="cem"`. Its pilot runs one
-complete multistart search at each new cell and harmonizes neighbouring
-partitions before diagnostics begin. Children receive their parent’s
-partition as an additional start. No bootstrap fitting takes place
-during this stage. Independent original and bootstrap campaigns then run
-at the eligible points visited within each component, without pilot or
-neighbour starts. By default, test points must have saturation at most
-0.10, including trivial points. Specify `rsi_policy="unsaturated"` for
-zero saturation instead.
-
-Use `adaptive_control=list(diagnostic_strategy="cells")` to measure each
-eligible cell rather than stop at a component witness. In that CEM mode,
-better campaign partitions can update the diagram, trigger local
-harmonization and a coverage check. Independent outputs remain frozen.
-Inspect `$adaptive$final_refinement_pending` for reactivated boundaries.
-Per-execution checkpoints allow interrupted campaigns to resume.
-
-For EM banks, `CECrescoreGrid(g_adaptive, penalty="bic")` reuses every
-fit, recomputes each independent winner and builds the penalized
-diagram’s own adaptive mesh. All evaluated C values remain below the
-original `Cmax`.
-
-For a sparse search through large soft orders, supply, for example,
-`optimizer_control=list(orders=c(1:20, 25, 40, 64, 100), Ninit=5, Cmax=10)`
-when the sample contains at least 100 observations. The actual orders
-are recorded; they are never silently described as an exhaustive
-1-to-100 search.
-
-Keep the results so that plots and interpretation do not require
-refitting:
-
-``` r
-saveRDS(g, "cec_none.rds")
-saveRDS(g_bic, "cec_bic.rds")
-g <- readRDS("cec_none.rds")
-```
-
-For larger calculations, `n_cores` distributes the independent grid
-executions. The `rsi_policy = "nontrivial_unsaturated"` option restricts
-test points to nontrivial, unsaturated cells. Skipped points have
-missing direct diagnostics; a component can inherit values only from its
-identified passing witness. The one-group partition is not retained
-automatically. Measurement policy is separate from the final filtering
-thresholds.
-
-The new engines illustrated here use numeric Gaussian references.
-Historical unpenalized CEM also supports categorical and mixed data; the
-migration guide describes that interface. The general CEC approach is
-not limited to Gaussian references.
-
-The following guides cover the details as they become useful:
-
-| Task | Help in R |
-|:---|:---|
-| Automatic window, stopping rules and frontier refinement | `?CECadaptiveDiagram` |
-| Full fitting arguments and return values | `?CECclassif`, `?CECfitBoundGrid` |
-| Scores, constraints and optimizer controls | `?CECoptimizers` |
-| Exhaustive stability comparisons, saturation and filtering | `?CECdiagnostics` |
-| Larger budgets, parallel runs, checkpoints and saved outputs | `vignette("minimal-api", package = "CEClust")` |
-| Existing scripts, mixed data and historical behavior | `vignette("migration", package = "CEClust")` |
-| Applying the stability measures to another clustering method | `?CECstability` |
-
-See [NEWS.md](NEWS.md) for changes and
-[CONTRIBUTING.md](CONTRIBUTING.md) for development and validation
-instructions. The [consolidation inventory](docs/CONSOLIDATION.md) maps
-the successive additions to their implementations and checks.
-Repository:
-[dumont-thierry/CEClust](https://github.com/dumont-thierry/CEClust).
-
-## Compiled CEM and performance records
-
-Numeric CEM now uses a compiled descent by default. Gaussian moments are
-shared between scoring, parameter fitting and raw density calculation.
-This accelerates both grid construction and the independent diagnostic
-campaigns. The orders, starts, bootstrap samples, tolerances and
-stopping budgets are unchanged.
-
-Set `optimizer_control=list(cem_engine="reference")` to compare with the
-R descent. For the compiled path, a numerical failure or ambiguous
-covariance rank automatically uses that reference descent for the
-affected start. Its engine and fallback reason are recorded in
-`fit$solver$starts` for a direct fit, or in the stored campaign fit. The
-compiled implementation retains singular supports and the determinant
-bound; it adds no covariance jitter or eigenvalue floor.
-
-Search timing records distinguish refitting, reassignment proposals,
-deletion checks and initialization subdivisions. Measure the whole
-operation with `system.time()` when comparing wall time, and keep the
-same workers and budgets. The exhaustive stability helper reuses
-identical agreement calculations while retaining every pair value and
-its original position.
-
-Soft EM also reuses centered data, covariance factorizations and matrix
-buffers. Its initializations, likelihood updates, constraints and
-stopping tests are unchanged. Gains depend on the workload: reducing
-grid-scoring work need not substantially reduce the time spent
-generating EM banks. Compare complete elapsed times with the same data,
-seeds, starts and workers.

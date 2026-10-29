@@ -179,7 +179,7 @@ test_that('fixed grids forward the RSI threshold to the conditional rule', {
     for(cutoff in c(.49,.5,.95,1.1)) {
       a <- CECfit_solver_grid(X,10,c(1,10),k0=3,B=2,optimization=method,penalty=penalty,
         banks=banks,bootstrap_indices=list(1:24,24:1),rsi_threshold=cutoff,
-        optimizer_control=list(Rmax=2,Ninit=1,max_iter=15))
+        optimizer_control=list(Rmax=2,Ninit=1,max_iter=15),reference_bootstrap=TRUE)
       expect_identical(a$summary$reference_bootstrap_applied,c(cutoff<.5,FALSE))
       expect_equal(a$summary$rsi_raw[1],.5)
       expect_equal(a$measurements[['1']]$reference_check$independent_rsi_threshold,cutoff)

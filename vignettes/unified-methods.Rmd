@@ -1,0 +1,88 @@
+---
+title: "Choosing adaptive grids or candidate bands"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Choosing adaptive grids or candidate bands}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>")
+library(CEClust)
+```
+
+`CECdiagram` is the common entry point in version 0.4.0.9000. It combines
+the adaptive engine from CEClust 0.3.0.9010 and the experimental bands
+engine from CEClustBands 0.1.0.9001. Their searches and diagnostics remain
+separate. The method selector does not make their outputs interchangeable.
+
+```{r usage, eval=FALSE}
+grid <- CECdiagram(X, method="adaptive", L=20, B=20, workers=4,
+                   seed=1, directory="adaptive_run")
+bands <- CECdiagram(X, method="bands", L=20, B=20, workers=4,
+                    seed=1, directory="bands_run")
+```
+
+## Adaptive grid
+
+The default method uses CEM, propagation and subdivision. The common entry
+point computes `Cmin` from the peak of the Gaussian fitted to the complete
+sample, with covariance divided by n. The ten initial C centres are
+`2^(1:10) * Cmin`. Left extension is disabled. Extension to the right and
+along lambda, and refinement, remain available. Cell edges retain the
+engine's half-step convention. This Cmin is an exploration reference,
+not a universal saturation guarantee.
+
+```{r initialization}
+X <- matrix(c(-3,-2,-1,1,2,3), ncol=1)
+CECinitialGrid(X)
+```
+
+A singular full-sample covariance produces an explicit error. Supply
+`C_grid` explicitly or remove redundant variables. No hidden regularization
+is introduced. `lambda_grid` can also be supplied explicitly.
+
+```{r adaptive-control, eval=FALSE}
+control <- CECdiagramControl("adaptive",
+  optimizer_control=list(Rmax=20, Ninit=5),
+  adaptive_control=list(extend_left=FALSE, max_cells=12000))
+grid <- CECdiagram(X, "adaptive", control=control, directory="grid_2")
+CECsummariseGrid(grid)
+CECplotGrid(grid)
+```
+
+Historical direct calls to `CECfitBoundGrid` retain their old defaults.
+The EM-bank variant remains available through
+`control=list(optimization="em_bank")`.
+
+## Candidate bands
+
+The common entry point uses the last agreed budget: pilot orders 1:20,
+5 starts per order, 2 extra starts, 10 anchors, enriched order limit 40,
+11 initial and at most 41 C columns, 2 refinement rounds, 2 projection
+rounds and 200 projection queries. The default retention thresholds are
+algorithmic stability above 0.85, RSI above 0.95 and zero saturation.
+
+```{r bands-control, eval=FALSE}
+control <- CECdiagramControl("bands", max_anchors=10, extra_starts=2)
+bands <- CECdiagram(X, "bands", control=control, directory="bands_2")
+bands_partitions(bands)
+bands_plot(bands)
+bands_validate(bands)
+```
+
+`penalty="bic"` is available for either method. `bands_cleanup` remains
+a separate optional call. It screens retained partitions by subdivision
+and CEM, without inserting replacement partitions or recomputing RSI.
+This integration does not resolve the known exploration limitations of
+the bands engine. Direct `cec_bands` and `bands_control` calls retain
+their historical, larger default budgets.
+
+## Saving and resuming
+
+Use one directory per run. Keep the full directory: bands results refer
+to allocation files there. `diagram.rds` stores the returned result.
+Use `resume=TRUE` with the same data and parameters to resume a run.
+Checkpoints from the separate historical packages are not reused by
+the unified runtime.

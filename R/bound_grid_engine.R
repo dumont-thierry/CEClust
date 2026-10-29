@@ -3088,11 +3088,18 @@
       exclude_saturation <- is.finite(s$sat) & s$sat > sat_threshold
       keep_all <- keep_stability & !exclude_saturation
       if(inherits(grid_obj,'CEC_adaptive_grid'))keep_all <- keep_all & s$keep_harmonization
+      reference_rejected <- rep(FALSE,nrow(s))
+      if('reference_agreement_required'%in%names(s) && any(s$reference_agreement_required)) {
+        reference_rejected <- s$reference_agreement_required &
+          (!is.finite(s$selection_reference_agreement) | s$selection_reference_agreement<stab_algo_threshold)
+        keep_all <- keep_all & !reference_rejected
+      }
 
       fail_reason <- rep("ok", nrow(s))
       fail_reason[!keep_stability] <- "stability_or_rsi"
       fail_reason[exclude_saturation] <- "saturation"
       fail_reason[!keep_stability & exclude_saturation] <- "stability_rsi_and_saturation"
+      fail_reason[reference_rejected] <- 'reference_disagreement'
 
       s$keep_stability <- keep_stability
       s$exclude_saturation <- exclude_saturation

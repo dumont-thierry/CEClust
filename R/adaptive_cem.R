@@ -112,6 +112,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   right <- NULL;round <- 1L;phase <- 'pilot';measurement_wave <- 0L
   counts <- setNames(integer(4),c('left','right','lower','upper'))
   blocked <- setNames(rep(FALSE,4),names(counts))
+  blocked['left'] <- !o$extend_left
   settings <- list(sat_max=sat_threshold,sat_max2=o$frontier_saturation,max_cells=o$max_cells,
     refinement=o[c('max_rounds','max_depth','patience','position_tolerance','distinguish_partitions')])
   screen_cfg <- list(seed=algo_seed,workers=1L,
@@ -201,6 +202,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
     # components or their barycentres during the traversal.
     g <- ceca_diagram(state)
     eligible <- CECadaptive_cem_eligible(g,rsi_policy,rsi_saturation_max)
+    stability_cache <- new.env(parent=emptyenv())
     measure <- function(i) {
       jobs <- lapply(seq_len(k0+B),function(k) {
         kind <- if(k<=k0)'original' else 'bootstrap';rep <- if(k<=k0)k else k-k0
@@ -209,7 +211,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
       })
       runs <- run_jobs(jobs);parts <- lapply(runs,`[[`,'part');labels <- lapply(parts,`[[`,'labels')
       tm <- proc.time()[3]
-      d <- CECstability(labels[seq_len(k0)],labels[k0+seq_len(B)],partition_metric)
+      d <- CECstability_cached(labels[seq_len(k0)],labels[k0+seq_len(B)],partition_metric,stability_cache)
       agreement_elapsed <<- agreement_elapsed+unname(proc.time()[3]-tm)
       best <- parts[[which.min(vapply(parts[seq_len(k0)],`[[`,0,'J'))]]
       z <- list(cell_id=g$id[i],C=g$C[i],lambda=g$lambda[i],saturation_at_measurement=g$saturation[i],
@@ -217,7 +219,8 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
       CECreference_stability(z,state$parts[[as.character(g$id[i])]],cfg,g[i,],partition_metric,
         stab_algo_threshold,o$reference_bootstrap,run_jobs,rsi_min=rsi_threshold)
     }
-    regional <- CECadaptive_component_diagnostics(state,eligible,measure,stab_algo_threshold,rsi_threshold,verbose)
+    regional <- CECadaptive_component_diagnostics(state,eligible,measure,stab_algo_threshold,rsi_threshold,verbose,
+      require_reference_agreement=o$require_reference_agreement)
     measurements <- regional$measurements
   } else repeat {
     plan <- ceca_screen_plan(state,screen_cfg,metadata,audit);audit <- plan$audit_state
@@ -301,6 +304,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   g$keep_harmonization[g$reference_bootstrap_applied] <- TRUE
   if(!is.null(regional))g <- CECadaptive_component_summary(g,regional)
   g <- CECattach_reference_summary(g,measurements)
+  g <- CECapply_reference_gate(g,o$require_reference_agreement,stab_algo_threshold)
   available <- if(is.null(regional))g$measured else g$diagnostics_available
   g$keep_stability <- available & g$stab_algo>stab_algo_threshold & g$rsi>rsi_threshold
   g$keep_stability[is.na(g$keep_stability)] <- FALSE
@@ -311,19 +315,22 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
   g$measurement_status[g$measurement_status=='measured' & !g$measured] <- 'insufficient_repetitions'
   g$quadrant_witness <- plan$table$witness;g$partition_id <- final;g$C_source <- g$C;g$C_reused <- FALSE;g$k_hat <- g$REO
   g$fail_reason <- ifelse(g$keep,'ok',ifelse(!available,'not_measured',ifelse(g$exclude_saturation,'saturation',
-    ifelse(!g$keep_harmonization,'harmonization','stability_or_rsi'))))
+    ifelse(!g$keep_harmonization,if(o$require_reference_agreement)'reference_disagreement' else 'harmonization','stability_or_rsi'))))
   m <- borders()
   for(side in names(counts)[m$needs_extension & counts>=o$max_extensions & !blocked])
     restrictions[[length(restrictions)+1L]] <- list(side=side,reason='extension_budget',round=round)
   meta <- list(optimization='cem',penalty=penalty,grid_strategy='adaptive',protocol='staged_cem_v1',
-    stability_approach='exhaustive_with_conditional_reference',diagnostic_strategy=o$diagnostic_strategy,
-    reference_bootstrap=o$reference_bootstrap,partition_metric=partition_metric,rsi_policy=rsi_policy,
+    stability_approach=if(o$reference_bootstrap)'exhaustive_with_conditional_reference' else 'exhaustive',
+    diagnostic_strategy=o$diagnostic_strategy,
+    reference_bootstrap=o$reference_bootstrap,require_reference_agreement=o$require_reference_agreement,
+    partition_metric=partition_metric,rsi_policy=rsi_policy,
     rsi_saturation_max=rsi_saturation_max,stab_algo_threshold=stab_algo_threshold,rsi_threshold=rsi_threshold,
     sat_threshold=sat_threshold,k0=k0,B=B,algo_seed=algo_seed,control=control,signature=signature,
     n_cores=n_cores,pilot_elapsed=pilot_elapsed,fitting_elapsed=job_elapsed+harmony_elapsed,
     measurement_elapsed=unname(proc.time()[3]-diagnostic_started),diagnostics_elapsed=agreement_elapsed,checkpoint_file=cache,
     data_fingerprint=digest::digest(unname(X)),comparisons_per_cell=c(original=k0*(k0-1)/2,cross=k0*B),
     familyType='gaussVector',Cquali=Inf,pipeline_version=as.character(utils::packageVersion('CEClust')))
+  if(!is.null(regional))meta$agreement_cache <- CECstability_cache_summary(stability_cache)
   out <- CECgrid_compatible_output(X,g,pool,final,winners,list(),boots,meta)
   out$measurements <- measurements
   out$executions <- do.call(rbind,executions)
@@ -333,7 +340,7 @@ CECfit_adaptive_cem <- function(X,initial,o,k0,B,r0,Nshots_fresh,Nloop,algo_seed
     final_refinement_status=final_pick$status,final_refinement_pending=refinement_pending,
     screening=if(is.null(regional))list(coverage=plan$table,quadrants=plan$quadrants,rejected=plan$rejected,audit_state=audit) else NULL,
     components=if(is.null(regional))NULL else regional[names(regional)!='measurements'],
-    completed=all(m$observed) && stop_reason%in%c('no_frontiers','adaptive_stable') &&
+    completed=all(m$observed[c(if(o$extend_left)'left','right','lower','upper')]) && stop_reason%in%c('no_frontiers','adaptive_stable') &&
       final_pick$status%in%c('no_frontiers','adaptive_stable'))
   out$meta$elapsed <- unname(proc.time()[3]-started)
   class(out) <- c('CEC_adaptive_grid',class(out))

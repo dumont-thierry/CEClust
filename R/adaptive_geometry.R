@@ -50,7 +50,7 @@ ceca_border <- function(mesh) {
 ceca_margins <- function(mesh,parts,tau) {
   s<-vapply(parts,`[[`,0,'saturation');K<-vapply(parts,`[[`,0L,'K');b<-ceca_border(mesh)
   terminal<-K==1L | s>tau
-  okay<-c(left=all(terminal[b$left]),right=all(terminal[b$right]),
+  okay<-c(left=all(s[b$left]>tau),right=all(terminal[b$right]),
     lower=all(s[b$lower]>tau),upper=all(K[b$upper]==1L))
   list(observed=okay,needs_extension=!okay,border=b)
 }

@@ -112,8 +112,12 @@ is active. It reports sensitivity to a concentration ceiling, not an absence
 of structure. A high agreement dominated by one large group can also hide
 variation in a few observations; inspect sizes and allocations.
 
-Before filtering, the grid also checks whether the best original execution
-disagrees with a better grid representative. A conditional bootstrap is run
+By default, the grid rejects a point if the best independent original execution
+agrees with its representative by less than `stab_algo_threshold`, even when
+Stab_algo and RSI pass. Component traversal continues; diagnostic values stay
+independent. Use `require_reference_agreement=FALSE` to disable this gate.
+
+With explicit `reference_bootstrap=TRUE`, a conditional bootstrap is run
 only if both raw independent diagnostics already pass their strict thresholds,
 agreement with the representative is below the algorithmic threshold, and the
 execution does not improve its score. The representative is then fixed,
@@ -121,7 +125,7 @@ algorithmic stability is one by construction, and each bootstrap receives one
 CEM descent from its projected labels. This conditional RSI measures agreement
 with that reference. Raw independent values remain in the `_raw` columns;
 `reference_bootstrap_applied` and `diagnostic_definition` identify the branch.
-Use `reference_bootstrap=FALSE` for independent-only diagnostics.
+The default `reference_bootstrap=FALSE` keeps independent-only diagnostics.
 
 ## Inspect retained organizations
 

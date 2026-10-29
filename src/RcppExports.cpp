@@ -325,7 +325,39 @@ BEGIN_RCPP
 END_RCPP
 }
 
+Rcpp::List bands_state_cpp(const arma::mat& X, const Rcpp::IntegerVector& labels,
+                          double C, double lambda);
+Rcpp::List bands_cem_cpp(const arma::mat& X, Rcpp::IntegerVector labels,
+                        double C, double lambda, int max_iter,
+                        double tolerance, double beta);
+
+RcppExport SEXP _CEClust_bands_state_cpp(SEXP XSEXP, SEXP labelsSEXP,
+                                            SEXP CSEXP, SEXP lambdaSEXP) {
+ BEGIN_RCPP
+ Rcpp::RNGScope scope;
+ return Rcpp::wrap(bands_state_cpp(Rcpp::as<arma::mat>(XSEXP),
+   Rcpp::as<Rcpp::IntegerVector>(labelsSEXP), Rcpp::as<double>(CSEXP),
+   Rcpp::as<double>(lambdaSEXP)));
+ END_RCPP
+}
+
+RcppExport SEXP _CEClust_bands_cem_cpp(SEXP XSEXP, SEXP labelsSEXP,
+                                          SEXP CSEXP, SEXP lambdaSEXP,
+                                          SEXP maxIterSEXP, SEXP toleranceSEXP,
+                                          SEXP betaSEXP) {
+ BEGIN_RCPP
+ Rcpp::RNGScope scope;
+ return Rcpp::wrap(bands_cem_cpp(Rcpp::as<arma::mat>(XSEXP),
+   Rcpp::as<Rcpp::IntegerVector>(labelsSEXP), Rcpp::as<double>(CSEXP),
+   Rcpp::as<double>(lambdaSEXP), Rcpp::as<int>(maxIterSEXP),
+   Rcpp::as<double>(toleranceSEXP), Rcpp::as<double>(betaSEXP)));
+ END_RCPP
+}
+
+
 static const R_CallMethodDef CallEntries[] = {
+    {"_CEClust_bands_state_cpp", (DL_FUNC) &_CEClust_bands_state_cpp, 4},
+    {"_CEClust_bands_cem_cpp", (DL_FUNC) &_CEClust_bands_cem_cpp, 7},
     {"_CEClust_cec_cpp_sample_int_replace", (DL_FUNC) &_CEClust_cec_cpp_sample_int_replace, 2},
     {"_CEClust_cec_cpp_choose_clusters", (DL_FUNC) &_CEClust_cec_cpp_choose_clusters, 2},
     {"_CEClust_cec_cpp_choose_clusters_from_logdens", (DL_FUNC) &_CEClust_cec_cpp_choose_clusters_from_logdens, 3},

@@ -32,9 +32,11 @@ CECadaptive_components <- function(state,eligible) {
   list(membership=membership,members=members,paths=paths,table=do.call(rbind,rows))
 }
 
-CECadaptive_component_diagnostics <- function(state,eligible,measure,algo_min,rsi_min,verbose=FALSE) {
+CECadaptive_component_diagnostics <- function(state,eligible,measure,algo_min,rsi_min,verbose=FALSE,
+  require_reference_agreement=FALSE) {
   plan <- CECadaptive_components(state,eligible);g <- state$mesh$leaves;M <- nrow(g)
   direct <- data.frame(Stab_algo=rep(NA_real_,M),Stab_boot=NA_real_,RSI=NA_real_)
+  agreement <- rep(NA_real_,M);reference_pass <- rep(!require_reference_agreement,M)
   measurements <- list();trials <- list()
   for(k in seq_along(plan$paths)) {
     path <- plan$paths[[k]]
@@ -42,11 +44,17 @@ CECadaptive_component_diagnostics <- function(state,eligible,measure,algo_min,rs
       i <- path[rank];z <- measure(i);d <- z$diagnostics
       direct[i,] <- c(d$Stab_algo,d$Stab_boot,d$RSI)
       measurements[[as.character(g$id[i])]] <- z
-      pass <- is.finite(d$Stab_algo) && d$Stab_algo>algo_min && is.finite(d$RSI) && d$RSI>rsi_min
+      diagnostic_pass <- is.finite(d$Stab_algo) && d$Stab_algo>algo_min && is.finite(d$RSI) && d$RSI>rsi_min
+      a <- z$reference_check$agreement
+      if(is.numeric(a) && length(a)==1L)agreement[i] <- a
+      reference_pass[i] <- !require_reference_agreement || (is.finite(agreement[i]) && agreement[i]>=algo_min)
+      pass <- diagnostic_pass && reference_pass[i]
       plan$table$attempts[k] <- rank
       trials[[length(trials)+1L]] <- data.frame(component=k,rank=rank,cell_id=g$id[i],
         distance_barycentre=sqrt((log(g$C[i])-plan$table$barycentre_logC[k])^2+
-          (g$lambda[i]-plan$table$barycentre_lambda[k])^2),accepted=pass)
+          (g$lambda[i]-plan$table$barycentre_lambda[k])^2),accepted=pass,
+        diagnostics_passed=diagnostic_pass,reference_agreement=agreement[i],reference_passed=reference_pass[i],
+        rejection_reason=if(pass)'ok' else if(!diagnostic_pass)'stability_or_rsi' else 'reference_disagreement')
       if(isTRUE(verbose))message('Component ',k,', cell ',g$id[i],': ',if(pass)'accepted' else 'next candidate')
       if(pass) {
         plan$table$status[k] <- 'accepted';plan$table$witness_cell_id[k] <- g$id[i];break
@@ -59,10 +67,12 @@ CECadaptive_component_diagnostics <- function(state,eligible,measure,algo_min,rs
   for(k in which(plan$table$status=='accepted')) {
     ii <- plan$members[[k]];id <- plan$table$witness_cell_id[k];j <- match(id,g$id)
     values[ii,] <- direct[rep(j,length(ii)),,drop=FALSE]
+    agreement[ii] <- agreement[j];reference_pass[ii] <- reference_pass[j]
     witness[ii] <- id;origin[ii] <- ifelse(g$id[ii]==id,'measured','component_witness')
   }
   list(values=values,direct=direct,measurements=measurements,witness=witness,origin=origin,
-    plan=plan,trials=if(length(trials))do.call(rbind,trials) else data.frame())
+    plan=plan,trials=if(length(trials))do.call(rbind,trials) else data.frame(),
+    require_reference_agreement=require_reference_agreement,reference_agreement=agreement,reference_pass=reference_pass)
 }
 
 CECadaptive_component_summary <- function(g,regional) {
@@ -77,8 +87,10 @@ CECadaptive_component_summary <- function(g,regional) {
   g$measurement_status <- ifelse(g$diagnostic_origin=='component_witness','component_witness',
     ifelse(g$measured,'measured',ifelse(g$component_status=='outside_measurement_policy',
       'outside_measurement_policy','component_not_tested')))
-  # Regional acceptance uses the two requested diagnostics. Raw agreement with
-  # the pilot is stored separately and is not an additional regional filter.
-  g$keep_harmonization <- TRUE
+  # The optional independent-reference gate participates in traversal and in
+  # selection, including directly measured points of exhausted components.
+  g$reference_agreement_required <- isTRUE(regional$require_reference_agreement)
+  g$selection_reference_agreement <- regional$reference_agreement
+  g$keep_harmonization <- regional$reference_pass
   g
 }

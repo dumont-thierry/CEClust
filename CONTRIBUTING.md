@@ -1,14 +1,16 @@
 # Maintaining CEClust
 
-This development source combines the corrected Gaussian core with explicit
-CEM and EM-bank entry points. Keep numerical changes and documentation changes
+This development source combines the adaptive-grid and candidate-band engines
+behind `CECdiagram`. Historical CEM and EM-bank entry points remain available.
+Keep numerical changes and documentation changes
 separate in review. The public interface is listed in `NAMESPACE`.
 
 ## Documentation sources
 
 - `man/*.Rd` is the maintained reference. Each exported function has its own
   page; the conceptual pages explain shared scoring, diagnostics and objects.
-- `README.Rmd` generates `README.md` with `rmarkdown::render()`.
+- `README.md` is maintained directly for the common interface.
+- `vignettes/unified-methods.Rmd` describes both methods and their defaults.
 - `vignettes/intro.Rmd` is the executed introductory analysis.
 - `vignettes/minimal-api.Rmd` covers controls and reproducibility.
 - `vignettes/migration.Rmd` explains historical behavior.
@@ -27,7 +29,7 @@ testthat, knitr, rmarkdown and Pandoc available:
 
 ```sh
 R CMD build CEClust
-R CMD check --no-manual CEClust_0.3.0.9008.tar.gz
+R CMD check --no-manual CEClust_0.4.0.9000.tar.gz
 ```
 
 Do not disable vignette building for a distribution. The introductory and
@@ -49,6 +51,14 @@ checkpoint reuse and budget-stop reporting when changing it. Fixed-grid and
 legacy compatibility behaviour must remain available.
 
 ## Engine boundaries and protocol tests
+
+`diagram.R` owns the common interface, its budget profiles and the automatic
+initial grid. `CECinitialGrid` uses the full-sample Gaussian ML peak as Cmin
+and centres `2^(1:10)*Cmin`. The common adaptive interface disables left
+extension. Direct historical interfaces keep their defaults. `bands_*.R`
+contains the candidate-band engine and its separate optional cleanup. Do not
+silently transfer one engine's diagnostic rules to the other. `tests/unified.R`
+covers dispatch, initialization, checkpoint use and parallel execution.
 
 `minimal_api.R` selects the public route. `adaptive_grid.R` validates the
 adaptive request and dispatches CEM to `adaptive_cem.R`. The remaining adaptive
@@ -81,16 +91,23 @@ phase and input data of actual fitting calls, as well as their outputs.
 ## Regional and reference-bootstrap branches
 
 `component_diagnostics.R` owns geometry, barycentric ordering and first-success
-stopping. `reference_bootstrap.R` owns the three-condition check and exactly one
-CEM descent per projected reference bootstrap. The check runs before filtering
-at every measured point, not only at retained witnesses. These are explicit
+stopping. By default, raw independent diagnostics must pass and the best of the
+L original-data outputs must agree with the frozen reference by at least the
+algorithmic threshold. Otherwise continue the traversal without replacing the
+raw diagnostic values. Test both disagreement directions and score equality.
+The gate is optional and applies to selection and plotting, including failed
+direct points of exhausted components. `reference_bootstrap.R` owns this shared
+gate and the optional conditional alternative with exactly one CEM descent per
+projected reference bootstrap. The conditional check runs before filtering
+at every measured point only when explicitly enabled. These are explicit
 changes to the diagnostics; preserve raw independent outputs and comparisons.
 The first condition requires both raw Stab_algo and raw RSI to strictly exceed
 their respective configured thresholds. Forward rsi_threshold from every caller;
 never test a previously corrected value or use a fixed default instead of the
 user's cutoff. Missing values or equality with either cutoff do not pass.
 The component strategy freezes the pilot. It must not inject campaign winners
-or add a saturation/A_harm acceptance filter. Saturation still gates candidate
+or substitute another score condition for the configured reference agreement.
+Saturation still gates candidate
 measurement and masks final display. Pointwise and regional provenance must
 survive selection, extraction, compaction and plotting.
 
@@ -98,7 +115,10 @@ Test equal-order distinct partitions, disconnected regions, unequal cell
 areas, raw axis distances, saturation gating, early stop, all three trigger
 conditions (including boundaries), penalized scores, one descent/no random
 starts, frozen projection, and serial/parallel/partial resume equivalence.
-Keep the cell strategy and independent-only option as regression baselines.
+Keep the cell strategy, gate-disabled independent option and conditional option
+as regression baselines. The shared agreement cache must preserve every pair
+array, metric, ordering, random draw and threshold decision. Cache keys must
+identify actual partitions across cells, not cell-local winner indices.
 
 
 ## Numeric CEM kernel
